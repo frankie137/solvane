@@ -95,10 +95,11 @@ function logProgress(task: string | { message: string; status: string }) {
 /** 把白名单、密钥这类常见失败翻译成可操作的提示 */
 function explain(err: unknown): never {
   const message = err instanceof Error ? err.message : String(err)
-  if (/ip/i.test(message) && /white|invalid|not in/i.test(message)) {
+  // 用单词边界匹配，避免 zip、description 之类的词误判
+  if (/白名单|\bip\b.*\b(white ?list|invalid|not in)\b|\b(white ?list)\b.*\bip\b/i.test(message)) {
     fail(`当前 IP 不在白名单里，请到公众平台的代码上传设置里添加。\n  原始信息：${message}`)
   }
-  if (/private ?key|privatekey|签名|sign/i.test(message)) {
+  if (/private ?key|签名|\bsignature\b/i.test(message)) {
     fail(`代码上传密钥无效或已重置，请重新生成并下载。\n  原始信息：${message}`)
   }
   fail(message)
