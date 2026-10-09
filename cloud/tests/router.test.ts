@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppError } from '../src/lib/errors'
 import { createRouter } from '../src/lib/router'
-import { handlers } from '../src/functions/data/handlers'
+import { createDataHandlers } from '../src/functions/data/handlers'
+import { createMemoryRepos } from './support/memory-repos'
+
+const handlers = createDataHandlers({ repos: createMemoryRepos(), now: () => 1000 })
 
 const withUser = () => ({ openid: 'o_test', appid: 'wx_test' })
 
@@ -53,6 +56,7 @@ describe('createRouter', () => {
     const main = createRouter(
       'data',
       {
+        ...handlers,
         async ping() {
           throw new AppError('NOT_CONFIGURED', '还没有配置大模型')
         },
@@ -71,6 +75,7 @@ describe('createRouter', () => {
     const main = createRouter(
       'data',
       {
+        ...handlers,
         async ping() {
           throw new Error('secret=sk-123 leaked')
         },
