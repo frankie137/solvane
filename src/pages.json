@@ -22,6 +22,24 @@
   },
   "subPackages": [
     {
+      "root": "pkg-session",
+      "pages": [
+        {
+          "path": "session/index",
+          "style": {}
+        }
+      ]
+    },
+    {
+      "root": "pkg-settings",
+      "pages": [
+        {
+          "path": "llm/index",
+          "style": {}
+        }
+      ]
+    },
+    {
       "root": "pkg-dev",
       "pages": [
         {
@@ -30,5 +48,11 @@
         }
       ]
     }
-  ]
+  ],
+  "preloadRule": {
+    "pages/index/index": {
+      "network": "all",
+      "packages": ["pkg-session"]
+    }
+  }
 }

@@ -47,3 +47,14 @@ export async function callCloud<F extends FunctionName, A extends ActionName<F>>
   }
   return raw.data as ActionRes<F, A>
 }
+
+/** 上传本地临时文件到云存储，返回 fileID */
+export async function uploadFile(filePath: string, cloudPath: string): Promise<string> {
+  ensureCloud()
+  try {
+    const res = await wx.cloud.uploadFile({ cloudPath, filePath })
+    return res.fileID
+  } catch (err) {
+    throw toCloudError(err)
+  }
+}

@@ -139,12 +139,20 @@ flowchart LR
 
 ### 云函数划分
 
-| 云函数    | 职责                                           | 超时 |
-| --------- | ---------------------------------------------- | ---- |
-| `compose` | 中文润色、英文生成、解析、多轮修改             | 60s  |
-| `speech`  | 中文语音识别、示范朗读合成（含缓存）           | 20s  |
-| `assess`  | 背诵评测流水线、练习记录管理                   | 60s  |
-| `data`    | 对话、文件夹、标签、设置、分享、用户的增删改查 | 10s  |
+| 云函数    | 职责                                                                    | 超时 | 状态  |
+| --------- | ----------------------------------------------------------------------- | ---- | ----- |
+| `compose` | 新建对话、生成、修改、解析；大模型配置（读取 / 保存 / 清除 / 测试连接） | 60s  | ✅ M1 |
+| `speech`  | 中文语音识别（识别后删除录音）；M2 加示范朗读合成                       | 20s  | ✅ M1 |
+| `data`    | 学习偏好、对话读取、最近对话、切换版本；M3 起加文件夹、标签、分享       | 10s  | ✅ M1 |
+| `assess`  | 背诵评测流水线、练习记录管理                                            | 60s  | 📋 M2 |
+
+函数内部按 `action` 字段分发，所有 action 的入参和出参登记在 `shared/api.ts`。
+
+--------- | ---------------------------------------------- | ---- |
+| `compose` | 中文润色、英文生成、解析、多轮修改 | 60s |
+| `speech` | 中文语音识别、示范朗读合成（含缓存） | 20s |
+| `assess` | 背诵评测流水线、练习记录管理 | 60s |
+| `data` | 对话、文件夹、标签、设置、分享、用户的增删改查 | 10s |
 
 函数内部按 `action` 字段分发，函数数量保持精简。
 
@@ -161,8 +169,8 @@ solvane/
 │   │   ├── index.vue             #   tab 切换与过渡动画，支持 ?tab= 直达
 │   │   └── tabs/                 #   练习 / 收藏 / 我的
 │   ├── pkg-dev/                  # 分包：组件预览（仅开发版可见）
-│   ├── pkg-session/              # 分包（规划 M1）：对话详情、修改、版本切换
-│   ├── pkg-settings/             # 分包（规划 M1）：设置、大模型配置
+│   ├── pkg-session/              # 分包：对话详情（逐句对照、解析、版本切换、修改栏）
+│   ├── pkg-settings/             # 分包：大模型配置（含管理员的全局默认）
 │   ├── pkg-recite/               # 分包（规划 M2）：背诵录音、评分报告、练习记录
 │   ├── pkg-share/                # 分包（规划 M4）：歌词播放页
 │   ├── components/sv-*/          # 基础组件：导航栏、tab 栏、按钮、卡片、列表、骨架屏、图标
@@ -174,10 +182,11 @@ solvane/
 │   ├── utils/                    # 纯函数工具
 │   └── App.vue / main.ts / pages.json / manifest.json / theme.json
 ├── cloud/                        # 云函数源码（TypeScript）
-│   ├── src/functions/<name>/     #   index.ts 入口 + handlers.ts 业务（M0 已有 data）
-│   ├── src/lib/                  #   路由、错误；后续加大模型、腾讯云、数据库、加密
-│   └── tests/                    #   云函数单元测试
-├── shared/                       # 前后端共用：接口约定（api.ts）、统一返回结构（result.ts）
+│   ├── src/functions/<name>/     #   index.ts 入口（接线真实依赖）+ handlers.ts 业务
+│   ├── src/lib/                  #   路由、数据访问、大模型客户端、加密、URL 校验
+│   ├── src/prompts/              #   提示词模板
+│   └── tests/                    #   单元测试（内存数据库 + 假大模型）
+├── shared/                       # 前后端共用：接口约定、业务类型、常量、统一返回结构
 ├── scripts/
 │   ├── build-cloud.ts            #   用 esbuild 把云函数打包到 cloudfunctions/
 │   ├── mp-ci.ts                  #   预览二维码、上传体验版、部署云函数（miniprogram-ci）
@@ -237,22 +246,35 @@ solvane/
 
 多轮修改时，把当前版本和修改要求一起发给大模型，生成新版本后同样再补一次解析。
 
-### 3. 大模型配置
+### 3. 生成任务与超时
+
+小程序端调用云函数大约 15 秒就不再等待，而大模型生成可能更久，因此：
+
+- 生成类请求（生成 / 修改 / 解析）的结果**先写入数据库**；前端等不到返回时，改为每 2 秒查询一次对话状态，最多等 70 秒。
+- 每个对话同时只运行一个任务，用数据库的条件更新加锁；运行超过 70 秒的任务视为中断，允许重新发起。
+- 任务失败时把错误码和提示写进对话的 `lastError`，轮询的一方也能拿到同样的错误。
+- 单个任务的预算是 55 秒（云函数超时 60 秒，留 5 秒读写数据库），大模型请求和重试都在预算内完成。
+
+### 4. 大模型配置
 
 - 所有国内主流服务商都提供 OpenAI 兼容接口，因此只实现一个通用客户端，靠"接口地址 + 模型名"切换服务商。
 - 读取顺序：成员自己的配置 → 管理员设置的全局默认 → 未配置时提示去设置。
-- API Key 用 AES-GCM 加密后存库，加密密钥放在云函数环境变量；前端只能看到 `sk-****abcd` 这样的打码值。
+- API Key 用 AES-256-GCM 加密后存库，加密密钥放在云函数环境变量；前端只能看到 `sk-****abcd` 这样的打码值。
+- 接口地址只允许 https 的公网域名，避免云函数被用来访问内网。
+- 服务商不支持 JSON 模式时自动去掉该参数重试；返回结果用 schema 校验，不合格时把问题反馈给模型修正一次。
+- 用户输入在提示词里明确标注为"待处理的内容"，不当作指令执行。
 - 管理员身份由云函数环境变量 `ADMIN_OPENIDS` 指定。
 
-### 4. 歌词播放页
+### 5. 歌词播放页
 
 - 每句的中英对应在生成英文时就由大模型按句给出，存在版本数据里。
 - 时间轴：用评测第 ③ 步的单词时间位置，按第 ② 步的对齐结果映射到每句原文，得到每句的起止时间；映射失败时按词数比例估算。
 - 分享时生成一份**快照**（句子、时间轴、录音、分享者昵称头像），之后修改对话不影响已分享的内容。
 - 录音文件存私有云存储，打开分享页时由云函数换取临时链接。
 
-### 5. 录音文件的清理规则
+### 6. 录音文件的清理规则
 
+- 语音输入的录音只用于识别，识别后立即删除。
 - 练习记录满 3 条后，最旧的一条被删除；如果它的录音没有被任何分享快照引用，录音文件一起删除，否则保留。
 - 删除分享时，若录音已不被任何练习记录或分享引用，则删除录音文件。
 
@@ -262,31 +284,36 @@ solvane/
 
 所有集合的权限均为"仅云函数可读写"。`_openid` 为数据所属用户。
 
-| 集合        | 主要字段                                                                                                                                                                                       |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `users`     | `_id`(openid)、`nickname`、`avatarUrl`、`createdAt`                                                                                                                                            |
-| `settings`  | `_id`(openid 或 `__global__`)、`level`、`accent`、`ttsVoice`、`ttsSpeed`、`llm{preset, baseUrl, model, apiKeyCipher, apiKeyMask}`                                                              |
-| `sessions`  | `_openid`、`title`、`input{mode, rawText, audioFileID}`、`polishedZh`、`versions[]`、`currentVid`、`folderId`、`tags[]`、`createdAt`、`updatedAt`                                              |
-| `practices` | `_openid`、`sessionId`、`vid`、`audioFileID`、`durationMs`、`scores{overall, pronunciation, fluency, content, expression}`、`diffs[]`、`words[]`、`sentenceTimings[]`、`feedback`、`createdAt` |
-| `folders`   | `_openid`、`name`、`parentId`、`depth`(1–3)、`order`                                                                                                                                           |
-| `shares`    | `_id`(shareId)、`_openid`、`sessionId`、`practiceId`、`snapshot{sentences, timings, audioFileID, author}`、`createdAt`                                                                         |
+| 集合        | 主要字段                                                                                                                                                                                       | 状态  |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `settings`  | `_id`(openid 或 `__global__`)、`level`、`accent`、`llm{preset, baseUrl, model, apiKeyCipher, apiKeyMask, updatedAt}`；M2 加 `ttsVoice`、`ttsSpeed`                                             | ✅ M1 |
+| `sessions`  | `_openid`、`title`、`input{mode, rawText}`、`polishedZh`、`versions[]`、`currentVid`、`job`、`lastError`、`folderId`、`tags[]`、`createdAt`、`updatedAt`                                       | ✅ M1 |
+| `practices` | `_openid`、`sessionId`、`vid`、`audioFileID`、`durationMs`、`scores{overall, pronunciation, fluency, content, expression}`、`diffs[]`、`words[]`、`sentenceTimings[]`、`feedback`、`createdAt` | M2    |
+| `folders`   | `_openid`、`name`、`parentId`、`depth`(1–3)、`order`                                                                                                                                           | M3    |
+| `shares`    | `_id`(shareId)、`_openid`、`sessionId`、`practiceId`、`snapshot{sentences, timings, audioFileID, author}`、`createdAt`                                                                         | M4    |
 
-`sessions.versions[]` 的每一项：
+集合在第一次写入时由云函数自动创建。建议在云开发控制台把集合权限设为"所有用户不可读写"，所有访问都经云函数。
+
+`sessions` 的任务字段：
+
+- `job`：正在运行的任务 `{ kind: 'generate' | 'revise' | 'analyze', vid, startedAt }`，没有任务时为 `null`
+- `lastError`：最近一次失败 `{ kind, vid, code, message, at }`，成功后清空
+
+`sessions.versions[]` 的每一项（类型定义见 `shared/types.ts`）：
 
 ```ts
 {
-  vid: string
-  instruction?: string            // 本次修改要求，首版为空
+  vid: string                     // v1、v2……
+  instruction: string | null      // 本次修改要求，第一版为 null
   en: string                      // 英文主推版全文
   sentences: { en: string; zh: string }[]
-  alternatives: string[]          // 备选说法
-  analysis?: {                    // 第二段生成，可能稍后才有
+  alternatives: { label: string; en: string }[]   // 其他说法，label 描述语气
+  analysis: {                     // 第二段生成，生成前为 null
     keyPhrases: { phrase: string; meaning: string; usage: string; example: string }[]
     slang: { phrase: string; meaning: string; register: string; region: string }[]
     culture: { topic: string; note: string }[]
     chinglish: { literal: string; natural: string; why: string }[]
-  }
-  ttsFileID?: string              // 示范朗读缓存
+  } | null
   createdAt: number
 }
 ```
@@ -323,16 +350,31 @@ solvane/
 | 腾讯云 语音合成             | 示范朗读                         | 按量   |
 | 国内大模型（任选）          | 润色、翻译、解析、修改、评测分析 | 按量   |
 
-### 云函数环境变量
+### 云函数配置
 
-在云开发控制台配置，**不进入代码仓库**：
+部署后在云开发控制台为每个函数设置超时和环境变量，**密钥不进入代码仓库**：
 
-| 变量                                       | 说明                                         |
-| ------------------------------------------ | -------------------------------------------- |
+| 云函数    | 超时 | 环境变量                                                                                                                         |
+| --------- | ---- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `compose` | 60s  | `KEY_ENCRYPTION_SECRET`：加密 API Key 用的随机字符串（至少 16 位，设好后不要改）；`ADMIN_OPENIDS`：管理员用户 ID，多个用逗号分隔 |
+| `speech`  | 20s  | `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY`：腾讯云子账号密钥，只授权语音识别（M2 加评测、合成）                                  |
+| `data`    | 10s  | 无                                                                                                                               |
+
+生成随机的 `KEY_ENCRYPTION_SECRET`：
+
+```bash
+openssl rand -base64 32
+```
+
+用户 ID 可以在小程序「我的 → 用户 ID」点一下复制。
+
+另外需要在公众平台「设置 → 服务内容声明 → 用户隐私保护指引」中声明使用麦克风，否则无法录音。
+
+------------------------------------------ | -------------------------------------------- |
 | `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY` | 腾讯云子账号密钥，只授权识别、评测、合成三项 |
-| `SOE_APP_ID`                               | 口语评测（新版）的应用 ID                    |
-| `KEY_ENCRYPTION_SECRET`                    | 加密大模型 API Key 用的密钥                  |
-| `ADMIN_OPENIDS`                            | 管理员 openid，多个用逗号分隔                |
+| `SOE_APP_ID` | 口语评测（新版）的应用 ID |
+| `KEY_ENCRYPTION_SECRET` | 加密大模型 API Key 用的密钥 |
+| `ADMIN_OPENIDS` | 管理员 openid，多个用逗号分隔 |
 
 ---
 

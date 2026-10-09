@@ -22,16 +22,18 @@
             <view class="hero__ring hero__ring--late" />
             <view
               class="hero__mic"
-              hover-class="is-pressed"
-              :hover-stay-time="80"
-              @tap="comingSoon"
+              :class="{ 'is-active': recorder.recording.value }"
+              @touchstart.stop="onPress"
+              @touchmove.stop.prevent="onMove"
+              @touchend="onRelease"
+              @touchcancel="onTouchCancel"
             >
               <sv-icon name="mic.fill" :size="34" color="var(--sv-text-on-accent)" :weight="2" />
             </view>
           </view>
           <text class="hero__hint sv-footnote sv-secondary">按住说话 · 最长 60 秒</text>
 
-          <sv-button type="secondary" size="sm" @click="comingSoon">
+          <sv-button type="secondary" size="sm" @click="openTextInput">
             <sv-icon name="keyboard" :size="18" />
             <text>打字输入</text>
           </sv-button>
@@ -40,31 +42,151 @@
 
       <view class="section">
         <text class="section__title sv-title-3">最近对话</text>
-        <sv-card :padding="24">
-          <view class="empty">
-            <view class="empty__icon">
-              <sv-icon name="sparkles" :size="26" />
-            </view>
-            <text class="sv-headline">还没有对话</text>
-            <text class="sv-subhead sv-secondary">说出第一段话，这里会记录你的每一次练习。</text>
-          </view>
-        </sv-card>
+        <recent-list
+          :items="sessionsStore.recent"
+          :loaded="sessionsStore.loaded"
+          :error="sessionsStore.error"
+          @open="openSession"
+          @retry="sessionsStore.refresh()"
+        />
       </view>
     </view>
 
     <view :style="bottomInset" />
   </scroll-view>
+
+  <recording-overlay
+    :visible="recorder.recording.value"
+    :levels="recorder.levels.value"
+    :elapsed-ms="recorder.elapsedMs.value"
+    :cancel-armed="cancelArmed"
+  />
+
+  <compose-sheet
+    v-model:show="sheet.show"
+    v-model:text="sheet.text"
+    :mode="sheet.mode"
+    :phase="sheet.phase"
+    :error-message="sheet.error"
+    :submitting="sheet.submitting"
+    @submit="submit"
+    @switch-to-text="openTextInput"
+  />
 </template>
 
 <script setup lang="ts">
+import { reactive, ref, watch } from 'vue'
+import type { InputMode } from '@shared/types'
 import { useCollapsingTitle } from '@/composables/useCollapsingTitle'
+import { useRecorder, type RecordingResult } from '@/composables/useRecorder'
 import { useTabBarInset } from '@/composables/useTabBarInset'
+import { callCloud, CloudError, uploadFile } from '@/services/cloud'
+import { createSession } from '@/services/sessions'
+import { useSessionsStore } from '@/stores/sessions'
+import ComposeSheet, { type ComposePhase } from '../components/ComposeSheet.vue'
+import RecentList from '../components/RecentList.vue'
+import RecordingOverlay from '../components/RecordingOverlay.vue'
 
 const { collapsed, onScroll } = useCollapsingTitle()
 const bottomInset = useTabBarInset()
+const sessionsStore = useSessionsStore()
 
-function comingSoon() {
-  uni.showToast({ title: '语音输入将在 M1 开放', icon: 'none' })
+/** 手指上滑超过这个距离进入"松开取消"状态 */
+const CANCEL_DISTANCE = 80
+
+const sheet = reactive<{
+  show: boolean
+  mode: InputMode
+  phase: ComposePhase
+  text: string
+  error: string
+  submitting: boolean
+}>({ show: false, mode: 'voice', phase: 'editing', text: '', error: '', submitting: false })
+
+/** 每次识别的编号：面板关掉或重新开始后，旧的识别结果直接丢弃 */
+let recognizeToken = 0
+
+watch(
+  () => sheet.show,
+  (show) => {
+    if (!show) recognizeToken++
+  },
+)
+
+const recorder = useRecorder(recognize)
+const cancelArmed = ref(false)
+let touchStartY = 0
+
+type TouchLike = { touches: { clientY: number }[] }
+
+function onPress(e: TouchLike) {
+  touchStartY = e.touches[0]?.clientY ?? 0
+  cancelArmed.value = false
+  void recorder.start()
+}
+
+function onMove(e: TouchLike) {
+  if (!recorder.recording.value) return
+  const armed = touchStartY - (e.touches[0]?.clientY ?? touchStartY) > CANCEL_DISTANCE
+  if (armed !== cancelArmed.value) {
+    cancelArmed.value = armed
+    uni.vibrateShort({ type: 'light', fail: () => {} })
+  }
+}
+
+function onRelease() {
+  recorder.stop(cancelArmed.value)
+  cancelArmed.value = false
+}
+
+function onTouchCancel() {
+  recorder.stop(true)
+  cancelArmed.value = false
+}
+
+async function recognize(result: RecordingResult) {
+  const token = ++recognizeToken
+  Object.assign(sheet, { show: true, mode: 'voice', phase: 'recognizing', text: '', error: '' })
+  try {
+    const cloudPath = `voice-input/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.pcm`
+    const fileID = await uploadFile(result.tempFilePath, cloudPath)
+    const { text } = await callCloud('speech', 'recognize', { fileID })
+    if (token !== recognizeToken) return
+    Object.assign(sheet, { phase: 'editing', text })
+  } catch (err) {
+    if (token !== recognizeToken) return
+    Object.assign(sheet, {
+      phase: 'error',
+      error: err instanceof CloudError ? err.message : '识别失败，请重试',
+    })
+  }
+}
+
+function openTextInput() {
+  recognizeToken++
+  Object.assign(sheet, { show: true, mode: 'text', phase: 'editing', text: '', error: '' })
+}
+
+async function submit() {
+  const text = sheet.text.trim()
+  if (!text || sheet.submitting) return
+  sheet.submitting = true
+  try {
+    const id = await createSession(sheet.mode, text)
+    sheet.show = false
+    openSession(id)
+  } catch (err) {
+    uni.showToast({
+      title: err instanceof CloudError ? err.message : '创建失败，请重试',
+      icon: 'none',
+    })
+  } finally {
+    sheet.submitting = false
+  }
+}
+
+function openSession(id: string) {
+  uni.navigateTo({ url: `/pkg-session/session/index?id=${encodeURIComponent(id)}` })
 }
 </script>
 
@@ -110,10 +232,13 @@ function comingSoon() {
   justify-content: center;
   background-image: var(--sv-accent-gradient);
   box-shadow: 0 10px 30px var(--sv-accent-glow);
-  transition: transform var(--sv-dur-2) var(--sv-ease-spring);
+  transition:
+    transform var(--sv-dur-2) var(--sv-ease-spring),
+    box-shadow var(--sv-dur-2) var(--sv-ease);
 
-  &.is-pressed {
-    transform: scale(0.94);
+  &.is-active {
+    transform: scale(1.08);
+    box-shadow: 0 14px 40px var(--sv-accent-glow);
   }
 }
 
@@ -143,26 +268,6 @@ function comingSoon() {
 .section__title {
   display: block;
   margin: 0 4px 12px;
-}
-
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  text-align: center;
-}
-
-.empty__icon {
-  width: 52px;
-  height: 52px;
-  margin-bottom: 6px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--sv-accent);
-  background-color: var(--sv-accent-soft);
 }
 
 @keyframes sv-breathe {
