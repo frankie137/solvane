@@ -18,6 +18,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke": "pnpm build && tsx scripts/smoke.ts",
+    "preview": "pnpm build && tsx scripts/mp-ci.ts preview",
+    "upload": "pnpm build && tsx scripts/mp-ci.ts upload",
+    "deploy:cloud": "pnpm build:cloud && tsx scripts/mp-ci.ts deploy-cloud",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm build:cloud"
   },
   "dependencies": {
@@ -42,6 +45,7 @@
     "globals": "^17.13.0",
     "miniprogram-api-typings": "^5.2.3",
     "miniprogram-automator": "^0.12.1",
+    "miniprogram-ci": "^2.1.31",
     "prettier": "^3.9.9",
     "sass": "~1.77.8",
     "tsx": "^4.23.15",

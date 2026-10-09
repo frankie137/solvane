@@ -5,7 +5,18 @@ import prettier from 'eslint-config-prettier'
 import globals from 'globals'
 
 export default tseslint.config(
-  { ignores: ['dist/', 'cloudfunctions/', 'coverage/', '.smoke/', 'node_modules/', 'src/static/'] },
+  {
+    ignores: [
+      'dist/',
+      'cloudfunctions/',
+      'coverage/',
+      '.smoke/',
+      '.ci/',
+      '.keys/',
+      'node_modules/',
+      'src/static/',
+    ],
+  },
 
   js.configs.recommended,
   ...tseslint.configs.recommended,

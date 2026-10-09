@@ -180,6 +180,7 @@ solvane/
 ├── shared/                       # 前后端共用：接口约定（api.ts）、统一返回结构（result.ts）
 ├── scripts/
 │   ├── build-cloud.ts            #   用 esbuild 把云函数打包到 cloudfunctions/
+│   ├── mp-ci.ts                  #   预览二维码、上传体验版、部署云函数（miniprogram-ci）
 │   └── smoke.ts                  #   冒烟测试：驱动开发者工具逐页截图
 ├── docs/
 │   ├── REVIEW.md                 #   开发与审查流程、审查清单
@@ -383,24 +384,29 @@ pnpm dev
 
 然后用微信开发者工具打开**仓库根目录**（不是 `dist/`）。修改代码后自动重新编译。
 
-**部署云函数**
+**上传、预览、部署云函数（不用打开开发者工具）**
 
-```bash
-pnpm build:cloud
-```
+通过微信官方的 [miniprogram-ci](https://developers.weixin.qq.com/miniprogram/dev/devtools/ci.html) 完成，需要先准备代码上传密钥：
 
-在开发者工具的 `cloudfunctions/` 下，右键对应函数 →「上传并部署：云端安装依赖」。运行时选择 Node.js 18 或以上。
+1. 公众平台「管理 → 开发管理 → 开发设置 → 小程序代码上传」生成并下载密钥
+2. 放到 `.keys/private.<appid>.key`（已被 git 忽略），或用环境变量 `WX_PRIVATE_KEY_PATH` 指定
+3. 在同一处把本机公网 IP 加入白名单
+
+云函数运行时选择 Node.js 18 或以上；部署时依赖在云端安装。
 
 **常用命令**
 
-| 命令               | 作用                                                                |
-| ------------------ | ------------------------------------------------------------------- |
-| `pnpm dev`         | 开发构建（监听），输出到 `dist/mp-weixin`                           |
-| `pnpm build`       | 生产构建                                                            |
-| `pnpm build:cloud` | 打包云函数到 `cloudfunctions/`                                      |
-| `pnpm test`        | 单元测试                                                            |
-| `pnpm check`       | 提交前必跑：格式、规范、类型、测试、构建                            |
-| `pnpm smoke`       | 冒烟测试（开发者工具需已登录，并在「设置 → 安全设置」开启服务端口） |
+| 命令                          | 作用                                                                       |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `pnpm dev`                    | 开发构建（监听），输出到 `dist/mp-weixin`                                  |
+| `pnpm build`                  | 生产构建                                                                   |
+| `pnpm build:cloud`            | 打包云函数到 `cloudfunctions/`                                             |
+| `pnpm test`                   | 单元测试                                                                   |
+| `pnpm check`                  | 提交前必跑：格式、规范、类型、测试、构建                                   |
+| `pnpm smoke`                  | 冒烟测试（开发者工具需已登录，并在「设置 → 安全设置」开启服务端口）        |
+| `pnpm preview`                | 生成预览二维码 `.ci/preview.png`，手机扫码查看（管理员和开发者可用）       |
+| `pnpm upload`                 | 上传为开发版；首次在公众平台设为体验版，之后再上传会自动更新体验版         |
+| `pnpm deploy:cloud [函数名…]` | 打包并部署云函数，环境 ID 取自 `--env` 或 `.env.local` 的 `VITE_CLOUD_ENV` |
 
 ---
 

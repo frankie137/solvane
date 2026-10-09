@@ -2,8 +2,10 @@
 # uni-app 的编译器依赖未声明的传递依赖，需要平铺 node_modules
 shamefullyHoist: true
 allowBuilds:
+  '@swc/core': true
   core-js: false
   core-js-pure: false
   esbuild: true
+  less: false
   protobufjs: false
   vue-demi: true

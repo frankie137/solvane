@@ -17,6 +17,9 @@ pnpm build        # 生产构建
 pnpm build:cloud  # 打包云函数到 cloudfunctions/
 pnpm check        # 提交前必跑：格式、规范、类型、测试、构建
 pnpm smoke        # 冒烟测试（需要开发者工具已登录并开启服务端口）
+pnpm preview      # 生成预览二维码 .ci/preview.png
+pnpm upload       # 上传开发版 / 更新体验版
+pnpm deploy:cloud # 部署云函数（可跟函数名）
 ```
 
 微信开发者工具直接打开**仓库根目录**（根目录的 `project.config.json` 指向构建产物和云函数目录）。
@@ -42,6 +45,7 @@ pnpm smoke        # 冒烟测试（需要开发者工具已登录并开启服务
 ## 安全红线
 
 - 密钥只放云函数环境变量或加密存库；不进前端、仓库、日志
+- 小程序代码上传密钥放在 `.keys/`（已忽略），不要读取、打印或转存它的内容
 - 云函数日志不打印 payload
 - 所有数据访问都经云函数，并按 `OPENID` 校验归属
 
