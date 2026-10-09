@@ -22,6 +22,7 @@ pnpm smoke        # 冒烟测试：后台驱动开发者工具并自动隐藏窗
 pnpm preview      # 生成预览二维码 .ci/preview.png
 pnpm upload       # 上传开发版 / 更新体验版
 pnpm deploy:cloud # 部署云函数（可跟函数名）；IP 被白名单拦时用 pnpm deploy:cloud:devtools
+pnpm cloud:config # 把 .keys/cloud.env 写入各云函数的环境变量并设置超时
 ```
 
 微信开发者工具直接打开**仓库根目录**（根目录的 `project.config.json` 指向构建产物和云函数目录）。
@@ -47,7 +48,8 @@ pnpm deploy:cloud # 部署云函数（可跟函数名）；IP 被白名单拦时
 ## 安全红线
 
 - 密钥只放云函数环境变量或加密存库；不进前端、仓库、日志
-- 小程序代码上传密钥放在 `.keys/`（已忽略），不要读取、打印或转存它的内容
+- `.keys/` 里的文件（代码上传密钥、`cloud.env` 云函数密钥）**不要读取、打印或转存内容**，只通过脚本使用；脚本输出不能包含任何值
+- 新增云函数环境变量时：在 `cloud/src/function-config.ts` 声明，在 `cloud.env.example` 加说明，用 `pnpm cloud:config` 下发
 - 云函数日志不打印 payload
 - 所有数据访问都经云函数，并按 `OPENID` 校验归属
 

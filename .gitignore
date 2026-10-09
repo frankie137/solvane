@@ -10,9 +10,10 @@ coverage/
 .smoke/
 .ci/
 
-# 小程序代码上传密钥（绝不提交）
+# 密钥：代码上传密钥、云函数密钥（绝不提交）
 .keys/
 *.key
+cloud.env
 
 # 本地环境变量
 .env.local

@@ -23,6 +23,7 @@
     "upload": "pnpm build && tsx scripts/mp-ci.ts upload",
     "deploy:cloud": "pnpm build:cloud && tsx scripts/mp-ci.ts deploy-cloud",
     "deploy:cloud:devtools": "pnpm build:cloud && tsx scripts/mp-ci.ts deploy-cloud --via devtools",
+    "cloud:config": "tsx scripts/cloud-config.ts",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm build:cloud"
   },
   "dependencies": {
