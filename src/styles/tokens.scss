@@ -28,6 +28,15 @@ page {
   --sv-warning: #ff9f0a;
   --sv-danger: #ff3b30;
 
+  // 彩色图标底（参考 iOS 系统色），用于设置列表的图标方块
+  --sv-tint-indigo: #5856d6;
+  --sv-tint-blue: #007aff;
+  --sv-tint-orange: #ff9500;
+  --sv-tint-green: #34c759;
+  --sv-tint-cyan: #32ade6;
+  --sv-tint-purple: #af52de;
+  --sv-tint-gray: #8e8e93;
+
   // 阴影
   --sv-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
   --sv-shadow-float: 0 8px 32px rgba(0, 0, 0, 0.12);
@@ -43,6 +52,8 @@ page {
   --sv-dur-1: 200ms;
   --sv-dur-2: 300ms;
   --sv-dur-3: 450ms;
+  // 循环动画的播放状态；不在前台的 tab 会把它设为 paused，循环动画统一引用它
+  --sv-play: running;
 
   // 字体
   --sv-font:
@@ -74,6 +85,14 @@ page {
     --sv-success: #30d158;
     --sv-warning: #ffd60a;
     --sv-danger: #ff453a;
+
+    --sv-tint-indigo: #5e5ce6;
+    --sv-tint-blue: #0a84ff;
+    --sv-tint-orange: #ff9f0a;
+    --sv-tint-green: #30d158;
+    --sv-tint-cyan: #64d2ff;
+    --sv-tint-purple: #bf5af2;
+    --sv-tint-gray: #8e8e93;
 
     --sv-shadow-card: none;
     --sv-shadow-float: 0 8px 32px rgba(0, 0, 0, 0.5);

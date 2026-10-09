@@ -12,7 +12,7 @@
     <view class="me">
       <sv-card class="profile" :padding="20">
         <view class="profile__avatar">
-          <sv-icon name="person.fill" :size="30" color="#fff" />
+          <sv-icon name="person.fill" :size="30" color="var(--sv-text-on-accent)" />
         </view>
         <view class="profile__info">
           <text class="sv-headline">Solvane 用户</text>
@@ -21,20 +21,31 @@
       </sv-card>
 
       <sv-group header="学习偏好" footer="这些设置将在 M1 开放。">
-        <sv-cell title="英语水平" icon="graduation" icon-bg="#5e5ce6" value="即将开放" />
-        <sv-cell title="口音" icon="globe" icon-bg="#0a84ff" value="即将开放" />
-        <sv-cell title="示范朗读" icon="speaker" icon-bg="#ff9f0a" value="即将开放" />
+        <sv-cell
+          title="英语水平"
+          icon="graduation"
+          icon-bg="var(--sv-tint-indigo)"
+          value="即将开放"
+        />
+        <sv-cell title="口音" icon="globe" icon-bg="var(--sv-tint-blue)" value="即将开放" />
+        <sv-cell title="示范朗读" icon="speaker" icon-bg="var(--sv-tint-orange)" value="即将开放" />
         <sv-cell
           title="大模型配置"
           icon="sliders"
-          icon-bg="#34c759"
+          icon-bg="var(--sv-tint-green)"
           value="即将开放"
           :divider="false"
         />
       </sv-group>
 
       <sv-group header="关于">
-        <sv-cell title="云服务" icon="cloud" icon-bg="#64d2ff" clickable @click="checkCloud">
+        <sv-cell
+          title="云服务"
+          icon="cloud"
+          icon-bg="var(--sv-tint-cyan)"
+          clickable
+          @click="checkCloud"
+        >
           <template #value>
             <text class="me__status" :class="`is-${cloud.state}`">{{ cloudText }}</text>
           </template>
@@ -42,7 +53,7 @@
         <sv-cell
           title="版本"
           icon="info"
-          icon-bg="#8e8e93"
+          icon-bg="var(--sv-tint-gray)"
           :value="`v${version}`"
           :divider="showGallery"
         />
@@ -50,7 +61,7 @@
           v-if="showGallery"
           title="组件预览"
           icon="grid"
-          icon-bg="#bf5af2"
+          icon-bg="var(--sv-tint-purple)"
           arrow
           clickable
           :divider="false"

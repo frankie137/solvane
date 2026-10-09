@@ -3,13 +3,14 @@
  * 共享代码和第三方依赖都打进 index.js，云端只需安装 wx-server-sdk。
  */
 import {
+  copyFileSync,
   existsSync,
   mkdirSync,
+  readFileSync,
   readdirSync,
   rmSync,
   statSync,
   writeFileSync,
-  copyFileSync,
 } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { build } from 'esbuild'
@@ -20,7 +21,16 @@ const outDir = join(root, 'cloudfunctions')
 
 /** 云函数运行时选择 Node.js 18 及以上 */
 const NODE_TARGET = 'node18'
-const WX_SERVER_SDK_VERSION = '4.0.2'
+
+/** 云端安装的 wx-server-sdk 与本地类型检查用的版本保持一致 */
+function wxServerSdkVersion(): string {
+  const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
+    devDependencies?: Record<string, string>
+  }
+  const version = pkg.devDependencies?.['wx-server-sdk']
+  if (!version) throw new Error('package.json 的 devDependencies 里缺少 wx-server-sdk')
+  return version
+}
 
 function listFunctions(): string[] {
   return readdirSync(srcDir).filter((name) => {
@@ -29,8 +39,10 @@ function listFunctions(): string[] {
   })
 }
 
-async function buildFunction(name: string): Promise<void> {
+async function buildFunction(name: string, sdkVersion: string): Promise<void> {
   const fnOut = join(outDir, name)
+  // 每次都清空重建，避免源码里删掉的文件（如 config.json）残留在上传目录
+  rmSync(fnOut, { recursive: true, force: true })
   mkdirSync(fnOut, { recursive: true })
 
   await build({
@@ -51,7 +63,7 @@ async function buildFunction(name: string): Promise<void> {
     version: '1.0.0',
     private: true,
     main: 'index.js',
-    dependencies: { 'wx-server-sdk': WX_SERVER_SDK_VERSION },
+    dependencies: { 'wx-server-sdk': sdkVersion },
   }
   writeFileSync(join(fnOut, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`)
 
@@ -71,8 +83,9 @@ async function main(): Promise<void> {
     }
   }
 
+  const sdkVersion = wxServerSdkVersion()
   for (const name of names) {
-    await buildFunction(name)
+    await buildFunction(name, sdkVersion)
     console.info(`✓ cloudfunctions/${name}`)
   }
 }

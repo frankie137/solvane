@@ -33,8 +33,10 @@ pnpm smoke        # 冒烟测试（需要开发者工具已登录并开启服务
 ## 编码约定
 
 - **新增云函数接口**：先在 `shared/api.ts` 登记 action 的入参和出参，再在对应函数的 `handlers.ts` 实现，前端用 `callCloud()` 调用
+- **新增云函数**：入口只写 `export const main = createFunction('<name>', handlers)`（`cloud/src/lib/cloud.ts`），不要在各函数里重复初始化 SDK
 - **错误**：可预期的业务错误抛 `AppError`（message 是给用户看的中文）；其他异常由路由统一转成 `INTERNAL`
-- **样式**：只用 `src/styles/tokens.scss` 里的变量，不写死颜色和动效参数；深浅色都要检查
+- **样式**：只用 `src/styles/tokens.scss` 里的变量，不写死颜色和动效参数；深浅色都要检查。图标方块用 `--sv-tint-*`，强调色上的文字和图标用 `--sv-text-on-accent`
+- **循环动画**：加上 `animation-play-state: var(--sv-play)`，切到后台的 tab 会自动暂停
 - **状态更新**：滚动、录音、播放等高频回调里，只在值真正变化时更新响应式状态（参考 `useCollapsingTitle`）
 
 ## 安全红线
@@ -50,5 +52,8 @@ pnpm smoke        # 冒烟测试（需要开发者工具已登录并开启服务
 - `package.json` 不能设 `"type": "module"`，否则 uni 的 vite 插件加载失败
 - 小程序里对象写法的 `style` 会丢掉 `-webkit-` 前缀，需要前缀时拼字符串（见 `sv-icon`）
 - 组件里要用全局样式类（如 `.sv-headline`），需在 `defineOptions` 里设置 `styleIsolation: 'apply-shared'`
-- 云函数用 `import * as cloud from 'wx-server-sdk'`；`DYNAMIC_CURRENT_ENV` 的类型声明有误，需要断言
+- 云函数 SDK 要用 `import * as cloud from 'wx-server-sdk'`；`DYNAMIC_CURRENT_ENV` 的类型声明有误，已在 `lib/cloud.ts` 里统一断言
+- 原生 `button` 带 `disabled` 时会套用微信内置的灰色样式，优先级 (0,2,1)；`sv-button` 已覆盖，直接用原生按钮时要注意
+- 页面里的样式选择器进不了子组件（样式隔离），但 CSS 变量可以继承下去；需要跨组件控制样式时用变量
+- `wx.cloud.callFunction` 的 errMsg 都以 `cloud.callFunction:fail` 开头，按错误文案归类时正则不能宽松匹配 `function`
 - 云函数运行时请选择 Node.js 18 或以上

@@ -6,7 +6,7 @@
     @tap="onTap"
   >
     <view v-if="icon" class="sv-cell__icon" :style="`background:${iconBg}`">
-      <sv-icon :name="icon" :size="18" color="#fff" :weight="2" />
+      <sv-icon :name="icon" :size="18" color="var(--sv-text-on-accent)" :weight="2" />
     </view>
     <view class="sv-cell__main" :class="{ 'has-divider': divider }">
       <text class="sv-cell__title">{{ title }}</text>

@@ -30,7 +30,10 @@ export function createRouter<F extends FunctionName>(
     if (typeof action !== 'string' || !Object.prototype.hasOwnProperty.call(handlers, action)) {
       return fail('BAD_REQUEST', '不支持的操作')
     }
-    if (payload !== undefined && (typeof payload !== 'object' || payload === null)) {
+    if (
+      payload !== undefined &&
+      (typeof payload !== 'object' || payload === null || Array.isArray(payload))
+    ) {
       return fail('BAD_REQUEST', '请求参数不正确')
     }
 

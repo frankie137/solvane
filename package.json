@@ -14,7 +14,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p cloud/tsconfig.json && tsc --noEmit -p scripts/tsconfig.json",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.vitest.json && tsc --noEmit -p cloud/tsconfig.json && tsc --noEmit -p scripts/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke": "pnpm build && tsx scripts/smoke.ts",

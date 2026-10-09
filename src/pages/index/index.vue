@@ -65,6 +65,8 @@ onLoad((query) => {
   visibility: hidden;
   pointer-events: none;
   transform: scale(0.985);
+  // 后台 tab 里的循环动画暂停（CSS 变量能穿透组件边界继承下去）
+  --sv-play: paused;
   transition:
     opacity var(--sv-dur-2) var(--sv-ease),
     transform var(--sv-dur-3) var(--sv-ease),
@@ -76,6 +78,7 @@ onLoad((query) => {
     pointer-events: auto;
     transform: none;
     transition-delay: 0s;
+    --sv-play: running;
   }
 }
 </style>

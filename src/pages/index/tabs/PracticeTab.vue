@@ -20,7 +20,7 @@
           <view class="hero__ring" />
           <view class="hero__ring hero__ring--late" />
           <view class="hero__mic" hover-class="is-pressed" :hover-stay-time="80" @tap="comingSoon">
-            <sv-icon name="mic.fill" :size="34" color="#fff" :weight="2" />
+            <sv-icon name="mic.fill" :size="34" color="var(--sv-text-on-accent)" :weight="2" />
           </view>
         </view>
         <text class="hero__hint sv-footnote sv-secondary">按住说话 · 最长 60 秒</text>
@@ -116,6 +116,7 @@ function comingSoon() {
   border-radius: 50%;
   background-color: var(--sv-accent-soft);
   animation: sv-breathe 2.8s var(--sv-ease) infinite;
+  animation-play-state: var(--sv-play);
 }
 
 .hero__ring--late {

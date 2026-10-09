@@ -32,6 +32,7 @@ describe('createRouter', () => {
     ['未登记的 action', { action: 'drop' }],
     ['原型链上的属性名', { action: 'toString' }],
     ['payload 不是对象', { action: 'ping', payload: 'x' }],
+    ['payload 是数组', { action: 'ping', payload: ['a'] }],
   ])('拒绝非法请求：%s', async (_name, event) => {
     const main = createRouter('data', handlers, withUser)
     const result = await main(event)

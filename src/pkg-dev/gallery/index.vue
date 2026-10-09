@@ -34,7 +34,7 @@
           <sv-button size="sm" :loading="true">加载中</sv-button>
           <sv-button size="sm" :disabled="true">不可用</sv-button>
           <sv-button block haptic>
-            <sv-icon name="mic" :size="20" color="#fff" />
+            <sv-icon name="mic" :size="20" color="var(--sv-text-on-accent)" />
             <text>整行按钮</text>
           </sv-button>
         </view>
@@ -58,7 +58,7 @@
 
       <sv-group header="列表" footer="组内最后一项不显示分隔线。">
         <sv-cell title="带图标和箭头" icon="sliders" arrow clickable />
-        <sv-cell title="带取值" icon="globe" icon-bg="#0a84ff" value="美式" />
+        <sv-cell title="带取值" icon="globe" icon-bg="var(--sv-tint-blue)" value="美式" />
         <sv-cell title="纯文字" :divider="false" value="v0.0.0" />
       </sv-group>
     </view>

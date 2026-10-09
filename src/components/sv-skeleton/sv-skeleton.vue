@@ -47,6 +47,7 @@ const widths = computed(() =>
   );
   background-size: 300% 100%;
   animation: sv-shimmer 1.6s var(--sv-ease) infinite;
+  animation-play-state: var(--sv-play);
 }
 
 .sv-skeleton__line--title {

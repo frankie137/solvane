@@ -9,12 +9,27 @@ describe('toCloudError', () => {
       '云开发环境还没有开通',
     ],
     [
-      'cloud.callFunction:fail -404011 cloud function execution error | FunctionName parameter could not be found',
+      'cloud.callFunction:fail -404011 cloud function execution error | errMsg: FunctionName parameter could not be found',
       'NOT_CONFIGURED',
       '云函数还没有部署',
     ],
+    [
+      'cloud.callFunction:fail Error: errCode: -404011 cloud function execution error | errMsg: Invoking task timed out after 3 seconds',
+      'TIMEOUT',
+      '请求超时，请稍后再试',
+    ],
+    [
+      'cloud.callFunction:fail Error: errCode: -404011 cloud function execution error | errMsg: TypeError: x is not a function',
+      'UPSTREAM_ERROR',
+      '云函数执行出错，请稍后再试',
+    ],
     ['cloud.callFunction:fail request:fail timeout', 'TIMEOUT', '请求超时，请稍后再试'],
-    ['request:fail', 'NETWORK', '网络连接失败，请检查网络后重试'],
+    ['cloud.callFunction:fail request:fail', 'NETWORK', '网络连接失败，请检查网络后重试'],
+    [
+      'cloud.callFunction:fail -502005 database collection not exists',
+      'INTERNAL',
+      '云服务暂时不可用，请稍后再试',
+    ],
   ])('%s → %s', (errMsg, code, message) => {
     const e = toCloudError({ errMsg })
     expect(e).toBeInstanceOf(CloudError)
@@ -28,7 +43,7 @@ describe('toCloudError', () => {
   })
 
   it('非对象错误也能处理', () => {
-    expect(toCloudError('boom').code).toBe('NETWORK')
-    expect(toCloudError(undefined).code).toBe('NETWORK')
+    expect(toCloudError('boom').code).toBe('INTERNAL')
+    expect(toCloudError(undefined).code).toBe('INTERNAL')
   })
 })

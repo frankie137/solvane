@@ -108,11 +108,12 @@ function goBack() {
 
 .sv-nav__back {
   position: absolute;
-  left: 8px;
+  left: 4px;
   top: 0;
   display: flex;
   align-items: center;
-  padding: 0 8px;
+  justify-content: center;
+  min-width: 44px;
   color: var(--sv-accent);
   transition: opacity var(--sv-dur-1) var(--sv-ease);
 

@@ -127,6 +127,23 @@ function onTap() {
   color: var(--sv-accent);
 }
 
+// 微信内置样式 button[disabled]:not([type]) 会把文字改灰、背景改成 #f7f7f7，
+// 优先级是 (0,2,1)，这里用三个类选择器 (0,3,0) 盖回去
+.sv-btn.sv-btn--primary[disabled] {
+  color: var(--sv-text-on-accent);
+  background-color: transparent;
+}
+
+.sv-btn.sv-btn--secondary[disabled] {
+  color: var(--sv-accent);
+  background-color: var(--sv-fill);
+}
+
+.sv-btn.sv-btn--plain[disabled] {
+  color: var(--sv-accent);
+  background-color: transparent;
+}
+
 .sv-btn.is-loading .sv-btn__content {
   opacity: 0.6;
 }
@@ -139,6 +156,7 @@ function onTap() {
   border-top-color: transparent;
   border-radius: 50%;
   animation: sv-spin 0.8s linear infinite;
+  animation-play-state: var(--sv-play);
 }
 
 @keyframes sv-spin {
