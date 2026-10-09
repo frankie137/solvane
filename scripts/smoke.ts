@@ -3,16 +3,15 @@
  * 页面抛出未捕获异常时失败。截图保存在 .smoke/ 目录。
  *
  * 前置条件：开发者工具已登录，并在「设置 → 安全设置」中开启服务端口。
+ * 开发者工具在后台运行、窗口自动隐藏，测完恢复原状（见 scripts/devtools.ts）。
  * 运行：pnpm smoke（会先构建小程序）
  */
 import { mkdirSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import automator from 'miniprogram-automator'
+import { withQuietDevtools } from './devtools'
 
 const root = resolve(__dirname, '..')
 const outDir = join(root, '.smoke')
-const cliPath =
-  process.env.WECHAT_DEVTOOLS_CLI ?? '/Applications/wechatwebdevtools.app/Contents/MacOS/cli'
 
 interface Route {
   name: string
@@ -38,14 +37,13 @@ async function main(): Promise<void> {
   const exceptions: string[] = []
   const consoleErrors: string[] = []
 
-  const mp = await automator.launch({ cliPath, projectPath: root, trustProject: true })
-  mp.on('exception', (e: { message?: string }) => exceptions.push(e.message ?? String(e)))
-  mp.on('console', (msg: { type?: string; args?: unknown[] }) => {
-    if (msg.type === 'error') consoleErrors.push(JSON.stringify(msg.args))
-  })
-
   const failures: string[] = []
-  try {
+  await withQuietDevtools(root, async (mp) => {
+    mp.on('exception', (e: { message?: string }) => exceptions.push(e.message ?? String(e)))
+    mp.on('console', (msg: { type?: string; args?: unknown[] }) => {
+      if (msg.type === 'error') consoleErrors.push(JSON.stringify(msg.args))
+    })
+
     for (const route of ROUTES) {
       const page = await mp.reLaunch(route.url)
       if (!page || page.path !== route.path) {
@@ -56,9 +54,7 @@ async function main(): Promise<void> {
       await mp.screenshot({ path: join(outDir, `${route.name}.png`) })
       console.info(`✓ ${route.name}`)
     }
-  } finally {
-    await mp.close()
-  }
+  })
 
   failures.push(...exceptions.map((e) => `未捕获异常：${e}`))
   failures.push(...consoleErrors.map((e) => `console.error：${e}`))

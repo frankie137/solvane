@@ -19,7 +19,7 @@
           name="chevron.right"
           :size="16"
           :weight="2.2"
-          class="sv-cell__arrow"
+          color="var(--sv-text-3)"
         />
       </view>
     </view>
@@ -122,9 +122,5 @@ function onTap() {
   font-size: 17px;
   line-height: 22px;
   color: var(--sv-text-2);
-}
-
-.sv-cell__arrow {
-  color: var(--sv-text-3);
 }
 </style>

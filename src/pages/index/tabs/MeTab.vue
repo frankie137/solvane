@@ -10,13 +10,15 @@
     <sv-nav-bar title="我的" :collapsed="collapsed" />
 
     <view class="me">
-      <sv-card class="profile" :padding="20">
-        <view class="profile__avatar">
-          <sv-icon name="person.fill" :size="30" color="var(--sv-text-on-accent)" />
-        </view>
-        <view class="profile__info">
-          <text class="sv-headline">Solvane 用户</text>
-          <text class="sv-footnote sv-secondary">{{ envLabel }}</text>
+      <sv-card :padding="20">
+        <view class="profile">
+          <view class="profile__avatar">
+            <sv-icon name="person.fill" :size="30" color="var(--sv-text-on-accent)" />
+          </view>
+          <view class="profile__info">
+            <text class="sv-headline">Solvane 用户</text>
+            <text class="sv-footnote sv-secondary">{{ envLabel }}</text>
+          </view>
         </view>
       </sv-card>
 

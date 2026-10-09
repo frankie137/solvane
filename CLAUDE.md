@@ -4,6 +4,8 @@
 
 ## 工作方式
 
+- 自动化测试不要打扰使用者：开发者工具只通过 `scripts/devtools.ts` 的 `withQuietDevtools()` 驱动，冒烟测试只在阶段审查时跑
+
 - 和使用者用中文沟通；界面文案、文档、代码注释也用中文
 - 新需求先讨论、敲定细节，再动手开发
 - 按阶段推进，每个阶段必须完整走完 [docs/REVIEW.md](docs/REVIEW.md) 的六步流程才能合并
@@ -15,8 +17,8 @@
 pnpm dev          # 开发构建（监听），输出到 dist/mp-weixin
 pnpm build        # 生产构建
 pnpm build:cloud  # 打包云函数到 cloudfunctions/
-pnpm check        # 提交前必跑：格式、规范、类型、测试、构建
-pnpm smoke        # 冒烟测试（需要开发者工具已登录并开启服务端口）
+pnpm check        # 提交前必跑：格式、规范、类型、测试、构建（git push 前也会自动跑）
+pnpm smoke        # 冒烟测试：后台驱动开发者工具并自动隐藏窗口（需已登录、开启服务端口）
 pnpm preview      # 生成预览二维码 .ci/preview.png
 pnpm upload       # 上传开发版 / 更新体验版
 pnpm deploy:cloud # 部署云函数（可跟函数名）
@@ -59,5 +61,6 @@ pnpm deploy:cloud # 部署云函数（可跟函数名）
 - 云函数 SDK 要用 `import * as cloud from 'wx-server-sdk'`；`DYNAMIC_CURRENT_ENV` 的类型声明有误，已在 `lib/cloud.ts` 里统一断言
 - 原生 `button` 带 `disabled` 时会套用微信内置的灰色样式，优先级 (0,2,1)；`sv-button` 已覆盖，直接用原生按钮时要注意
 - 页面里的样式选择器进不了子组件（样式隔离），但 CSS 变量可以继承下去；需要跨组件控制样式时用变量
+- **不要给 `sv-*` 组件加 class 来排版**：class 虽然会传到子组件根节点，但父组件的样式管不到它。要在组件外或插槽内包一层自己的 `view`（`src/conventions.test.ts` 会检查）
 - `wx.cloud.callFunction` 的 errMsg 都以 `cloud.callFunction:fail` 开头，按错误文案归类时正则不能宽松匹配 `function`
 - 云函数运行时请选择 Node.js 18 或以上

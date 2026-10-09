@@ -8,6 +8,7 @@
     "node": ">=24"
   },
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
     "dev": "uni -p mp-weixin --outDir dist/mp-weixin",
     "build": "uni build -p mp-weixin --outDir dist/mp-weixin",
     "build:cloud": "tsx scripts/build-cloud.ts",

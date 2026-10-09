@@ -10,35 +10,44 @@
     <sv-nav-bar title="练习" :collapsed="collapsed" />
 
     <view class="practice">
-      <sv-card class="hero" :padding="24">
-        <text class="hero__title sv-title-2">今天想说点什么？</text>
-        <text class="hero__desc sv-subhead sv-secondary">
-          用中文说出你的想法，哪怕只是只言片语，我来帮你变成地道的英文。
-        </text>
+      <sv-card :padding="24">
+        <view class="hero">
+          <text class="hero__title sv-title-2">今天想说点什么？</text>
+          <text class="hero__desc sv-subhead sv-secondary">
+            用中文说出你的想法，哪怕只是只言片语，我来帮你变成地道的英文。
+          </text>
 
-        <view class="hero__mic-wrap">
-          <view class="hero__ring" />
-          <view class="hero__ring hero__ring--late" />
-          <view class="hero__mic" hover-class="is-pressed" :hover-stay-time="80" @tap="comingSoon">
-            <sv-icon name="mic.fill" :size="34" color="var(--sv-text-on-accent)" :weight="2" />
+          <view class="hero__mic-wrap">
+            <view class="hero__ring" />
+            <view class="hero__ring hero__ring--late" />
+            <view
+              class="hero__mic"
+              hover-class="is-pressed"
+              :hover-stay-time="80"
+              @tap="comingSoon"
+            >
+              <sv-icon name="mic.fill" :size="34" color="var(--sv-text-on-accent)" :weight="2" />
+            </view>
           </view>
-        </view>
-        <text class="hero__hint sv-footnote sv-secondary">按住说话 · 最长 60 秒</text>
+          <text class="hero__hint sv-footnote sv-secondary">按住说话 · 最长 60 秒</text>
 
-        <sv-button type="secondary" size="sm" @click="comingSoon">
-          <sv-icon name="keyboard" :size="18" />
-          <text>打字输入</text>
-        </sv-button>
+          <sv-button type="secondary" size="sm" @click="comingSoon">
+            <sv-icon name="keyboard" :size="18" />
+            <text>打字输入</text>
+          </sv-button>
+        </view>
       </sv-card>
 
       <view class="section">
         <text class="section__title sv-title-3">最近对话</text>
-        <sv-card class="empty" :padding="24">
-          <view class="empty__icon">
-            <sv-icon name="sparkles" :size="26" />
+        <sv-card :padding="24">
+          <view class="empty">
+            <view class="empty__icon">
+              <sv-icon name="sparkles" :size="26" />
+            </view>
+            <text class="sv-headline">还没有对话</text>
+            <text class="sv-subhead sv-secondary">说出第一段话，这里会记录你的每一次练习。</text>
           </view>
-          <text class="sv-headline">还没有对话</text>
-          <text class="sv-subhead sv-secondary">说出第一段话，这里会记录你的每一次练习。</text>
         </sv-card>
       </view>
     </view>

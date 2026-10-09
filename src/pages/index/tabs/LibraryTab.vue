@@ -10,14 +10,16 @@
     <sv-nav-bar title="收藏" :collapsed="collapsed" />
 
     <view class="library">
-      <sv-card class="library__empty" :padding="32">
-        <view class="library__icon">
-          <sv-icon name="folder" :size="30" />
+      <sv-card :padding="32">
+        <view class="library__empty">
+          <view class="library__icon">
+            <sv-icon name="folder" :size="30" />
+          </view>
+          <text class="sv-headline">收藏夹还空着</text>
+          <text class="sv-subhead sv-secondary">
+            在对话页点一下收藏，就会出现在这里。支持最多三级文件夹和标签。
+          </text>
         </view>
-        <text class="sv-headline">收藏夹还空着</text>
-        <text class="sv-subhead sv-secondary">
-          在对话页点一下收藏，就会出现在这里。支持最多三级文件夹和标签。
-        </text>
       </sv-card>
     </view>
 
