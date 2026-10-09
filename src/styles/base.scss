@@ -1,0 +1,97 @@
+// 全局基础样式与字号体系（参考 iOS 动态字体的默认档）
+
+page {
+  min-height: 100%;
+  background-color: var(--sv-bg);
+  color: var(--sv-text);
+  font-family: var(--sv-font);
+  font-size: 17px;
+  line-height: 1.47;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+// 原生 button 的默认样式全部清掉，统一由组件控制
+button {
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  line-height: inherit;
+  font-size: inherit;
+  color: inherit;
+  text-align: inherit;
+}
+
+button::after {
+  display: none;
+}
+
+.sv-large-title {
+  font-size: 34px;
+  line-height: 41px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.sv-title-1 {
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 700;
+}
+
+.sv-title-2 {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+}
+
+.sv-title-3 {
+  font-size: 20px;
+  line-height: 25px;
+  font-weight: 600;
+}
+
+.sv-headline {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.sv-body {
+  font-size: 17px;
+  line-height: 25px;
+}
+
+.sv-callout {
+  font-size: 16px;
+  line-height: 21px;
+}
+
+.sv-subhead {
+  font-size: 15px;
+  line-height: 20px;
+}
+
+.sv-footnote {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.sv-caption {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.sv-secondary {
+  color: var(--sv-text-2);
+}
+
+.sv-tertiary {
+  color: var(--sv-text-3);
+}
+
+.sv-en {
+  font-family: var(--sv-font-en);
+}
