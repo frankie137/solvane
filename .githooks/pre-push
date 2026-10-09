@@ -1,0 +1,4 @@
+#!/bin/sh
+# 推送前跑完整检查，和 CI 保持一致；紧急情况可用 git push --no-verify 跳过
+echo "pre-push: 运行 pnpm check …"
+pnpm check

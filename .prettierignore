@@ -1,0 +1,10 @@
+dist/
+cloudfunctions/
+coverage/
+.smoke/
+pnpm-lock.yaml
+src/static/
+.ci/
+.keys/
+# 由微信开发者工具维护格式，打开项目时会被改写
+project.config.json
