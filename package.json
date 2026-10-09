@@ -1,0 +1,56 @@
+{
+  "name": "solvane",
+  "version": "0.0.0",
+  "private": true,
+  "description": "用母语说出想法，学会地道英文表达的微信小程序",
+  "packageManager": "pnpm@12.10.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "uni -p mp-weixin --outDir dist/mp-weixin",
+    "build": "uni build -p mp-weixin --outDir dist/mp-weixin",
+    "build:cloud": "tsx scripts/build-cloud.ts",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p cloud/tsconfig.json && tsc --noEmit -p scripts/tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "smoke": "pnpm build && tsx scripts/smoke.ts",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm build:cloud"
+  },
+  "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-5020420260813003",
+    "@dcloudio/uni-components": "3.0.0-5020420260813003",
+    "@dcloudio/uni-mp-weixin": "3.0.0-5020420260813003",
+    "pinia": "2.3.1",
+    "vue": "3.4.21"
+  },
+  "devDependencies": {
+    "@dcloudio/types": "3.4.32",
+    "@dcloudio/uni-cli-shared": "3.0.0-5020420260813003",
+    "@dcloudio/uni-stacktracey": "3.0.0-5020420260813003",
+    "@dcloudio/vite-plugin-uni": "3.0.0-5020420260813003",
+    "@eslint/js": "^9.39.0",
+    "@types/node": "^24.0.0",
+    "@uni-helper/uni-app-types": "1.4.0",
+    "esbuild": "^0.28.2",
+    "eslint": "^9.39.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.11.1",
+    "globals": "^17.13.0",
+    "miniprogram-api-typings": "^5.2.3",
+    "miniprogram-automator": "^0.12.1",
+    "prettier": "^3.9.9",
+    "sass": "~1.77.8",
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.71.1",
+    "vite": "5.2.8",
+    "vitest": "^3.2.7",
+    "vue-eslint-parser": "^10.0.0",
+    "vue-tsc": "^2.2.12",
+    "wx-server-sdk": "4.0.2"
+  }
+}

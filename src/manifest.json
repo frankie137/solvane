@@ -1,0 +1,26 @@
+{
+  "name": "Solvane",
+  "appid": "",
+  "description": "用母语说出想法，学会地道英文表达",
+  "versionName": "0.0.0",
+  "versionCode": "1",
+  "transformPx": false,
+  "mp-weixin": {
+    "appid": "wx46ecc9293eb0f276",
+    "setting": {
+      "urlCheck": true,
+      "es6": true,
+      "postcss": true,
+      "minified": true
+    },
+    "usingComponents": true,
+    "mergeVirtualHostAttributes": true,
+    "lazyCodeLoading": "requiredComponents",
+    "darkmode": true,
+    "themeLocation": "theme.json"
+  },
+  "uniStatistics": {
+    "enable": false
+  },
+  "vueVersion": "3"
+}
