@@ -44,9 +44,16 @@ describe('speech.recognize', () => {
     expect(removed).toEqual([FILE])
   })
 
-  it('只接受云存储文件', async () => {
-    const { handlers } = setup(Buffer.alloc(10), 'x')
-    await expect(handlers.recognize({ fileID: 'https://evil.example/a.pcm' }, ME)).rejects.toThrow()
+  it.each([
+    ['非云存储地址', 'https://evil.example/voice-input/a.pcm'],
+    ['其他目录的文件', 'cloud://env-1.xxx/recordings/o_other/a.mp3'],
+    ['目录穿越', 'cloud://env-1.xxx/voice-input/../shares/a.pcm'],
+    ['非 pcm 文件', 'cloud://env-1.xxx/voice-input/a.mp3'],
+  ])('拒绝%s，且不读取、不删除', async (_name, fileID) => {
+    const { handlers, deps, removed } = setup(Buffer.alloc(10), 'x')
+    await expect(handlers.recognize({ fileID }, ME)).rejects.toThrow()
+    expect(deps.storage.download).not.toHaveBeenCalled()
+    expect(removed).toEqual([])
   })
 })
 

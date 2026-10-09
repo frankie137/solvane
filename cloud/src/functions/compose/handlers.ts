@@ -89,25 +89,28 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
     }
   }
 
-  async function loadUserSettings(openid: string): Promise<UserSettings> {
-    const doc = await settings.get(openid)
-    return {
-      level: doc?.level ?? DEFAULT_SETTINGS.level,
-      accent: doc?.accent ?? DEFAULT_SETTINGS.accent,
-    }
-  }
-
-  /** 自己的配置优先，其次管理员的全局默认 */
-  async function resolveTarget(openid: string): Promise<LlmTarget> {
-    const own = (await settings.get(openid))?.llm
-    const stored = own ?? (await settings.get(GLOBAL_SETTINGS_ID))?.llm
+  /**
+   * 生成任务需要的上下文：学习偏好 + 大模型目标。
+   * 自己的设置文档只读一次；没有自己的大模型配置时才读管理员的全局默认。
+   */
+  async function loadJobContext(
+    openid: string,
+  ): Promise<{ target: LlmTarget; userSettings: UserSettings }> {
+    const own = await settings.get(openid)
+    const stored = own?.llm ?? (await settings.get(GLOBAL_SETTINGS_ID))?.llm
     if (!stored) {
       throw new AppError('NOT_CONFIGURED', '还没有配置大模型，请到「我的 → 大模型配置」中设置')
     }
     return {
-      baseUrl: stored.baseUrl,
-      model: stored.model,
-      apiKey: decryptSecret(stored.apiKeyCipher, deps.encryptionSecret()),
+      target: {
+        baseUrl: stored.baseUrl,
+        model: stored.model,
+        apiKey: decryptSecret(stored.apiKeyCipher, deps.encryptionSecret()),
+      },
+      userSettings: {
+        level: own?.level ?? DEFAULT_SETTINGS.level,
+        accent: own?.accent ?? DEFAULT_SETTINGS.accent,
+      },
     }
   }
 
@@ -142,6 +145,10 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
     } else {
       const saved = (await settings.get(settingsId(input.scope, openid)))?.llm
       if (!saved) throw new AppError('BAD_REQUEST', '请填写 API Key')
+      // 换了服务商地址就不能沿用旧 Key，否则会把一家的 Key 发给另一家
+      if (new URL(saved.baseUrl).host !== new URL(baseUrl).host) {
+        throw new AppError('BAD_REQUEST', '更换了服务商地址，请重新填写 API Key')
+      }
       apiKey = decryptSecret(saved.apiKeyCipher, secret)
       cipher = saved.apiKeyCipher
       mask = saved.apiKeyMask
@@ -188,7 +195,8 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
         ...patch,
         job: null,
         lastError: null,
-        updatedAt: deps.now(),
+        // 只有生成和修改算内容更新；补解析不改变"最近对话"的顺序
+        ...(kind === 'analyze' ? {} : { updatedAt: deps.now() }),
       })
     } catch (err) {
       const appErr =
@@ -199,7 +207,6 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
       await sessions.updateIfJob(sessionId, ctx.openid, startedAt, {
         job: null,
         lastError: { kind, vid, code: appErr.code, message: appErr.message, at: deps.now() },
-        updatedAt: deps.now(),
       })
       throw appErr
     }
@@ -242,10 +249,7 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
 
       return runJob(ctx, sessionId, 'generate', null, async (fresh, deadline) => {
         if (fresh.versions.length > 0) return {}
-        const [target, userSettings] = await Promise.all([
-          resolveTarget(ctx.openid),
-          loadUserSettings(ctx.openid),
-        ])
+        const { target, userSettings } = await loadJobContext(ctx.openid)
         const draft = await deps.llm.chatJson(
           target,
           buildGenerateMessages(fresh.input.rawText, userSettings),
@@ -286,10 +290,7 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
       return runJob(ctx, sessionId, 'revise', null, async (fresh, deadline) => {
         const base = fresh.versions.find((v) => v.vid === baseVid)
         if (!base) throw new AppError('BAD_REQUEST', '找不到要修改的版本')
-        const [target, userSettings] = await Promise.all([
-          resolveTarget(ctx.openid),
-          loadUserSettings(ctx.openid),
-        ])
+        const { target, userSettings } = await loadJobContext(ctx.openid)
         const revision = await deps.llm.chatJson(
           target,
           buildReviseMessages(fresh.polishedZh, base, instruction, userSettings),
@@ -321,10 +322,7 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
         const target = fresh.versions.find((v) => v.vid === vid)
         if (!target) throw new AppError('BAD_REQUEST', '找不到这个版本')
         if (target.analysis) return {}
-        const [llmTarget, userSettings] = await Promise.all([
-          resolveTarget(ctx.openid),
-          loadUserSettings(ctx.openid),
-        ])
+        const { target: llmTarget, userSettings } = await loadJobContext(ctx.openid)
         const analysis = await deps.llm.chatJson(
           llmTarget,
           buildAnalyzeMessages(fresh.polishedZh, target, userSettings),

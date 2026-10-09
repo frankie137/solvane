@@ -169,7 +169,7 @@ export function createWxRepos(db: WxDatabase): Repos {
               _.or([{ job: _.eq(null) }, { 'job.startedAt': _.lt(staleBefore) }]),
             ]),
           )
-          .update({ data: { job: _.set(job), updatedAt: job.startedAt } })
+          .update({ data: { job: _.set(job) } })
         return res.stats.updated === 1
       }),
 

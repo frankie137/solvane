@@ -21,6 +21,17 @@ export interface ChatOptions {
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>
 
+/**
+ * 记住不支持 JSON 模式的「接口地址 + 模型」，之后直接不带 response_format，
+ * 省掉每次先失败一次的往返。云函数实例复用期间一直有效。
+ */
+const noJsonMode = new Set<string>()
+
+/** 仅供测试重置 */
+export function resetJsonModeCache(): void {
+  noJsonMode.clear()
+}
+
 /** 从上游错误里取一小段说明给用户看，先去掉任何可能是 Key 的内容 */
 function upstreamReason(body: string, apiKey: string): string {
   let reason = body
@@ -31,9 +42,8 @@ function upstreamReason(body: string, apiKey: string): string {
   } catch {
     // 不是 JSON，用原文
   }
+  if (apiKey) reason = reason.split(apiKey).join('***')
   return reason
-    .split(apiKey)
-    .join('***')
     .replace(/sk-[A-Za-z0-9_-]{8,}/g, '***')
     .replace(/\s+/g, ' ')
     .trim()
@@ -94,11 +104,14 @@ export async function chat(
     }
   }
 
-  let res = await send(options.json === true)
-  if (!res.ok && res.status === 400 && options.json) {
+  const modelKey = `${target.baseUrl}|${target.model}`
+  const useJson = options.json === true && !noJsonMode.has(modelKey)
+  let res = await send(useJson)
+  if (!res.ok && res.status === 400 && useJson) {
     const body = await res.text()
     // 部分服务商或模型不支持 JSON 模式，去掉后重试；提示词本身也要求只输出 JSON
     if (/response_format|json_object|json mode|json_schema/i.test(body)) {
+      noJsonMode.add(modelKey)
       res = await send(false)
     } else {
       throw errorForStatus(400, upstreamReason(body, target.apiKey))

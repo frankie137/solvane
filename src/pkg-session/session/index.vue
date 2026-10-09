@@ -153,15 +153,15 @@
   <revise-bar
     v-if="current"
     v-model="reviseText"
-    :disabled="revising || analyzing"
-    :hint="analyzing ? '解析生成中，稍后就可以修改' : ''"
+    :disabled="busy"
+    :hint="busyHint"
     @submit="revise"
   />
 </template>
 
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
-import { onLoad, onShow } from '@dcloudio/uni-app'
+import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import { storeToRefs } from 'pinia'
 import type { Session, Version } from '@shared/types'
 import { callCloud, CloudError } from '@/services/cloud'
@@ -199,6 +199,21 @@ const current = computed<Version | null>(() => {
 })
 
 const navTitle = computed(() => session.value?.title || '新的表达')
+
+/** 有任务在运行（包括上次离开前发起、还没结束的任务）时不能再提修改 */
+const busy = computed(() => generating.value || revising.value || analyzing.value)
+const busyHint = computed(() => {
+  if (analyzing.value) return '解析生成中，稍后就可以修改'
+  if (generating.value) return '正在生成，稍后就可以修改'
+  return ''
+})
+
+/** 页面关闭后停止所有等待，不再发起新的任务 */
+let disposed = false
+onUnload(() => {
+  disposed = true
+})
+const isCancelled = () => disposed
 const progressHint = computed(() => PROGRESS_HINTS[progressIndex.value] ?? PROGRESS_HINTS[0]!)
 const bottomInset = computed(() => {
   const bar = current.value ? REVISE_BAR_HEIGHT : 0
@@ -261,6 +276,7 @@ async function ensure() {
     try {
       session.value = await runSessionJob(sessionId.value, async () => ({ session: s }), {
         isDone: (next) => next.job === null,
+        isCancelled,
       })
     } catch {
       // 等待失败时按当前数据继续，下面会重新发起需要的任务
@@ -268,23 +284,24 @@ async function ensure() {
       watching.value = false
     }
   }
+  if (disposed) return
   if (session.value && session.value.versions.length === 0) await generate()
   await ensureAnalysis()
 }
 
 async function generate() {
-  if (generating.value) return
+  if (generating.value || disposed) return
   generating.value = true
   genError.value = null
   try {
     session.value = await runSessionJob(
       sessionId.value,
       () => callCloud('compose', 'generate', { sessionId: sessionId.value }),
-      { isDone: (s) => s.versions.length > 0 },
+      { isDone: (s) => s.versions.length > 0, isCancelled },
     )
     void sessionsStore.refresh()
   } catch (err) {
-    genError.value = asCloudError(err)
+    if (!disposed) genError.value = asCloudError(err)
     return
   } finally {
     generating.value = false
@@ -294,7 +311,7 @@ async function generate() {
 
 async function ensureAnalysis(retry = false) {
   const version = current.value
-  if (!version || version.analysis || analyzing.value) return
+  if (!version || version.analysis || analyzing.value || disposed) return
   if (analyzeError.value && !retry) return
   const vid = version.vid
   analyzing.value = true
@@ -303,10 +320,13 @@ async function ensureAnalysis(retry = false) {
     session.value = await runSessionJob(
       sessionId.value,
       () => callCloud('compose', 'analyze', { sessionId: sessionId.value, vid }),
-      { isDone: (s) => Boolean(s.versions.find((v) => v.vid === vid)?.analysis) },
+      {
+        isDone: (s) => Boolean(s.versions.find((v) => v.vid === vid)?.analysis),
+        isCancelled,
+      },
     )
   } catch (err) {
-    analyzeError.value = asCloudError(err)
+    if (!disposed) analyzeError.value = asCloudError(err)
     return
   } finally {
     analyzing.value = false
@@ -318,7 +338,7 @@ async function ensureAnalysis(retry = false) {
 async function revise(instruction: string) {
   const s = session.value
   const base = current.value
-  if (!s || !base || revising.value || analyzing.value) return
+  if (!s || !base || busy.value) return
   const before = s.versions.length
   revising.value = true
   pendingInstruction.value = instruction
@@ -332,13 +352,14 @@ async function revise(instruction: string) {
           baseVid: base.vid,
           instruction,
         }),
-      { isDone: (next) => next.versions.length > before },
+      { isDone: (next) => next.versions.length > before, isCancelled },
     )
     reviseText.value = ''
     analyzeError.value = null
     scrollTarget.value = 'english'
     void sessionsStore.refresh()
   } catch (err) {
+    if (disposed) return
     const e = asCloudError(err)
     if (e.code === 'NOT_CONFIGURED') {
       uni.showModal({

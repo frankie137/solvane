@@ -38,7 +38,6 @@ export function createMemoryRepos(): Repos & {
         if (!doc) return false
         if (doc.job && doc.job.startedAt >= staleBefore) return false
         doc.job = clone(job)
-        doc.updatedAt = job.startedAt
         return true
       },
       async updateIfJob(id, openid, startedAt, patch) {

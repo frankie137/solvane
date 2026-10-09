@@ -130,6 +130,21 @@ describe('runSessionJob', () => {
     expect(err).toMatchObject({ code: 'NETWORK' })
   })
 
+  it('页面关闭后停止轮询', async () => {
+    getSessionMock.mockResolvedValue({ session: running })
+    let closed = false
+    const err = await runSessionJob(
+      's1',
+      async () => {
+        closed = true
+        return { session: running }
+      },
+      { isDone, isCancelled: () => closed, poll: fastPoll },
+    ).catch((e: unknown) => e)
+    expect(err).toMatchObject({ code: 'CANCELLED' })
+    expect(getSessionMock).not.toHaveBeenCalled()
+  })
+
   it('一直没有结束时报超时', async () => {
     getSessionMock.mockResolvedValue({ session: running })
     const err = await runSessionJob('s1', async () => ({ session: running }), {

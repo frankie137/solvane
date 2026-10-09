@@ -153,13 +153,20 @@ export function useRecorder(onFinish: (result: RecordingResult) => void) {
         else uni.showToast({ title: '录音失败，请重试', icon: 'none' })
       },
     }
-    getManager().start({
-      duration: LIMITS.recordMaxMs,
-      sampleRate: 16000,
-      numberOfChannels: 1,
-      format: 'PCM',
-      frameSize: 2,
-    })
+    try {
+      getManager().start({
+        duration: LIMITS.recordMaxMs,
+        sampleRate: 16000,
+        numberOfChannels: 1,
+        format: 'PCM',
+        frameSize: 2,
+      })
+    } catch {
+      // 同步抛错时 onStart / onError 都不会触发，这里自己复位，否则按钮会一直无响应
+      listener = null
+      reset()
+      uni.showToast({ title: '录音启动失败，可以改用打字输入', icon: 'none' })
+    }
   }
 
   /** 松手：cancel 为 true 表示上滑取消 */

@@ -1,6 +1,8 @@
 export interface PollOptions {
   intervalMs: number
   timeoutMs: number
+  /** 返回 true 时立即停止（例如页面已关闭） */
+  isCancelled?: () => boolean
   sleep?: (ms: number) => Promise<void>
   now?: () => number
 }
@@ -15,20 +17,23 @@ export async function pollUntil<T>(
   load: () => Promise<T>,
   done: (value: T) => boolean,
   options: PollOptions,
-): Promise<{ value: T | undefined; timedOut: boolean }> {
+): Promise<{ value: T | undefined; timedOut: boolean; cancelled: boolean }> {
   const sleep = options.sleep ?? defaultSleep
   const now = options.now ?? Date.now
   const deadline = now() + options.timeoutMs
   let value: T | undefined
 
+  const cancelled = () => options.isCancelled?.() === true
+
   while (now() < deadline) {
     await sleep(options.intervalMs)
+    if (cancelled()) return { value, timedOut: false, cancelled: true }
     try {
       value = await load()
-      if (done(value)) return { value, timedOut: false }
+      if (done(value)) return { value, timedOut: false, cancelled: false }
     } catch {
       // 网络抖动时继续等下一轮
     }
   }
-  return { value, timedOut: true }
+  return { value, timedOut: true, cancelled: false }
 }

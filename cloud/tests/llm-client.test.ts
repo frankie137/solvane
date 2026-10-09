@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppError } from '../src/lib/errors'
-import { chat, type FetchLike, type LlmTarget } from '../src/lib/llm/client'
+import { chat, resetJsonModeCache, type FetchLike, type LlmTarget } from '../src/lib/llm/client'
 import { chatJson, extractJsonObject } from '../src/lib/llm/json'
 import { z } from 'zod'
 
@@ -43,6 +43,10 @@ async function expectAppError(p: Promise<unknown>, code: string, includes?: stri
   return err as AppError
 }
 
+beforeEach(() => {
+  resetJsonModeCache()
+})
+
 describe('chat', () => {
   it('请求 /chat/completions 并返回内容', async () => {
     const { impl, calls } = fetchSequence(reply('hello'))
@@ -65,6 +69,18 @@ describe('chat', () => {
     expect(calls[1]!.body.response_format).toBeUndefined()
   })
 
+  it('记住不支持 JSON 模式的模型，之后不再先失败一次', async () => {
+    const { impl, calls } = fetchSequence(
+      failure(400, { error: { message: 'response_format is not supported' } }),
+      reply('{"a":1}'),
+      reply('{"a":2}'),
+    )
+    await chat(target, [], { timeoutMs: 1000, json: true }, impl)
+    await chat(target, [], { timeoutMs: 1000, json: true }, impl)
+    expect(calls).toHaveLength(3)
+    expect(calls[2]!.body.response_format).toBeUndefined()
+  })
+
   it.each([
     [401, 'API Key 无效'],
     [404, '接口地址或模型名不正确'],
@@ -82,6 +98,15 @@ describe('chat', () => {
     const err = await expectAppError(chat(target, [], { timeoutMs: 1000 }, impl), 'UPSTREAM_ERROR')
     expect(err.message).not.toContain('sk-secretkey123')
     expect(err.message).toContain('***')
+  })
+
+  it('Key 为空时错误信息保持可读', async () => {
+    const { impl } = fetchSequence(failure(401, { error: { message: 'invalid key' } }))
+    const err = await expectAppError(
+      chat({ ...target, apiKey: '' }, [], { timeoutMs: 1000 }, impl),
+      'UPSTREAM_ERROR',
+    )
+    expect(err.message).toContain('invalid key')
   })
 
   it('超时转换为 TIMEOUT', async () => {

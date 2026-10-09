@@ -109,7 +109,7 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: var(--sv-scrim);
   opacity: 0;
   transition: opacity var(--sv-dur-2) var(--sv-ease);
 }

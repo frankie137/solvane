@@ -218,6 +218,17 @@ describe('compose.revise / analyze', () => {
     expect(fake.calls.filter((c) => c.kind === 'analysis')).toHaveLength(1)
   })
 
+  it('补解析不改变对话的更新时间，修改会更新', async () => {
+    const { handlers, sessionId, repos, tick } = await generated()
+    const afterGenerate = repos.sessionDocs.get(sessionId)!.updatedAt
+    tick(5_000)
+    await handlers.analyze({ sessionId, vid: 'v1' }, ME)
+    expect(repos.sessionDocs.get(sessionId)!.updatedAt).toBe(afterGenerate)
+    tick(5_000)
+    await handlers.revise({ sessionId, baseVid: 'v1', instruction: '更随意' }, ME)
+    expect(repos.sessionDocs.get(sessionId)!.updatedAt).toBeGreaterThan(afterGenerate)
+  })
+
   it('解析不会覆盖其他版本', async () => {
     const { handlers, sessionId } = await generated()
     await handlers.revise({ sessionId, baseVid: 'v1', instruction: '更随意' }, ME)
@@ -257,6 +268,20 @@ describe('大模型配置', () => {
     const stored = repos.settingsDocs.get(ME.openid)!.llm!
     expect(stored.model).toBe('deepseek-reasoner')
     expect(stored.apiKeyCipher).toBe(cipher)
+  })
+
+  it('换了服务商地址时不能沿用旧 Key', async () => {
+    const { handlers, fake } = setup()
+    await handlers.saveLlmConfig(input, ME)
+    const moved = {
+      ...input,
+      preset: 'moonshot' as const,
+      baseUrl: 'https://api.moonshot.cn/v1',
+      apiKey: undefined,
+    }
+    await expect(handlers.testLlm(moved, ME)).rejects.toThrow('重新填写 API Key')
+    await expect(handlers.saveLlmConfig(moved, ME)).rejects.toThrow('重新填写 API Key')
+    expect(fake.calls.filter((c) => c.kind === 'ping')).toHaveLength(0)
   })
 
   it('从没保存过时必须填 Key', async () => {

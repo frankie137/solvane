@@ -20,7 +20,7 @@ describe('pollUntil', () => {
       timeoutMs: 10_000,
       ...clock,
     })
-    expect(res).toEqual({ value: 3, timedOut: false })
+    expect(res).toEqual({ value: 3, timedOut: false, cancelled: false })
     expect(load).toHaveBeenCalledTimes(3)
   })
 
@@ -43,7 +43,24 @@ describe('pollUntil', () => {
       timeoutMs: 3_000,
       ...clock,
     })
-    expect(res).toEqual({ value: 'still running', timedOut: true })
+    expect(res).toEqual({ value: 'still running', timedOut: true, cancelled: false })
     expect(load).toHaveBeenCalledTimes(3)
+  })
+
+  it('取消后立即停止，不再请求', async () => {
+    const clock = fakeClock()
+    let stop = false
+    const load = vi.fn(async () => {
+      stop = true
+      return 'running'
+    })
+    const res = await pollUntil(load, () => false, {
+      intervalMs: 100,
+      timeoutMs: 10_000,
+      isCancelled: () => stop,
+      ...clock,
+    })
+    expect(res.cancelled).toBe(true)
+    expect(load).toHaveBeenCalledOnce()
   })
 })

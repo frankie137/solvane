@@ -26,6 +26,8 @@ const RECOVERABLE = new Set(['TIMEOUT', 'NETWORK'])
 export interface JobOptions {
   /** 判断这次任务想要的结果是否已经出现在对话里 */
   isDone: (session: Session) => boolean
+  /** 页面关闭后返回 true，停止等待并抛出 CANCELLED */
+  isCancelled?: () => boolean
   poll?: Partial<PollOptions>
 }
 
@@ -48,11 +50,17 @@ export async function runSessionJob(
     startError = err
   }
 
-  const { value, timedOut } = await pollUntil(
+  const { value, timedOut, cancelled } = await pollUntil(
     () => getSession(sessionId),
     (s) => s.job === null,
-    { intervalMs: 2_000, timeoutMs: JOB_STALE_MS, ...options.poll },
+    {
+      intervalMs: 2_000,
+      timeoutMs: JOB_STALE_MS,
+      isCancelled: options.isCancelled,
+      ...options.poll,
+    },
   )
+  if (cancelled) throw new CloudError('CANCELLED', '已取消')
   if (timedOut || !value) {
     throw new CloudError('TIMEOUT', '生成时间太长了，请稍后回来看看')
   }

@@ -12,6 +12,12 @@ export interface SpeechDeps {
   recognizeZh(audio: Buffer): Promise<string>
 }
 
+/**
+ * 只处理前端上传到 voice-input/ 目录的录音。云函数有整个存储的管理权限，
+ * 不限制的话，拿到别人文件 ID 的人可以借这个接口读取并删除别人的文件。
+ */
+const VOICE_INPUT_FILE = /^cloud:\/\/[^/]+\/voice-input\/[\w-]+\.pcm$/
+
 /** 60 秒 16kHz 16bit 单声道 PCM 约 1.92 MB，留一点余量 */
 const MAX_AUDIO_BYTES = 2_100_000
 
@@ -19,7 +25,7 @@ export function createSpeechHandlers(deps: SpeechDeps): Handlers<'speech'> {
   return {
     async recognize(payload) {
       const { fileID } = parsePayload(
-        z.object({ fileID: z.string().startsWith('cloud://').max(500) }),
+        z.object({ fileID: z.string().max(500).regex(VOICE_INPUT_FILE) }),
         payload,
       )
       try {
