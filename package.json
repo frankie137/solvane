@@ -22,6 +22,7 @@
     "preview": "pnpm build && tsx scripts/mp-ci.ts preview",
     "upload": "pnpm build && tsx scripts/mp-ci.ts upload",
     "deploy:cloud": "pnpm build:cloud && tsx scripts/mp-ci.ts deploy-cloud",
+    "deploy:cloud:devtools": "pnpm build:cloud && tsx scripts/mp-ci.ts deploy-cloud --via devtools",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm build:cloud"
   },
   "dependencies": {
@@ -38,6 +39,7 @@
     "@dcloudio/vite-plugin-uni": "3.0.0-5020420260813003",
     "@eslint/js": "^9.39.0",
     "@types/node": "^24.0.0",
+    "@types/node-fetch": "^2.6.13",
     "@uni-helper/uni-app-types": "1.4.0",
     "esbuild": "^0.28.2",
     "eslint": "^9.39.0",
@@ -47,6 +49,7 @@
     "miniprogram-api-typings": "^5.2.3",
     "miniprogram-automator": "^0.12.1",
     "miniprogram-ci": "^2.1.31",
+    "node-fetch": "2.7.0",
     "prettier": "^3.9.9",
     "sass": "~1.77.8",
     "tencentcloud-sdk-nodejs-asr": "^4.1.315",

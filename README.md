@@ -434,7 +434,9 @@ pnpm dev
 2. 放到 `.keys/private.<appid>.key`（已被 git 忽略），或用环境变量 `WX_PRIVATE_KEY_PATH` 指定
 3. 在同一处把本机公网 IP 加入白名单
 
-云函数运行时选择 Node.js 18 或以上；部署时依赖在云端安装。
+部署工具创建的云函数运行时是 Node.js 16.13，代码按 Node 16 打包；部署时依赖在云端安装。
+
+IP 白名单拦截时（家用宽带的公网 IP 会变），可以改用 `pnpm deploy:cloud:devtools`：通过开发者工具部署，不需要上传密钥，也不受白名单限制。开发者工具会在后台运行、窗口自动隐藏。
 
 **常用命令**
 
@@ -448,6 +450,7 @@ pnpm dev
 | `pnpm smoke`                  | 冒烟测试（开发者工具需已登录，并在「设置 → 安全设置」开启服务端口）        |
 | `pnpm preview`                | 生成预览二维码 `.ci/preview.png`，手机扫码查看（管理员和开发者可用）       |
 | `pnpm upload`                 | 上传为开发版；首次在公众平台设为体验版，之后再上传会自动更新体验版         |
+| `pnpm deploy:cloud:devtools`  | 通过开发者工具部署全部云函数，不受 IP 白名单限制                           |
 | `pnpm deploy:cloud [函数名…]` | 打包并部署云函数，环境 ID 取自 `--env` 或 `.env.local` 的 `VITE_CLOUD_ENV` |
 
 ---

@@ -21,7 +21,7 @@ pnpm check        # 提交前必跑：格式、规范、类型、测试、构建
 pnpm smoke        # 冒烟测试：后台驱动开发者工具并自动隐藏窗口（需已登录、开启服务端口）
 pnpm preview      # 生成预览二维码 .ci/preview.png
 pnpm upload       # 上传开发版 / 更新体验版
-pnpm deploy:cloud # 部署云函数（可跟函数名）
+pnpm deploy:cloud # 部署云函数（可跟函数名）；IP 被白名单拦时用 pnpm deploy:cloud:devtools
 ```
 
 微信开发者工具直接打开**仓库根目录**（根目录的 `project.config.json` 指向构建产物和云函数目录）。
@@ -63,4 +63,6 @@ pnpm deploy:cloud # 部署云函数（可跟函数名）
 - 页面里的样式选择器进不了子组件（样式隔离），但 CSS 变量可以继承下去；需要跨组件控制样式时用变量
 - **不要给 `sv-*` 组件加 class 来排版**：class 虽然会传到子组件根节点，但父组件的样式管不到它。要在组件外或插槽内包一层自己的 `view`（`src/conventions.test.ts` 会检查）
 - `wx.cloud.callFunction` 的 errMsg 都以 `cloud.callFunction:fail` 开头，按错误文案归类时正则不能宽松匹配 `function`
-- 云函数运行时请选择 Node.js 18 或以上
+- 云函数运行时是 Node.js 16.13（部署工具创建函数时的默认值，创建后改不了）：**没有全局 `fetch`**，发 HTTP 请求用 `cloud/src/lib/http.ts` 的 `defaultFetch`；打包目标是 node16，不要用 Node 18+ 才有的 API（`structuredClone`、`Array.prototype.findLast` 等）
+- `miniprogram-ci` 受 IP 白名单限制，家用宽带 IP 会变；被拦时用 `pnpm deploy:cloud:devtools`
+- 开发者工具命令行部分失败时退出码仍是 0，要看输出判断（`runDevtoolsCli` 的 `failIf`）

@@ -1,4 +1,5 @@
 import { AppError } from '../errors'
+import { defaultFetch } from '../http'
 
 export interface LlmTarget {
   baseUrl: string
@@ -72,7 +73,7 @@ export async function chat(
   target: LlmTarget,
   messages: ChatMessage[],
   options: ChatOptions,
-  fetchImpl: FetchLike = fetch,
+  fetchImpl: FetchLike = defaultFetch,
 ): Promise<string> {
   const send = async (json: boolean): Promise<Response> => {
     const controller = new AbortController()

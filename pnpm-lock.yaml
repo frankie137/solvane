@@ -200,6 +200,9 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.1
+      '@types/node-fetch':
+        specifier: ^2.6.13
+        version: 2.6.13
       '@uni-helper/uni-app-types':
         specifier: 1.4.0
         version: 1.4.0(typescript@5.9.3)(vue@3.4.21(typescript@5.9.3))
@@ -227,6 +230,9 @@ importers:
       miniprogram-ci:
         specifier: ^2.1.31
         version: 2.1.31(debug@4.4.3(supports-color@7.2.0))(eslint@9.39.5(supports-color@7.2.0))(supports-color@7.2.0)
+      node-fetch:
+        specifier: 2.7.0
+        version: 2.7.0
       prettier:
         specifier: ^3.9.9
         version: 3.9.9
@@ -2796,6 +2802,9 @@ packages:
 
   '@types/long@4.0.2':
     resolution: {integrity: sha512-MqTGEo5bj5t157U6fA/BiDynNkn0YknVdh48CMPkTSpFTVmvao5UQmm7uEF6xBEo7qIMAlY/JSleYaE6VOdpaA==}
+
+  '@types/node-fetch@2.6.13':
+    resolution: {integrity: sha512-QGpRVpzSaUs30JBSGPjOg4Uveu384erbHBoT1zeONvyCfwQxIkUshLAOqN/k9EjGviPRmWTTe6aH2qySWKTVSw==}
 
   '@types/node@16.9.1':
     resolution: {integrity: sha512-QpLcX9ZSsq3YYUUnD3nFDY8H7wctAhQj/TFKL8Ya8v5fMm3CFXxo8zStsLAl780ltoYoo1WvKUVGBQK+1ifr7g==}
@@ -10482,6 +10491,11 @@ snapshots:
       '@types/node': 24.19.1
 
   '@types/long@4.0.2': {}
+
+  '@types/node-fetch@2.6.13':
+    dependencies:
+      '@types/node': 24.19.1
+      form-data: 4.0.6
 
   '@types/node@16.9.1': {}
 
