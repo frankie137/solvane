@@ -102,6 +102,8 @@ void store.refresh()
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .library {
   display: flex;
   flex-direction: column;
@@ -117,6 +119,7 @@ void store.refresh()
   height: 36px;
   border-radius: 18px;
   background-color: var(--sv-accent-soft);
+  @include sv-hit-area;
 
   &.is-pressed {
     opacity: 0.6;

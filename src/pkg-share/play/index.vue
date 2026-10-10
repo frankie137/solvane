@@ -11,13 +11,19 @@
           <sv-button v-if="error.code !== 'NOT_FOUND'" type="secondary" size="sm" @click="load">
             重试
           </sv-button>
-          <sv-button size="sm" @click="goHome">去练习</sv-button>
+          <sv-button size="sm" @click="goHome">我也来练</sv-button>
         </view>
       </sv-state>
     </view>
 
-    <view v-else-if="!share" class="stage__state">
-      <text class="stage__loading">加载中…</text>
+    <!-- 加载中：和歌词同样排布的几行占位 -->
+    <view v-else-if="!share" class="stage__skeleton">
+      <view class="ghost is-title" />
+      <view class="ghost is-author" />
+      <view v-for="i in 5" :key="i" class="ghost-line" :class="{ 'is-current': i === 2 }">
+        <view class="ghost is-en" />
+        <view class="ghost is-zh" />
+      </view>
     </view>
 
     <view v-else class="stage__main">
@@ -53,6 +59,8 @@
           v-for="(s, i) in share.sentences"
           :key="i"
           class="line"
+          hover-class="is-pressed"
+          :hover-stay-time="60"
           :class="{ 'is-current': i === current, 'is-silent': s.startMs < 0 }"
           @tap="jumpTo(i)"
         >
@@ -92,7 +100,7 @@
         <view v-if="player.failed.value" class="audio-error">
           <text>录音没能加载</text>
           <view class="audio-error__retry" hover-class="is-pressed" @tap="load">
-            <text>重新加载</text>
+            <text>重试</text>
           </view>
         </view>
         <view class="times">
@@ -166,22 +174,34 @@ onLoad((query) => {
 })
 
 onHide(() => player.pause())
-onUnload(() => player.destroy())
+onUnload(() => {
+  player.destroy()
+  if (followTimer) clearTimeout(followTimer)
+  if (measureTimer) clearTimeout(measureTimer)
+})
+
+let measureTimer: ReturnType<typeof setTimeout> | null = null
 
 async function load() {
   error.value = null
+  // 录音加载失败后重新加载：换新的临时链接，从原来的位置接着播
+  const resumeAt = share.value ? player.positionMs.value : 0
+  const wasPlaying = player.playing.value
   try {
     const s = await getShare(shareId.value)
     share.value = s
     player.load(s.audioUrl, s.durationMs)
+    // 只回到原来的位置；原来在播才接着播
+    if (resumeAt > 0) player.seek(resumeAt, wasPlaying)
     await nextTick()
     // 等列表渲染完再量每一行的位置
-    setTimeout(() => {
+    if (measureTimer) clearTimeout(measureTimer)
+    measureTimer = setTimeout(() => {
       measure()
       void makeCover(s)
     }, 80)
   } catch (err) {
-    error.value = err instanceof CloudError ? err : new CloudError('INTERNAL', '加载失败，请重试')
+    error.value = err instanceof CloudError ? err : new CloudError('INTERNAL', '出了点问题，请重试')
   }
 }
 
@@ -393,6 +413,8 @@ function goHome() {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .stage {
   position: relative;
   display: flex;
@@ -435,9 +457,52 @@ function goHome() {
   gap: 12px;
 }
 
-.stage__loading {
-  font-size: 15px;
-  color: var(--sv-text-2);
+.stage__skeleton {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 32px;
+}
+
+.ghost {
+  border-radius: 6px;
+  background-color: var(--sv-fill);
+
+  &.is-title {
+    width: 50%;
+    height: 22px;
+  }
+
+  &.is-author {
+    width: 30%;
+    height: 14px;
+    margin-bottom: 40px;
+  }
+
+  &.is-en {
+    width: 100%;
+    height: 22px;
+  }
+
+  &.is-zh {
+    width: 60%;
+    height: 14px;
+  }
+}
+
+.ghost-line {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  opacity: 0.5;
+
+  &.is-current {
+    opacity: 1;
+  }
 }
 
 .stage__main {
@@ -512,6 +577,10 @@ function goHome() {
   &.is-silent {
     opacity: 0.5;
   }
+
+  &.is-pressed:not(.is-silent) {
+    background-color: var(--sv-fill);
+  }
 }
 
 .line__en {
@@ -539,12 +608,12 @@ function goHome() {
 
 .controls {
   position: relative;
-  padding: 8px 28px 0;
+  padding: 0 28px;
 }
 
 .bar {
   position: relative;
-  height: 28px;
+  height: 44px;
   display: flex;
   align-items: center;
 }
@@ -577,7 +646,12 @@ function goHome() {
   }
 }
 
+// 浮在进度条上方，出现时不把下面的控件顶下去
 .audio-error {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -585,6 +659,7 @@ function goHome() {
   padding: 4px 0;
   font-size: 13px;
   color: var(--sv-text-2);
+  @include sv-appear(audio-error-in);
 }
 
 .audio-error__retry {
@@ -592,6 +667,7 @@ function goHome() {
   border-radius: 12px;
   color: var(--sv-accent);
   background-color: var(--sv-accent-soft);
+  @include sv-hit-area;
 
   &.is-pressed {
     opacity: 0.6;
@@ -625,7 +701,7 @@ function goHome() {
   height: 64px;
   border-radius: 32px;
   background: var(--sv-accent-gradient);
-  box-shadow: 0 8px 24px var(--sv-accent-glow);
+  box-shadow: var(--sv-shadow-glow);
   transition: transform var(--sv-dur-1) var(--sv-ease);
 
   &.is-pressed {

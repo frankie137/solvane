@@ -65,10 +65,13 @@ const STATE_TEXT: Record<SessionSummary['state'], string> = {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .recent__list {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  @include sv-appear;
 }
 
 .recent__item {

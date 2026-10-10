@@ -7,6 +7,19 @@
       <text class="panel__status">正在上传录音…</text>
     </view>
 
+    <!-- 提交失败：录音还在，可以直接重新提交，不用重背 -->
+    <view v-else-if="failed" class="panel__body">
+      <text class="panel__status is-error">没能提交，录音还在</text>
+      <view class="panel__actions">
+        <view class="panel__action">
+          <sv-button type="secondary" block @click="emit('discard')">重新背</sv-button>
+        </view>
+        <view class="panel__action">
+          <sv-button block haptic @click="emit('resubmit')">重新提交</sv-button>
+        </view>
+      </view>
+    </view>
+
     <view v-else-if="recording" class="panel__body">
       <view class="panel__wave">
         <view
@@ -34,7 +47,7 @@
       <view class="panel__mic" hover-class="is-pressed" :hover-stay-time="80" @tap="emit('start')">
         <sv-icon name="mic.fill" :size="30" color="var(--sv-text-on-accent)" :weight="2" />
       </view>
-      <text class="panel__status">点一下开始背诵 · 最长 60 秒</text>
+      <text class="panel__status">点一下开始背诵 · 最长 {{ maxSeconds }} 秒</text>
     </view>
   </view>
 </template>
@@ -46,14 +59,27 @@ import { LIMITS } from '@shared/constants'
 import { useSystemStore } from '@/stores/system'
 import { formatDuration } from '@/utils/audio'
 
-const props = defineProps<{
-  recording: boolean
-  submitting: boolean
-  levels: number[]
-  elapsedMs: number
+const props = withDefaults(
+  defineProps<{
+    recording: boolean
+    submitting: boolean
+    levels: number[]
+    elapsedMs: number
+    /** 上一次提交失败、录音还保留着 */
+    failed?: boolean
+  }>(),
+  { failed: false },
+)
+
+const emit = defineEmits<{
+  start: []
+  finish: []
+  cancel: []
+  resubmit: []
+  discard: []
 }>()
 
-const emit = defineEmits<{ start: []; finish: []; cancel: [] }>()
+const maxSeconds = Math.round(LIMITS.reciteMaxMs / 1000)
 
 const { metrics } = storeToRefs(useSystemStore())
 const panelStyle = computed(() => `padding-bottom:${metrics.value.safeAreaBottom + 12}px`)
@@ -70,6 +96,8 @@ const timeText = computed(() =>
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .panel {
   position: fixed;
   left: 0;
@@ -96,8 +124,13 @@ const timeText = computed(() =>
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 10px;
+  // 几种状态高度一致，切换时面板不跳；和背诵页的 PANEL_HEIGHT 对应
+  min-height: 124px;
+  box-sizing: border-box;
   padding: 0 20px;
+  @include sv-appear(panel-body-in);
 }
 
 .panel__mic {
@@ -108,7 +141,7 @@ const timeText = computed(() =>
   align-items: center;
   justify-content: center;
   background-image: var(--sv-accent-gradient);
-  box-shadow: 0 8px 24px var(--sv-accent-glow);
+  box-shadow: var(--sv-shadow-glow);
   transition: transform var(--sv-dur-2) var(--sv-ease-spring);
 
   &.is-pressed {
@@ -119,6 +152,10 @@ const timeText = computed(() =>
 .panel__status {
   font-size: 14px;
   color: var(--sv-text-2);
+
+  &.is-error {
+    color: var(--sv-danger);
+  }
 }
 
 .panel__wave {
@@ -133,7 +170,7 @@ const timeText = computed(() =>
   width: 4px;
   border-radius: 2px;
   background-color: var(--sv-accent);
-  transition: height 80ms linear;
+  transition: height var(--sv-dur-tick) linear;
 }
 
 .panel__time {
@@ -165,13 +202,6 @@ const timeText = computed(() =>
   border: 3px solid var(--sv-accent);
   border-top-color: transparent;
   border-radius: 50%;
-  animation: sv-panel-spin 0.8s linear infinite;
-  animation-play-state: var(--sv-play);
-}
-
-@keyframes sv-panel-spin {
-  to {
-    transform: rotate(360deg);
-  }
+  @include sv-spinning(sv-panel-spin);
 }
 </style>

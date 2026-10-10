@@ -57,6 +57,8 @@ function onTap() {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .sv-btn {
   position: relative;
   display: inline-flex;
@@ -94,9 +96,11 @@ function onTap() {
 }
 
 .sv-btn--sm {
+  // 原生 button 的 ::after 已被全局样式隐藏，点击区用 ::before
   height: 34px;
   padding: 0 16px;
   font-size: 15px;
+  @include sv-hit-area(before);
 }
 
 .sv-btn--md {
@@ -114,7 +118,7 @@ function onTap() {
 .sv-btn--primary {
   background-image: var(--sv-accent-gradient);
   color: var(--sv-text-on-accent);
-  box-shadow: 0 6px 20px var(--sv-accent-glow);
+  box-shadow: var(--sv-shadow-glow);
 }
 
 .sv-btn--secondary {
@@ -155,13 +159,6 @@ function onTap() {
   border: 2px solid currentColor;
   border-top-color: transparent;
   border-radius: 50%;
-  animation: sv-spin 0.8s linear infinite;
-  animation-play-state: var(--sv-play);
-}
-
-@keyframes sv-spin {
-  to {
-    transform: rotate(360deg);
-  }
+  @include sv-spinning(sv-spin);
 }
 </style>

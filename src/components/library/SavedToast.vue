@@ -20,6 +20,8 @@ const emit = defineEmits<{ action: [] }>()
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .saved {
   position: fixed;
   left: 0;
@@ -67,6 +69,7 @@ const emit = defineEmits<{ action: [] }>()
   font-size: 14px;
   color: var(--sv-accent);
   background-color: var(--sv-accent-soft);
+  @include sv-hit-area;
 
   &.is-pressed {
     opacity: 0.6;

@@ -31,7 +31,12 @@
           @input="input = $event.detail.value"
           @confirm="addInput"
         />
-        <view class="tags__add" :class="{ 'is-disabled': !input.trim() }" @tap="addInput">
+        <view
+          class="tags__add"
+          :class="{ 'is-disabled': !input.trim() }"
+          hover-class="is-pressed"
+          @tap="addInput"
+        >
           <text>添加</text>
         </view>
       </view>
@@ -128,6 +133,8 @@ function remove(tag: string) {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .tags {
   display: flex;
   flex-direction: column;
@@ -194,9 +201,14 @@ function remove(tag: string) {
   font-size: 15px;
   font-weight: 600;
   color: var(--sv-accent);
+  @include sv-hit-area;
 
   &.is-disabled {
     color: var(--sv-text-3);
+  }
+
+  &.is-pressed {
+    opacity: 0.5;
   }
 }
 

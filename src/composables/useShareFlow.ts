@@ -3,6 +3,7 @@ import { CloudError } from '@/services/cloud'
 import { createShare, sharePath } from '@/services/share'
 import { useProfileStore } from '@/stores/profile'
 import { toast } from '@/utils/dialog'
+import { navigateTo } from '@/utils/nav'
 
 /**
  * 分享一次练习：还没有署名时先弹出头像昵称面板，保存后继续；
@@ -24,7 +25,7 @@ export function useShareFlow() {
         return
       }
       const shareId = await createShare(practiceId)
-      uni.navigateTo({ url: sharePath(shareId) })
+      navigateTo(sharePath(shareId))
     } catch (err) {
       toast(err instanceof CloudError ? err.message : '分享失败，请重试')
     } finally {

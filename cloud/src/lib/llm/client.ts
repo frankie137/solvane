@@ -97,7 +97,7 @@ export async function chat(
       })
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') {
-        throw new AppError('TIMEOUT', '大模型响应超时，请稍后重试')
+        throw new AppError('TIMEOUT', '大模型响应超时，请稍后再试')
       }
       throw new AppError('UPSTREAM_ERROR', '无法连接大模型服务，请检查接口地址')
     } finally {

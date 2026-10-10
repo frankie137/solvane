@@ -353,7 +353,7 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
         }
       } catch (err) {
         const appErr =
-          err instanceof AppError ? err : new AppError('INTERNAL', '评测失败，请稍后重试')
+          err instanceof AppError ? err : new AppError('INTERNAL', '评测失败，请稍后再试')
         if (!(err instanceof AppError)) {
           console.error(`[assess.${current.stage}]`, err instanceof Error ? err.stack : String(err))
         }

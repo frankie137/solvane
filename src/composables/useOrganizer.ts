@@ -106,7 +106,7 @@ export function useOrganizer(onChanged?: (target: OrganizeTarget) => void) {
         const ok = await confirmAction({
           title: '取消收藏？',
           content: `${label ? `「${label}」` : '这张卡片'}的释义、备注和来源都会删除。`,
-          confirmText: '取消收藏',
+          confirmText: '删除卡片',
           danger: true,
         })
         if (!ok) return false

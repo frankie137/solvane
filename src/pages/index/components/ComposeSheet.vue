@@ -10,6 +10,7 @@
         <sv-state icon="alert" tone="danger" title="没有识别出来" :description="errorMessage" />
         <view class="compose__actions">
           <sv-button type="secondary" @click="emit('switch-to-text')">改用打字</sv-button>
+          <sv-button @click="emit('retry-voice')">重新说一次</sv-button>
         </view>
       </view>
 
@@ -62,6 +63,7 @@ const emit = defineEmits<{
   'update:text': [value: string]
   submit: []
   'switch-to-text': []
+  'retry-voice': []
 }>()
 
 const title = computed(() => (props.mode === 'voice' ? '确认你说的话' : '写下你想说的'))
@@ -121,6 +123,7 @@ function onInput(e: { detail: { value: string } }) {
 .compose__actions {
   display: flex;
   justify-content: center;
+  gap: 12px;
   margin-top: 8px;
 }
 

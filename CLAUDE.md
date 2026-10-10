@@ -43,6 +43,8 @@ pnpm cloud:config # 把 .keys/cloud.env 写入各云函数的环境变量并设�
 - **错误**：可预期的业务错误抛 `AppError`（message 是给用户看的中文）；其他异常由路由统一转成 `INTERNAL`
 - **样式**：只用 `src/styles/tokens.scss` 里的变量，不写死颜色和动效参数；深浅色都要检查。图标方块用 `--sv-tint-*`，强调色上的文字和图标用 `--sv-text-on-accent`
 - **循环动画**：加上 `animation-play-state: var(--sv-play)`，切到后台的 tab 会自动暂停
+- **样式片段**（`src/styles/mixins.scss`）：小可点元素用 `sv-hit-area` 把点击区扩到 44px；骨架换成内容用 `sv-appear` 淡入；加载转圈用 `sv-spinning`。`@include` 写在普通声明之后（否则 Sass 报 mixed-decls 弃用警告）
+- **跳转**：用 `src/utils/nav.ts` 的 `navigateTo()`，自带防连点
 - **状态更新**：滚动、录音、播放等高频回调里，只在值真正变化时更新响应式状态（参考 `useCollapsingTitle`）
 
 ## 安全红线

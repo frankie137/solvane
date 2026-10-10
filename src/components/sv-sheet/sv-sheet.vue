@@ -97,6 +97,8 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .sv-sheet {
   position: fixed;
   top: 0;
@@ -169,6 +171,7 @@ onUnmounted(() => {
   color: var(--sv-text-2);
   background-color: var(--sv-fill);
   transition: opacity var(--sv-dur-1) var(--sv-ease);
+  @include sv-hit-area;
 
   &.is-pressed {
     opacity: 0.6;

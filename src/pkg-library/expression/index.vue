@@ -10,7 +10,7 @@
 
     <view class="card-page">
       <sv-card v-if="loadError" :padding="24">
-        <sv-state icon="alert" tone="danger" title="加载失败" :description="loadError">
+        <sv-state icon="alert" tone="danger" title="卡片加载失败" :description="loadError">
           <sv-button type="secondary" size="sm" @click="load">重试</sv-button>
         </sv-state>
       </sv-card>
@@ -19,7 +19,7 @@
         <sv-card :padding="18" radius="m"><sv-skeleton :rows="3" title /></sv-card>
       </view>
 
-      <template v-else>
+      <view v-else class="card-page__content">
         <sv-card :padding="20">
           <view class="hero">
             <view class="hero__row">
@@ -138,7 +138,7 @@
             <text class="danger__text">取消收藏</text>
           </sv-button>
         </view>
-      </template>
+      </view>
     </view>
 
     <view :style="bottomInset" />
@@ -175,6 +175,7 @@ import { useSystemStore } from '@/stores/system'
 import { promptText, toast } from '@/utils/dialog'
 import { folderPath } from '@/utils/folders'
 import { highlightPieces } from '@/utils/highlight'
+import { navigateTo } from '@/utils/nav'
 import { formatRelative } from '@/utils/time'
 
 const KIND_TEXT: Record<ExpressionKind, string> = {
@@ -212,6 +213,8 @@ onUnload(() => {
 const bottomInset = computed(() => `height:${metrics.value.safeAreaBottom + 24}px`)
 const speakable = computed(() => /^[A-Za-z][A-Za-z' -]{0,59}$/.test(expression.value?.text ?? ''))
 const folderName = computed(() => {
+  // 文件夹数据还没到时不能说成「未归类」
+  if (!store.loaded) return '—'
   const path = folderPath(folders.value, expression.value?.folderId ?? null)
   return path.length ? path.map((f) => f.name).join(' › ') : '未归类'
 })
@@ -235,7 +238,7 @@ async function load() {
     expression.value = res.expression
     sources.value = res.sources
   } catch (err) {
-    loadError.value = err instanceof CloudError ? err.message : '加载失败'
+    loadError.value = err instanceof CloudError ? err.message : '出了点问题，请重试'
     return
   }
   void loadUsages()
@@ -289,9 +292,9 @@ function openSource(s: SourceView) {
 
 function openSession(sessionId: string, vid: string, sentenceIndex: number) {
   audio.stop()
-  uni.navigateTo({
-    url: `/pkg-session/session/index?id=${encodeURIComponent(sessionId)}&vid=${encodeURIComponent(vid)}&s=${sentenceIndex}`,
-  })
+  navigateTo(
+    `/pkg-session/session/index?id=${encodeURIComponent(sessionId)}&vid=${encodeURIComponent(vid)}&s=${sentenceIndex}`,
+  )
 }
 
 async function speak() {
@@ -341,6 +344,8 @@ async function unstarCard() {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .page-scroll {
   height: 100vh;
 }
@@ -394,6 +399,7 @@ async function unstarCard() {
   height: 36px;
   border-radius: 18px;
   background-color: var(--sv-accent-soft);
+  @include sv-hit-area;
 
   &.is-pressed {
     opacity: 0.6;
@@ -518,5 +524,12 @@ async function unstarCard() {
 
 .danger__text {
   color: var(--sv-danger);
+}
+
+.card-page__content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  @include sv-appear;
 }
 </style>

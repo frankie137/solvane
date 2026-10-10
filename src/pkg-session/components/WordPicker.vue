@@ -7,6 +7,8 @@
           v-for="(t, i) in tokens"
           :key="i"
           class="pick__token"
+          hover-class="is-pressed"
+          :hover-stay-time="60"
           :class="{ 'is-on': inRange(i), 'is-edge': i === start || i === end }"
           @tap="tapToken(i)"
         >
@@ -123,7 +125,7 @@ function save() {
 }
 
 .pick__token {
-  padding: 6px 10px;
+  padding: 11px 12px;
   border-radius: 8px;
   font-size: 17px;
   line-height: 22px;
@@ -139,6 +141,10 @@ function save() {
 
   &.is-edge {
     font-weight: 600;
+  }
+
+  &.is-pressed {
+    opacity: 0.6;
   }
 }
 

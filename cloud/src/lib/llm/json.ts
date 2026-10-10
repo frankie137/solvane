@@ -46,7 +46,7 @@ export async function chatJson<S extends z.ZodType>(
 
   const ask = (msgs: ChatMessage[]) => {
     const timeoutMs = timeoutFor()
-    if (timeoutMs <= 0) throw new AppError('TIMEOUT', '大模型响应超时，请稍后重试')
+    if (timeoutMs <= 0) throw new AppError('TIMEOUT', '大模型响应超时，请稍后再试')
     return chat(
       target,
       msgs,

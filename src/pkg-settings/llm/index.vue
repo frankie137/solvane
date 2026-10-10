@@ -19,7 +19,7 @@
         <sv-card :padding="18" radius="m"><sv-skeleton :rows="2" /></sv-card>
       </view>
 
-      <template v-else>
+      <view v-else class="llm__content">
         <sv-card :padding="18" radius="m">
           <view class="status">
             <view class="status__dot" :class="`is-${state.effective}`" />
@@ -88,21 +88,29 @@
             <text class="clear__text">清除{{ scope === 'own' ? '我的' : '全局默认' }}配置</text>
           </sv-button>
         </view>
-      </template>
+      </view>
     </view>
 
     <view class="bottom" />
+
+    <view :style="bottomInset" />
   </scroll-view>
 </template>
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { onLoad } from '@dcloudio/uni-app'
 import type { LlmConfigInput } from '@shared/api'
 import { LLM_PRESETS, type LlmPreset } from '@shared/constants'
 import type { LlmConfigState, LlmPresetId, LlmScope } from '@shared/types'
 import { callCloud, CloudError } from '@/services/cloud'
 import { useSettingsStore } from '@/stores/settings'
+import { useSystemStore } from '@/stores/system'
+
+const { metrics: systemMetrics } = storeToRefs(useSystemStore())
+// 底部留出安全区，最后的内容不贴着手势条
+const bottomInset = computed(() => `height:${systemMetrics.value.safeAreaBottom + 24}px`)
 
 const EFFECTIVE_TEXT: Record<LlmConfigState['effective'], string> = {
   own: '正在使用我的配置',
@@ -171,7 +179,7 @@ async function load() {
     applyState(await callCloud('compose', 'getLlmConfig', {}))
     fillForm()
   } catch (err) {
-    loadError.value = err instanceof CloudError ? err.message : '加载失败'
+    loadError.value = err instanceof CloudError ? err.message : '出了点问题，请重试'
   }
 }
 
@@ -236,7 +244,10 @@ async function save() {
     form.apiKey = ''
     uni.showToast({ title: '已保存', icon: 'success' })
   } catch (err) {
-    uni.showToast({ title: err instanceof CloudError ? err.message : '保存失败', icon: 'none' })
+    uni.showToast({
+      title: err instanceof CloudError ? err.message : '保存失败，请重试',
+      icon: 'none',
+    })
   } finally {
     saving.value = false
   }
@@ -254,11 +265,18 @@ function clear() {
     confirmColor: '#ff3b30',
     success: async (res) => {
       if (!res.confirm) return
+      uni.showLoading({ title: '正在清除…', mask: true })
       try {
         applyState(await callCloud('compose', 'clearLlmConfig', { scope: scope.value }))
         fillForm()
+        uni.hideLoading()
+        uni.showToast({ title: '已清除', icon: 'success' })
       } catch (err) {
-        uni.showToast({ title: err instanceof CloudError ? err.message : '清除失败', icon: 'none' })
+        uni.hideLoading()
+        uni.showToast({
+          title: err instanceof CloudError ? err.message : '清除失败，请重试',
+          icon: 'none',
+        })
       }
     },
   })
@@ -266,6 +284,8 @@ function clear() {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .page-scroll {
   height: 100vh;
 }
@@ -350,5 +370,12 @@ function clear() {
 
 .bottom {
   height: 60px;
+}
+
+.llm__content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  @include sv-appear;
 }
 </style>

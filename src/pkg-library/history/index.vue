@@ -15,8 +15,8 @@
       <search-field placeholder="搜索标题、中文或英文" @search="search" />
 
       <sv-card v-if="error && items.length === 0" :padding="24">
-        <sv-state icon="alert" tone="danger" title="加载失败" :description="error">
-          <sv-button type="secondary" size="sm" @click="reload">重试</sv-button>
+        <sv-state icon="alert" tone="danger" title="对话列表加载失败" :description="error">
+          <sv-button type="secondary" size="sm" @click="retry">重试</sv-button>
         </sv-state>
       </sv-card>
 
@@ -34,10 +34,18 @@
         />
       </sv-card>
 
-      <template v-else>
+      <view v-else class="history__content">
         <session-rows :items="items" show-star @open="openSession" />
-        <text class="history__more">{{ footer }}</text>
-      </template>
+        <view
+          v-if="moreFailed"
+          class="history__more is-error"
+          hover-class="is-pressed"
+          @tap="loadMore"
+        >
+          <text>加载失败，点这里重试</text>
+        </view>
+        <text v-else class="history__more">{{ footer }}</text>
+      </view>
     </view>
 
     <view :style="bottomInset" />
@@ -54,6 +62,7 @@ import SessionRows from '@/components/library/SessionRows.vue'
 import { useCollapsingTitle } from '@/composables/useCollapsingTitle'
 import { callCloud, CloudError } from '@/services/cloud'
 import { useSystemStore } from '@/stores/system'
+import { navigateTo } from '@/utils/nav'
 
 const { collapsed, onScroll } = useCollapsingTitle()
 const { metrics } = storeToRefs(useSystemStore())
@@ -61,6 +70,8 @@ const { metrics } = storeToRefs(useSystemStore())
 const items = ref<SessionSummary[]>([])
 const loaded = ref(false)
 const loadingMore = ref(false)
+/** 翻页失败：已经在底部时不会再触发上滑加载，给一个点击重试的入口 */
+const moreFailed = ref(false)
 const hasMore = ref(false)
 const error = ref('')
 const keyword = ref('')
@@ -98,7 +109,8 @@ async function reload(keep = false) {
     items.value = [...res.items, ...rest]
     if (!keep || rest.length === 0) hasMore.value = res.hasMore
   } catch (err) {
-    if (gen === generation) error.value = err instanceof CloudError ? err.message : '加载失败'
+    if (gen === generation)
+      error.value = err instanceof CloudError ? err.message : '出了点问题，请重试'
   } finally {
     if (gen === generation) {
       reloading = false
@@ -111,6 +123,7 @@ async function loadMore() {
   if (!hasMore.value || loadingMore.value || reloading) return
   const gen = generation
   loadingMore.value = true
+  moreFailed.value = false
   try {
     const res = await fetchPage(items.value.length)
     if (gen !== generation) return
@@ -120,11 +133,21 @@ async function loadMore() {
     hasMore.value = res.hasMore
   } catch (err) {
     if (gen === generation) {
-      uni.showToast({ title: err instanceof CloudError ? err.message : '加载失败', icon: 'none' })
+      moreFailed.value = true
+      uni.showToast({
+        title: err instanceof CloudError ? err.message : '加载失败，请重试',
+        icon: 'none',
+      })
     }
   } finally {
     loadingMore.value = false
   }
+}
+
+/** 重试：先显示加载中，不闪空状态 */
+function retry() {
+  loaded.value = false
+  void reload()
 }
 
 function search(next: string) {
@@ -144,11 +167,13 @@ onShow(() => {
 })
 
 function openSession(id: string) {
-  uni.navigateTo({ url: `/pkg-session/session/index?id=${encodeURIComponent(id)}` })
+  navigateTo(`/pkg-session/session/index?id=${encodeURIComponent(id)}`)
 }
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .page-scroll {
   height: 100vh;
 }
@@ -167,8 +192,27 @@ function openSession(id: string) {
 }
 
 .history__more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
   text-align: center;
   font-size: 13px;
   color: var(--sv-text-3);
+
+  &.is-error {
+    color: var(--sv-accent);
+  }
+
+  &.is-pressed {
+    opacity: 0.5;
+  }
+}
+
+.history__content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  @include sv-appear;
 }
 </style>

@@ -12,7 +12,7 @@
       @input="onInput"
       @confirm="apply"
     />
-    <view v-if="typed" class="search__clear" @tap="clear">
+    <view v-if="typed" class="search__clear" hover-class="is-pressed" @tap="clear">
       <sv-icon name="xmark" :size="10" :weight="3" color="var(--sv-surface)" />
     </view>
   </view>
@@ -57,6 +57,8 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .search {
   display: flex;
   align-items: center;
@@ -86,5 +88,10 @@ onUnmounted(() => {
   height: 18px;
   border-radius: 9px;
   background-color: var(--sv-text-3);
+  @include sv-hit-area;
+
+  &.is-pressed {
+    opacity: 0.6;
+  }
 }
 </style>

@@ -30,7 +30,9 @@
               <sv-icon name="mic.fill" :size="34" color="var(--sv-text-on-accent)" :weight="2" />
             </view>
           </view>
-          <text class="hero__hint sv-footnote sv-secondary">点一下开始说话 · 最长 60 秒</text>
+          <text class="hero__hint sv-footnote sv-secondary"
+            >点一下开始说话 · 最长 {{ maxSeconds }} 秒</text
+          >
 
           <sv-button type="secondary" size="sm" @click="openTextInput">
             <sv-icon name="keyboard" :size="18" />
@@ -82,11 +84,13 @@
     :submitting="sheet.submitting"
     @submit="submit"
     @switch-to-text="openTextInput"
+    @retry-voice="retryVoice"
   />
 </template>
 
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
+import { LIMITS } from '@shared/constants'
 import type { InputMode } from '@shared/types'
 import { useCollapsingTitle } from '@/composables/useCollapsingTitle'
 import { useRecorder, type RecordingResult } from '@/composables/useRecorder'
@@ -94,6 +98,7 @@ import { useTabBarInset } from '@/composables/useTabBarInset'
 import { callCloud, CloudError, uploadFile } from '@/services/cloud'
 import { createSession } from '@/services/sessions'
 import { useSessionsStore } from '@/stores/sessions'
+import { navigateTo } from '@/utils/nav'
 import ComposeSheet, { type ComposePhase } from '../components/ComposeSheet.vue'
 import RecentList from '../components/RecentList.vue'
 import RecordingOverlay from '../components/RecordingOverlay.vue'
@@ -101,6 +106,7 @@ import RecordingOverlay from '../components/RecordingOverlay.vue'
 const { collapsed, onScroll } = useCollapsingTitle()
 const bottomInset = useTabBarInset()
 const sessionsStore = useSessionsStore()
+const maxSeconds = Math.round(LIMITS.recordMaxMs / 1000)
 
 const sheet = reactive<{
   show: boolean
@@ -144,6 +150,12 @@ async function recognize(result: RecordingResult) {
   }
 }
 
+/** 识别失败后重新说：关掉面板，再开始录音 */
+function retryVoice() {
+  sheet.show = false
+  startRecording()
+}
+
 function openTextInput() {
   recognizeToken++
   Object.assign(sheet, { show: true, mode: 'text', phase: 'editing', text: '', error: '' })
@@ -168,15 +180,17 @@ async function submit() {
 }
 
 function openHistory() {
-  uni.navigateTo({ url: '/pkg-library/history/index' })
+  navigateTo('/pkg-library/history/index')
 }
 
 function openSession(id: string) {
-  uni.navigateTo({ url: `/pkg-session/session/index?id=${encodeURIComponent(id)}` })
+  navigateTo(`/pkg-session/session/index?id=${encodeURIComponent(id)}`)
 }
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .tab-scroll {
   height: 100%;
 }
@@ -217,7 +231,7 @@ function openSession(id: string) {
   align-items: center;
   justify-content: center;
   background-image: var(--sv-accent-gradient);
-  box-shadow: 0 10px 30px var(--sv-accent-glow);
+  box-shadow: var(--sv-shadow-glow-l);
   transition:
     transform var(--sv-dur-2) var(--sv-ease-spring),
     box-shadow var(--sv-dur-2) var(--sv-ease);
@@ -228,7 +242,7 @@ function openSession(id: string) {
 
   &.is-active {
     transform: scale(1.08);
-    box-shadow: 0 14px 40px var(--sv-accent-glow);
+    box-shadow: var(--sv-shadow-glow-xl);
   }
 }
 
@@ -269,6 +283,7 @@ function openSession(id: string) {
   padding: 4px 0 4px 8px;
   font-size: 15px;
   color: var(--sv-accent);
+  @include sv-hit-area;
 
   &.is-pressed {
     opacity: 0.5;

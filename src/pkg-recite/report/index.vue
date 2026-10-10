@@ -9,18 +9,30 @@
     <sv-nav-bar title="背诵报告" back :large="false" />
 
     <view class="report">
-      <!-- 加载失败 / 评测失败 -->
-      <sv-card v-if="error" :padding="24">
+      <!-- 报告取不到：还不知道练习的情况，只能重试 -->
+      <sv-card v-if="error && !practice" :padding="24">
+        <sv-state icon="alert" tone="danger" title="报告加载失败" :description="error.message">
+          <sv-button size="sm" :loading="retrying" @click="retry">重试</sv-button>
+        </sv-state>
+      </sv-card>
+
+      <!-- 评测失败 -->
+      <sv-card v-else-if="error" :padding="24">
         <sv-state icon="alert" tone="danger" title="评测没有完成" :description="error.message">
           <view class="actions">
-            <sv-button v-if="canRetry" size="sm" @click="run">重试</sv-button>
-            <sv-button type="secondary" size="sm" @click="reciteAgain">重新背诵</sv-button>
+            <sv-button v-if="canRetry" size="sm" :loading="retrying" @click="retry">重试</sv-button>
+            <sv-button type="secondary" size="sm" @click="reciteAgain">再背一次</sv-button>
           </view>
         </sv-state>
       </sv-card>
 
+      <!-- 取报告中：还不知道是否已经评完，先显示骨架，不闪「正在评测」 -->
+      <view v-else-if="!practice" class="report__loading">
+        <sv-card :padding="22"><sv-skeleton :rows="4" title /></sv-card>
+      </view>
+
       <!-- 评测中 -->
-      <sv-card v-if="!error && !done" :padding="22">
+      <sv-card v-else-if="!done" :padding="22">
         <text class="report__title">正在评测</text>
         <text class="report__desc"
           >大约需要 20～40 秒，可以先离开，稍后在对话页的练习记录里查看。</text
@@ -31,7 +43,7 @@
       </sv-card>
 
       <!-- 评测结果 -->
-      <template v-if="done && practice && report">
+      <view v-if="done && practice && report" class="report__result">
         <sv-card :padding="22">
           <view class="summary">
             <score-ring :score="report.scores.overall" />
@@ -44,7 +56,11 @@
                 <text class="metric__value sv-en">{{ m.value }}</text>
               </view>
               <view class="metric__track">
-                <view class="metric__bar" :class="`is-${m.tone}`" :style="`width:${m.value}%`" />
+                <view
+                  class="metric__bar"
+                  :class="`is-${m.tone}`"
+                  :style="`width:${barsGrown ? m.value : 0}%`"
+                />
               </view>
             </view>
           </view>
@@ -68,6 +84,8 @@
                   v-for="(w, j) in row.words"
                   :key="j"
                   class="row__word"
+                  hover-class="is-pressed"
+                  :hover-stay-time="60"
                   :class="`is-${toneOf(w)}`"
                   @tap="openWord(w)"
                   >{{ w.word }}</text
@@ -150,10 +168,12 @@
             <sv-button block haptic @click="reciteAgain">再背一次</sv-button>
           </view>
         </view>
-      </template>
+      </view>
     </view>
 
     <view class="bottom" />
+
+    <view :style="bottomInset" />
   </scroll-view>
 
   <word-sheet
@@ -190,7 +210,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { onHide, onLoad, onUnload } from '@dcloudio/uni-app'
 import { storeToRefs } from 'pinia'
 import type { DiffKind, Practice, ScoredWord, Version } from '@shared/types'
@@ -206,6 +226,7 @@ import { getSession } from '@/services/sessions'
 import { useLibraryStore } from '@/stores/library'
 import { useSystemStore } from '@/stores/system'
 import { toast } from '@/utils/dialog'
+import { navigateTo } from '@/utils/nav'
 import { scoreTone } from '@/utils/recite'
 import ScoreRing from '../components/ScoreRing.vue'
 import StageProgress from '../components/StageProgress.vue'
@@ -228,7 +249,34 @@ const version = ref<Version | null>(null)
 const error = ref<CloudError | null>(null)
 
 const done = computed(() => practice.value?.stage === 'done')
+
+const retrying = ref(false)
+async function retry() {
+  if (retrying.value) return
+  retrying.value = true
+  try {
+    await run()
+  } finally {
+    retrying.value = false
+  }
+}
 const report = computed(() => practice.value?.report ?? null)
+
+/** 评分条先从 0 开始，结果出现后再长到分数，和分数环一起动 */
+const barsGrown = ref(false)
+watch(
+  () => Boolean(done.value && report.value),
+  (shown) => {
+    if (!shown) return
+    void nextTick(() =>
+      setTimeout(() => {
+        barsGrown.value = true
+      }, 30),
+    )
+  },
+  { immediate: true },
+)
+
 /** 配置类问题和"没听清"重试没有意义 */
 const canRetry = computed(() => !!practice.value && error.value?.code !== 'BAD_REQUEST')
 
@@ -306,18 +354,38 @@ function toneOf(w: ScoredWord) {
 
 // --- 播放 -------------------------------------------------------------------
 
-const audio = useAudio()
+/** 回放链接是临时链接（2 小时过期）：超过 90 分钟或播放出错后，播放前重新取一次 */
+const AUDIO_TTL_MS = 90 * 60_000
+let audioFetchedAt = Date.now()
+const audio = useAudio(60, {
+  onError: () => {
+    audioFetchedAt = 0
+  },
+})
 const playingAll = ref(false)
 
-function toggleRecording() {
+async function freshAudioUrl(): Promise<string | null> {
+  if (practice.value && Date.now() - audioFetchedAt > AUDIO_TTL_MS) {
+    try {
+      practice.value = await getPractice(practiceId.value)
+      audioFetchedAt = Date.now()
+    } catch {
+      // 取不到就用原来的链接试一下
+    }
+  }
+  return practice.value?.audioUrl ?? null
+}
+
+async function toggleRecording() {
   if (playingAll.value) {
     audio.stop()
     playingAll.value = false
     return
   }
-  if (!practice.value?.audioUrl) return
+  const url = await freshAudioUrl()
+  if (!url) return
   playingAll.value = true
-  audio.play(practice.value.audioUrl, { onEnded: () => (playingAll.value = false) })
+  audio.play(url, { onEnded: () => (playingAll.value = false) })
 }
 
 const sheet = reactive<{
@@ -348,6 +416,9 @@ const libraryStore = useLibraryStore()
 const organizer = useOrganizer()
 const { metrics: system } = storeToRefs(useSystemStore())
 const toastBottom = computed(() => system.value.safeAreaBottom + 24)
+
+// 底部留出安全区，最后的内容不贴着手势条
+const bottomInset = computed(() => `height:${system.value.safeAreaBottom + 24}px`)
 if (!libraryStore.loaded) void libraryStore.refresh()
 
 const sheetSavedId = computed(() => (sheet.word ? libraryStore.savedId(sheet.word.word) : null))
@@ -359,7 +430,7 @@ async function saveWord() {
   const existing = sheetSavedId.value
   if (existing) {
     sheet.show = false
-    uni.navigateTo({ url: `/pkg-library/expression/index?id=${encodeURIComponent(existing)}` })
+    navigateTo(`/pkg-library/expression/index?id=${encodeURIComponent(existing)}`)
     return
   }
   sheet.saving = true
@@ -414,9 +485,9 @@ async function playStandard(word: string) {
   }
 }
 
-function playMine() {
+async function playMine() {
   const w = sheet.word
-  const url = practice.value?.audioUrl
+  const url = await freshAudioUrl()
   if (!w || !url) return
   playingAll.value = false
   audio.play(url, {
@@ -446,6 +517,8 @@ function backToSession() {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .page-scroll {
   height: 100vh;
 }
@@ -455,6 +528,17 @@ function backToSession() {
   flex-direction: column;
   gap: 24px;
   padding: 16px 16px 0;
+}
+
+.report__loading,
+.report__result {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.report__result {
+  @include sv-appear;
 }
 
 .report__title {
@@ -612,6 +696,10 @@ function backToSession() {
 
   &.is-none {
     color: var(--sv-text-2);
+  }
+
+  &.is-pressed {
+    opacity: 0.55;
   }
 }
 
