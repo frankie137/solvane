@@ -1,0 +1,30 @@
+// 组件里复用的样式片段。小程序组件样式隔离，关键帧写在各组件里更稳，这里只保证写法一致。
+
+// 加载中转圈：一周 --sv-dur-spin；切到后台的 tab 自动暂停
+@mixin sv-spinning($name) {
+  animation: $name var(--sv-dur-spin) linear infinite;
+  animation-play-state: var(--sv-play);
+
+  @keyframes #{$name} {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
+
+// 点击区至少 44px：视觉尺寸不变，用看不见的伪元素把可点范围向四周扩开。
+// 元素本身需要能作为定位参照（这里会设 position: relative）。
+@mixin sv-hit-area($pseudo: after, $size: 44px) {
+  position: relative;
+
+  &::#{$pseudo} {
+    content: '';
+    display: block;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, #{$size});
+    height: max(100%, #{$size});
+    transform: translate(-50%, -50%);
+  }
+}

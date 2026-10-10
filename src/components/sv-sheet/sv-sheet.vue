@@ -97,6 +97,8 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .sv-sheet {
   position: fixed;
   top: 0;
@@ -160,6 +162,7 @@ onUnmounted(() => {
 }
 
 .sv-sheet__close {
+  @include sv-hit-area;
   width: 30px;
   height: 30px;
   border-radius: 50%;

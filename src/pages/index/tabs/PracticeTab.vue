@@ -177,6 +177,8 @@ function openSession(id: string) {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .tab-scroll {
   height: 100%;
 }
@@ -217,7 +219,7 @@ function openSession(id: string) {
   align-items: center;
   justify-content: center;
   background-image: var(--sv-accent-gradient);
-  box-shadow: 0 10px 30px var(--sv-accent-glow);
+  box-shadow: var(--sv-shadow-glow-l);
   transition:
     transform var(--sv-dur-2) var(--sv-ease-spring),
     box-shadow var(--sv-dur-2) var(--sv-ease);
@@ -228,7 +230,7 @@ function openSession(id: string) {
 
   &.is-active {
     transform: scale(1.08);
-    box-shadow: 0 14px 40px var(--sv-accent-glow);
+    box-shadow: var(--sv-shadow-glow-xl);
   }
 }
 
@@ -263,6 +265,7 @@ function openSession(id: string) {
 }
 
 .section__more {
+  @include sv-hit-area;
   display: flex;
   align-items: center;
   gap: 2px;

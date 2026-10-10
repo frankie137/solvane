@@ -53,6 +53,8 @@
           v-for="(s, i) in share.sentences"
           :key="i"
           class="line"
+          hover-class="is-pressed"
+          :hover-stay-time="60"
           :class="{ 'is-current': i === current, 'is-silent': s.startMs < 0 }"
           @tap="jumpTo(i)"
         >
@@ -393,6 +395,8 @@ function goHome() {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .stage {
   position: relative;
   display: flex;
@@ -512,6 +516,10 @@ function goHome() {
   &.is-silent {
     opacity: 0.5;
   }
+
+  &.is-pressed:not(.is-silent) {
+    background-color: var(--sv-fill);
+  }
 }
 
 .line__en {
@@ -539,12 +547,12 @@ function goHome() {
 
 .controls {
   position: relative;
-  padding: 8px 28px 0;
+  padding: 0 28px;
 }
 
 .bar {
   position: relative;
-  height: 28px;
+  height: 44px;
   display: flex;
   align-items: center;
 }
@@ -588,6 +596,7 @@ function goHome() {
 }
 
 .audio-error__retry {
+  @include sv-hit-area;
   padding: 4px 10px;
   border-radius: 12px;
   color: var(--sv-accent);
@@ -625,7 +634,7 @@ function goHome() {
   height: 64px;
   border-radius: 32px;
   background: var(--sv-accent-gradient);
-  box-shadow: 0 8px 24px var(--sv-accent-glow);
+  box-shadow: var(--sv-shadow-glow);
   transition: transform var(--sv-dur-1) var(--sv-ease);
 
   &.is-pressed {

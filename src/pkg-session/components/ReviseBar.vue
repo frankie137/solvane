@@ -26,7 +26,12 @@
         @input="onInput"
         @confirm="send"
       />
-      <view class="revise__send" :class="{ 'is-ready': canSend }" @tap="send">
+      <view
+        class="revise__send"
+        :class="{ 'is-ready': canSend }"
+        :hover-class="canSend ? 'is-pressed' : 'none'"
+        @tap="send"
+      >
         <sv-icon name="arrow.up" :size="18" :weight="2.6" color="var(--sv-text-on-accent)" />
       </view>
     </view>
@@ -80,6 +85,8 @@ function send() {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .revise {
   position: fixed;
   left: 0;
@@ -137,6 +144,7 @@ function send() {
 }
 
 .revise__send {
+  @include sv-hit-area;
   width: 36px;
   height: 36px;
   flex-shrink: 0;
@@ -151,6 +159,10 @@ function send() {
 
   &.is-ready {
     background-image: var(--sv-accent-gradient);
+  }
+
+  &.is-pressed {
+    transform: scale(0.9);
   }
 }
 </style>

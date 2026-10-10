@@ -705,6 +705,8 @@ function openLlmSettings() {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .page-scroll {
   height: 100vh;
 }
@@ -767,6 +769,7 @@ function openLlmSettings() {
 }
 
 .star {
+  @include sv-hit-area;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -781,6 +784,7 @@ function openLlmSettings() {
 }
 
 .copy {
+  @include sv-hit-area;
   display: flex;
   align-items: center;
   gap: 4px;

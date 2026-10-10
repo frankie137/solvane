@@ -102,6 +102,8 @@ void store.refresh()
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .library {
   display: flex;
   flex-direction: column;
@@ -110,6 +112,7 @@ void store.refresh()
 }
 
 .library__new {
+  @include sv-hit-area;
   display: flex;
   align-items: center;
   justify-content: center;

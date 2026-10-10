@@ -38,6 +38,8 @@ function stateOf(i: number): 'done' | 'running' | 'failed' | 'pending' {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .stages {
   display: flex;
   flex-direction: column;
@@ -95,18 +97,11 @@ function stateOf(i: number): 'done' | 'running' | 'failed' | 'pending' {
   border: 2.5px solid var(--sv-accent);
   border-top-color: transparent;
   border-radius: 50%;
-  animation: sv-stage-spin 0.8s linear infinite;
-  animation-play-state: var(--sv-play);
+  @include sv-spinning(sv-stage-spin);
 }
 
 .stage__label {
   font-size: 16px;
   line-height: 22px;
-}
-
-@keyframes sv-stage-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>

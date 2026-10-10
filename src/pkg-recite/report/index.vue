@@ -68,6 +68,8 @@
                   v-for="(w, j) in row.words"
                   :key="j"
                   class="row__word"
+                  hover-class="is-pressed"
+                  :hover-stay-time="60"
                   :class="`is-${toneOf(w)}`"
                   @tap="openWord(w)"
                   >{{ w.word }}</text
@@ -612,6 +614,10 @@ function backToSession() {
 
   &.is-none {
     color: var(--sv-text-2);
+  }
+
+  &.is-pressed {
+    opacity: 0.55;
   }
 }
 

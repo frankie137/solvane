@@ -109,6 +109,8 @@ function goBack() {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .page-scroll {
   height: 100vh;
 }
@@ -127,6 +129,7 @@ function goBack() {
 }
 
 .folder__more {
+  @include sv-hit-area;
   display: flex;
   align-items: center;
   justify-content: center;

@@ -20,6 +20,8 @@ const emit = defineEmits<{ action: [] }>()
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .saved {
   position: fixed;
   left: 0;
@@ -58,6 +60,7 @@ const emit = defineEmits<{ action: [] }>()
 }
 
 .saved__action {
+  @include sv-hit-area;
   display: flex;
   align-items: center;
   gap: 2px;

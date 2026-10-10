@@ -9,7 +9,10 @@ export interface RecordingResult {
 
 /** 波形条数量 */
 export const WAVE_BARS = 28
-/** 界面刷新间隔：音量帧每秒约 16 帧，界面只按这个频率更新，避免频繁 setData */
+/**
+ * 界面刷新间隔：音量帧每秒约 16 帧，界面只按这个频率更新，避免频繁 setData。
+ * 波形条的过渡时长 --sv-dur-tick（tokens.scss）要和它一致。
+ */
 const UI_TICK_MS = 80
 
 interface RecorderListener {

@@ -341,6 +341,8 @@ async function unstarCard() {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .page-scroll {
   height: 100vh;
 }
@@ -387,6 +389,7 @@ async function unstarCard() {
 }
 
 .hero__speak {
+  @include sv-hit-area;
   display: flex;
   align-items: center;
   justify-content: center;

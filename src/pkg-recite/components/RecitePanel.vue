@@ -70,6 +70,8 @@ const timeText = computed(() =>
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .panel {
   position: fixed;
   left: 0;
@@ -108,7 +110,7 @@ const timeText = computed(() =>
   align-items: center;
   justify-content: center;
   background-image: var(--sv-accent-gradient);
-  box-shadow: 0 8px 24px var(--sv-accent-glow);
+  box-shadow: var(--sv-shadow-glow);
   transition: transform var(--sv-dur-2) var(--sv-ease-spring);
 
   &.is-pressed {
@@ -133,7 +135,7 @@ const timeText = computed(() =>
   width: 4px;
   border-radius: 2px;
   background-color: var(--sv-accent);
-  transition: height 80ms linear;
+  transition: height var(--sv-dur-tick) linear;
 }
 
 .panel__time {
@@ -165,13 +167,6 @@ const timeText = computed(() =>
   border: 3px solid var(--sv-accent);
   border-top-color: transparent;
   border-radius: 50%;
-  animation: sv-panel-spin 0.8s linear infinite;
-  animation-play-state: var(--sv-play);
-}
-
-@keyframes sv-panel-spin {
-  to {
-    transform: rotate(360deg);
-  }
+  @include sv-spinning(sv-panel-spin);
 }
 </style>

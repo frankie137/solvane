@@ -200,6 +200,8 @@ defineExpose({ load })
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .browser {
   display: flex;
   flex-direction: column;
@@ -228,6 +230,7 @@ defineExpose({ load })
 }
 
 .browser__link {
+  @include sv-hit-area;
   padding: 2px 6px;
   font-size: 14px;
   color: var(--sv-accent);

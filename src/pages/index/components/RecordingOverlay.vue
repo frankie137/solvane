@@ -147,7 +147,7 @@ function noop() {}
   width: 4px;
   border-radius: 2px;
   background-color: var(--sv-accent);
-  transition: height 80ms linear;
+  transition: height var(--sv-dur-tick) linear;
 }
 
 .rec__time {

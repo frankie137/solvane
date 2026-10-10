@@ -26,7 +26,10 @@ function onTap() {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .sv-chip {
+  @include sv-hit-area;
   display: inline-flex;
   align-items: center;
   gap: 4px;

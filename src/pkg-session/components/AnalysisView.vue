@@ -100,6 +100,8 @@ const isSaved = (phrase: string) => Boolean(props.savedKeys[expressionKey(phrase
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .analysis {
   display: flex;
   flex-direction: column;
@@ -140,6 +142,7 @@ const isSaved = (phrase: string) => Boolean(props.savedKeys[expressionKey(phrase
 }
 
 .save {
+  @include sv-hit-area;
   display: flex;
   align-items: center;
   justify-content: center;
