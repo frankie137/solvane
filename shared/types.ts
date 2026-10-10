@@ -4,10 +4,15 @@ import type { ErrorCode } from './result'
 
 export type EnglishLevel = 'junior' | 'senior' | 'cet4' | 'cet6' | 'ielts' | 'toefl'
 export type Accent = 'us' | 'uk'
+export type TtsVoice = 'female' | 'male'
+export type TtsSpeed = 'normal' | 'slow'
 
 export interface UserSettings {
   level: EnglishLevel
   accent: Accent
+  /** 示范朗读的音色和语速 */
+  ttsVoice: TtsVoice
+  ttsSpeed: TtsSpeed
 }
 
 /** 一句英文和它的中文 */
@@ -134,3 +139,145 @@ export interface LlmConfigState {
 }
 
 export type LlmPresetId = 'deepseek' | 'qwen' | 'moonshot' | 'zhipu' | 'doubao' | 'custom'
+
+// ---------------------------------------------------------------------------
+// 示范朗读
+
+/** 一个词在音频里的位置；index 为这个词在句子文本里的字符范围 */
+export interface TimedText {
+  text: string
+  beginMs: number
+  endMs: number
+  beginIndex: number
+  endIndex: number
+}
+
+export interface TtsSentence {
+  index: number
+  /** 临时播放链接 */
+  url: string
+  words: TimedText[]
+}
+
+// ---------------------------------------------------------------------------
+// 背诵练习
+
+export type PracticeStage = 'transcribe' | 'align' | 'score' | 'report' | 'done'
+
+export interface PracticeJob {
+  stage: PracticeStage
+  startedAt: number
+}
+
+export interface PracticeError {
+  stage: PracticeStage
+  code: ErrorCode
+  message: string
+  at: number
+}
+
+/** 识别出的一个词和它在录音里的时间（毫秒） */
+export interface SpokenWord {
+  word: string
+  startMs: number
+  endMs: number
+}
+
+export type DiffKind = 'mispronounced' | 'paraphrase' | 'missing' | 'extra' | 'grammar'
+
+export interface PracticeDiff {
+  kind: DiffKind
+  /** 原文第几句（从 0 开始） */
+  sentenceIndex: number
+  /** 原文里的说法 */
+  target: string
+  /** 实际说的 */
+  said: string
+  note: string
+}
+
+export interface AlignedSentence {
+  index: number
+  /** 还原出的"想说的那句话"，没背出来时为空 */
+  intended: string
+  startMs: number
+  endMs: number
+}
+
+export interface PhoneScore {
+  /** 标准音素 */
+  refPhone: string
+  /** 实际发出的音素 */
+  phone: string
+  accuracy: number
+}
+
+export type WordMatch = 'ok' | 'extra' | 'missing' | 'wrong' | 'other'
+
+export interface ScoredWord {
+  word: string
+  sentenceIndex: number
+  startMs: number
+  endMs: number
+  /** 0～100；无法评测时为 -1 */
+  accuracy: number
+  match: WordMatch
+  phones: PhoneScore[]
+}
+
+export interface PracticeScores {
+  overall: number
+  pronunciation: number
+  fluency: number
+  content: number
+  expression: number
+}
+
+export interface PronunciationTip {
+  word: string
+  issue: string
+  howTo: string
+}
+
+export interface Practice {
+  id: string
+  sessionId: string
+  vid: string
+  stage: PracticeStage
+  job: PracticeJob | null
+  lastError: PracticeError | null
+  durationMs: number
+  /** 录音的临时播放链接 */
+  audioUrl: string | null
+  transcript: { text: string; words: SpokenWord[] } | null
+  alignment: {
+    sentences: AlignedSentence[]
+    diffs: PracticeDiff[]
+    content: number
+    expression: number
+  } | null
+  pronunciation: {
+    accuracy: number
+    fluency: number
+    completeness: number
+    words: ScoredWord[]
+  } | null
+  report: {
+    scores: PracticeScores
+    summary: string
+    pronunciationTips: PronunciationTip[]
+    recitationTips: string[]
+  } | null
+  createdAt: number
+  updatedAt: number
+}
+
+export interface PracticeSummary {
+  id: string
+  vid: string
+  stage: PracticeStage
+  failed: boolean
+  overall: number | null
+  durationMs: number
+  createdAt: number
+}

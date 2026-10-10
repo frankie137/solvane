@@ -47,3 +47,43 @@ export const analysisSchema = z.object({
 
 export type Draft = z.infer<typeof draftSchema>
 export type Revision = z.infer<typeof revisionSchema>
+
+/** 背诵对照：每句对应识别结果里的词序号范围、还原文本、差异和两项分数 */
+export const alignSchema = z.object({
+  sentences: z
+    .array(
+      z.object({
+        index: z.number().int().min(0),
+        intended: z.string().trim().default(''),
+        wordRange: z.tuple([z.number().int(), z.number().int()]).nullable().default(null),
+      }),
+    )
+    .default([]),
+  diffs: list(
+    z.object({
+      kind: z.enum(['mispronounced', 'paraphrase', 'missing', 'extra', 'grammar']),
+      sentenceIndex: z.number().int().min(0),
+      target: z
+        .string()
+        .trim()
+        .default('')
+        .transform((s) => s.slice(0, 200)),
+      said: z
+        .string()
+        .trim()
+        .default('')
+        .transform((s) => s.slice(0, 200)),
+      note: text(120),
+    }),
+    20,
+  ),
+  content: z.number().min(0).max(100),
+  expression: z.number().min(0).max(100),
+})
+
+/** 背诵报告：一句话总结、发音建议、背诵建议 */
+export const reportSchema = z.object({
+  summary: text(80),
+  pronunciationTips: list(z.object({ word: text(40), issue: text(80), howTo: text(120) }), 6),
+  recitationTips: list(text(100), 3),
+})

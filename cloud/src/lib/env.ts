@@ -20,8 +20,11 @@ export const env = {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),
-  tencentCredential: () => ({
-    secretId: required('TENCENT_SECRET_ID', 'speech'),
-    secretKey: required('TENCENT_SECRET_KEY', 'speech'),
+  /** 腾讯云密钥：speech 和 assess 都需要，各自在自己的环境变量里 */
+  tencentCredential: (fn: 'speech' | 'assess') => ({
+    secretId: required('TENCENT_SECRET_ID', fn),
+    secretKey: required('TENCENT_SECRET_KEY', fn),
   }),
+  soeAppId: () => required('SOE_APP_ID', 'assess'),
+  assessEncryptionSecret: () => required('KEY_ENCRYPTION_SECRET', 'assess', 16),
 }

@@ -7,8 +7,11 @@ import type {
   LlmConfigState,
   LlmPresetId,
   LlmScope,
+  Practice,
+  PracticeSummary,
   Session,
   SessionSummary,
+  TtsSentence,
   UserSettings,
 } from './types'
 
@@ -56,6 +59,22 @@ export interface CloudApi {
   speech: {
     /** 识别一段已上传到云存储的中文录音，识别后删除录音 */
     recognize: { req: { fileID: string }; res: { text: string } }
+    /** 某个版本的示范朗读（按句合成，按音色和语速缓存） */
+    tts: { req: { sessionId: string; vid: string }; res: { sentences: TtsSentence[] } }
+    /** 单个单词的标准发音：base64 编码的 mp3（很小，不落盘） */
+    ttsWord: { req: { word: string }; res: { audio: string } }
+  }
+
+  assess: {
+    /** 提交一段背诵录音，创建练习；同一对话只保留最近几次 */
+    start: {
+      req: { sessionId: string; vid: string; fileID: string; durationMs: number }
+      res: { practiceId: string }
+    }
+    /** 推进评测流程（可能一次完成多步）；已有步骤在运行时直接返回当前状态 */
+    advance: { req: { practiceId: string }; res: { practice: Practice } }
+    get: { req: { practiceId: string }; res: { practice: Practice } }
+    list: { req: { sessionId: string }; res: { items: PracticeSummary[] } }
   }
 }
 

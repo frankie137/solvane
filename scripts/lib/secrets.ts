@@ -85,6 +85,15 @@ export function validateSecrets(values: Map<string, string>): string[] {
   if ((values.get('TENCENT_SECRET_KEY') ?? '').length < 16) {
     problems.push('TENCENT_SECRET_KEY 看起来不完整')
   }
+
+  const soeAppId = values.get('SOE_APP_ID') ?? ''
+  if (!soeAppId) {
+    problems.push('SOE_APP_ID 不能为空：填腾讯云账号的 AppID（腾讯云「账号信息」里的一串数字）')
+  } else if (!/^\d{5,12}$/.test(soeAppId)) {
+    problems.push(
+      `SOE_APP_ID 应该是 5～12 位数字，现在有 ${soeAppId.length} 个字符；注意不是 wx 开头的微信 AppID`,
+    )
+  }
   return problems
 }
 

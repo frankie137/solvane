@@ -1,18 +1,12 @@
 import { z } from 'zod'
 import type { LlmConfigInput } from '@shared/api'
-import { DEFAULT_SETTINGS, JOB_STALE_MS, LIMITS } from '@shared/constants'
-import type {
-  JobKind,
-  LlmConfigState,
-  LlmConfigView,
-  LlmScope,
-  Session,
-  UserSettings,
-} from '@shared/types'
+import { JOB_STALE_MS, LIMITS } from '@shared/constants'
+import type { JobKind, LlmConfigState, LlmConfigView, LlmScope, Session } from '@shared/types'
 import { decryptSecret, encryptSecret, maskSecret } from '../../lib/crypto'
 import { AppError } from '../../lib/errors'
-import type { ChatMessage, LlmTarget } from '../../lib/llm/client'
-import type { ChatJsonOptions } from '../../lib/llm/json'
+import { createLlmContextLoader } from '../../lib/llm-context'
+import type { LlmTarget } from '../../lib/llm/client'
+import type { LlmService } from '../../lib/llm/service'
 import { analysisSchema, draftSchema, revisionSchema } from '../../lib/llm/schemas'
 import {
   GLOBAL_SETTINGS_ID,
@@ -31,16 +25,7 @@ import {
   buildReviseMessages,
 } from '../../prompts/compose'
 
-export interface LlmService {
-  chatJson<S extends z.ZodType>(
-    target: LlmTarget,
-    messages: ChatMessage[],
-    schema: S,
-    options: Pick<ChatJsonOptions, 'deadline' | 'maxTokens' | 'temperature'>,
-  ): Promise<z.infer<S>>
-  /** 测试连接：返回模型的回复 */
-  ping(target: LlmTarget): Promise<string>
-}
+export type { LlmService } from '../../lib/llm/service'
 
 export interface ComposeDeps {
   repos: Repos
@@ -89,30 +74,7 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
     }
   }
 
-  /**
-   * 生成任务需要的上下文：学习偏好 + 大模型目标。
-   * 自己的设置文档只读一次；没有自己的大模型配置时才读管理员的全局默认。
-   */
-  async function loadJobContext(
-    openid: string,
-  ): Promise<{ target: LlmTarget; userSettings: UserSettings }> {
-    const own = await settings.get(openid)
-    const stored = own?.llm ?? (await settings.get(GLOBAL_SETTINGS_ID))?.llm
-    if (!stored) {
-      throw new AppError('NOT_CONFIGURED', '还没有配置大模型，请到「我的 → 大模型配置」中设置')
-    }
-    return {
-      target: {
-        baseUrl: stored.baseUrl,
-        model: stored.model,
-        apiKey: decryptSecret(stored.apiKeyCipher, deps.encryptionSecret()),
-      },
-      userSettings: {
-        level: own?.level ?? DEFAULT_SETTINGS.level,
-        accent: own?.accent ?? DEFAULT_SETTINGS.accent,
-      },
-    }
-  }
+  const loadJobContext = createLlmContextLoader(settings, deps.encryptionSecret)
 
   async function configState(openid: string): Promise<LlmConfigState> {
     const [own, global] = await Promise.all([
