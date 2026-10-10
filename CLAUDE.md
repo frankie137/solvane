@@ -64,6 +64,8 @@ pnpm cloud:config # 把 .keys/cloud.env 写入各云函数的环境变量并设�
 - 原生 `button` 带 `disabled` 时会套用微信内置的灰色样式，优先级 (0,2,1)；`sv-button` 已覆盖，直接用原生按钮时要注意
 - 页面里的样式选择器进不了子组件（样式隔离），但 CSS 变量可以继承下去；需要跨组件控制样式时用变量
 - **不要给 `sv-*` 组件加 class 来排版**：class 虽然会传到子组件根节点，但父组件的样式管不到它。要在组件外或插槽内包一层自己的 `view`（`src/conventions.test.ts` 会检查）
+- 模板里的组件 `<word-picker>` 和脚本里同名（camelCase）的变量 `wordPicker` 会被 ESLint 对到一起，组件被误判为没用到；状态变量换个名字
+- 新增依赖 `position: fixed` 的面板（`sv-sheet` 等）放在页面的 scroll-view 外面
 - `wx.cloud.callFunction` 的 errMsg 都以 `cloud.callFunction:fail` 开头，按错误文案归类时正则不能宽松匹配 `function`
 - 云函数运行时是 Node.js 16.13（部署工具创建函数时的默认值，创建后改不了）：**没有全局 `fetch`**，发 HTTP 请求用 `cloud/src/lib/http.ts` 的 `defaultFetch`；打包目标是 node16，不要用 Node 18+ 才有的 API（`structuredClone`、`Array.prototype.findLast` 等）
 - 代码上传 IP 白名单已由使用者关闭（家用宽带 IP 会变）；因此 `.keys/` 里的代码上传密钥一旦泄露就能部署云函数，务必保护好，怀疑泄露时到公众平台重置

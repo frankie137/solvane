@@ -12,6 +12,7 @@ import type {
   PracticeError,
   PracticeJob,
   PracticeStage,
+  ShareSentence,
   TimedText,
   TtsSpeed,
   TtsVoice,
@@ -124,7 +125,31 @@ export interface SettingsDoc {
   ttsVoice?: TtsVoice
   ttsSpeed?: TtsSpeed
   llm?: LlmStored | null
+  /** 分享时的署名 */
+  profile?: ProfileStored | null
   updatedAt: number
+}
+
+export interface ProfileStored {
+  nickname: string
+  avatarFileID: string | null
+}
+
+/** 分享快照：内容在分享时定下来，之后对话、练习怎么变都不影响 */
+export interface ShareDoc {
+  _id: string
+  _openid: string
+  sessionId: string
+  practiceId: string
+  title: string
+  /** 第一句英文，列表里显示（列表不取 sentences） */
+  preview: string
+  sentences: ShareSentence[]
+  /** 录音副本，撤回时删除 */
+  audioFileID: string
+  durationMs: number
+  author: ProfileStored
+  createdAt: number
 }
 
 /** 一句示范朗读的缓存：云存储文件 + 逐词时间 */
@@ -208,12 +233,23 @@ export interface PracticeRepo {
   remove(id: string, openid: string): Promise<void>
 }
 
+export interface ShareRepo {
+  /** 用指定 id 新建；id 已存在时不覆盖，返回 false（同一次练习并发分享时只留一个） */
+  create(id: string, doc: Omit<ShareDoc, '_id'>): Promise<boolean>
+  /** 任何人凭 id 都能读，调用方只能返回快照字段 */
+  get(id: string): Promise<ShareDoc | null>
+  findByPractice(openid: string, practiceId: string): Promise<ShareDoc | null>
+  listByOwner(openid: string, limit: number): Promise<ShareDoc[]>
+  remove(id: string, openid: string): Promise<void>
+}
+
 export interface Repos {
   sessions: SessionRepo
   settings: SettingsRepo
   practices: PracticeRepo
   folders: FolderRepo
   expressions: ExpressionRepo
+  shares: ShareRepo
 }
 
 // ---------------------------------------------------------------------------
@@ -268,6 +304,7 @@ const SETTINGS = 'settings'
 const PRACTICES = 'practices'
 const FOLDERS = 'folders'
 const EXPRESSIONS = 'expressions'
+const SHARES = 'shares'
 
 /** 云函数端一次最多取 100 条，更多的分页取 */
 const PAGE = 100
@@ -300,6 +337,11 @@ function isCollectionMissing(err: unknown): boolean {
       `${e?.errMsg ?? ''}${e?.message ?? ''}`,
     )
   )
+}
+
+function isDuplicateKey(err: unknown): boolean {
+  const e = err as { errCode?: number; errMsg?: string; message?: string }
+  return e?.errCode === -502001 || /duplicate/i.test(`${e?.errMsg ?? ''}${e?.message ?? ''}`)
 }
 
 /** 首次使用时集合可能还不存在：自动创建后重试一次 */
@@ -653,11 +695,54 @@ export function createWxRepos(db: WxDatabase): Repos {
       }),
   }
 
+  const shares = () => db.collection(SHARES)
+  const shareRepo: ShareRepo = {
+    create: (id, doc) =>
+      withCollection(db, SHARES, async () => {
+        try {
+          await shares().add({ data: { ...doc, _id: id } })
+          return true
+        } catch (err) {
+          if (isDuplicateKey(err)) return false
+          throw err
+        }
+      }),
+
+    get: (id) =>
+      withCollection(db, SHARES, async () => {
+        const { data } = await shares().where({ _id: id }).limit(1).get()
+        return (data[0] as ShareDoc | undefined) ?? null
+      }),
+
+    findByPractice: (openid, practiceId) =>
+      withCollection(db, SHARES, async () => {
+        const { data } = await shares().where({ _openid: openid, practiceId }).limit(1).get()
+        return (data[0] as ShareDoc | undefined) ?? null
+      }),
+
+    listByOwner: (openid, limit) =>
+      withCollection(db, SHARES, async () => {
+        const { data } = await shares()
+          .where({ _openid: openid })
+          .orderBy('createdAt', 'desc')
+          .limit(limit)
+          .field({ sentences: false })
+          .get()
+        return data as ShareDoc[]
+      }),
+
+    remove: (id, openid) =>
+      withCollection(db, SHARES, async () => {
+        await shares().where({ _id: id, _openid: openid }).remove()
+      }),
+  }
+
   return {
     sessions: sessionRepo,
     settings: settingsRepo,
     practices: practiceRepo,
     folders: folderRepo,
     expressions: expressionRepo,
+    shares: shareRepo,
   }
 }

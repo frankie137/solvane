@@ -54,6 +54,10 @@ const ICONS = {
   pencil: '<path d="M4 20l1-4.5L16 4.5a2.1 2.1 0 0 1 3 3L8 18.5zM14 7l3 3"/>',
   ellipsis:
     '<circle cx="5.5" cy="12" r="1.2" fill="#000"/><circle cx="12" cy="12" r="1.2" fill="#000"/><circle cx="18.5" cy="12" r="1.2" fill="#000"/>',
+  'pause.fill':
+    '<rect x="6" y="4.5" width="4" height="15" rx="1.2" fill="#000"/><rect x="14" y="4.5" width="4" height="15" rx="1.2" fill="#000"/>',
+  share:
+    '<path d="M12 3.5v11M8 7l4-3.5L16 7"/><path d="M8.5 10.5H6.5A1.5 1.5 0 0 0 5 12v7a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-7a1.5 1.5 0 0 0-1.5-1.5h-2"/>',
   'chevron.up': '<path d="M5.5 14.5L12 8l6.5 6.5"/>',
   'chevron.down': '<path d="M5.5 9.5L12 16l6.5-6.5"/>',
   quote:

@@ -8,6 +8,7 @@ import { AppError } from '../src/lib/errors'
 import type { SessionDoc } from '../src/lib/repos'
 import { createFakeLlm, EXPLAIN } from './support/fake-llm'
 import { createMemoryRepos } from './support/memory-repos'
+import { createMemoryStorage } from './support/memory-storage'
 
 const ME = { openid: 'o_me' }
 const OTHER = { openid: 'o_other' }
@@ -47,7 +48,12 @@ function setup() {
   const repos = createMemoryRepos()
   let clock = 1_000_000
   const now = () => clock
-  const data = createDataHandlers({ repos, now })
+  const data = createDataHandlers({
+    repos,
+    now,
+    storage: createMemoryStorage(),
+    newFileName: () => 'f',
+  })
   const fake = createFakeLlm()
   const compose = createComposeHandlers({
     repos,

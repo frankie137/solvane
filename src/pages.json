@@ -61,6 +61,24 @@
       ]
     },
     {
+      "root": "pkg-share",
+      "pages": [
+        {
+          "path": "play/index",
+          "style": {
+            "navigationBarTextStyle": "white",
+            "backgroundColor": "#0b0b14",
+            "backgroundColorTop": "#0b0b14",
+            "backgroundColorBottom": "#0b0b14"
+          }
+        },
+        {
+          "path": "mine/index",
+          "style": {}
+        }
+      ]
+    },
+    {
       "root": "pkg-settings",
       "pages": [
         {

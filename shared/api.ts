@@ -16,8 +16,11 @@ import type {
   LlmScope,
   Practice,
   PracticeSummary,
+  Profile,
   Session,
   SessionSummary,
+  Share,
+  ShareSummary,
   SourceView,
   TagCount,
   TtsSentence,
@@ -119,6 +122,21 @@ export interface CloudApi {
     expressionKeys: { req: Empty; res: { keys: Record<string, string> } }
     /** 「也出现在」：在其他对话里找这个表达 */
     findUsages: { req: { expressionId: string }; res: { usages: Usage[] } }
+
+    // --- 分享 ---
+    getProfile: { req: Empty; res: { profile: Profile | null } }
+    /** avatarFileID 为 avatars/ 下刚上传的头像；不传表示不改头像 */
+    updateProfile: {
+      req: { nickname: string; avatarFileID?: string }
+      res: { profile: Profile }
+    }
+    /** 为一次已完成的练习生成分享；同一次练习只生成一个，已有时直接返回 */
+    createShare: { req: { practiceId: string }; res: { shareId: string; created: boolean } }
+    /** 任何人凭分享 id 都能读，只返回快照内容 */
+    getShare: { req: { shareId: string }; res: { share: Share } }
+    listShares: { req: Empty; res: { items: ShareSummary[] } }
+    /** 撤回：删除分享和录音副本 */
+    revokeShare: { req: { shareId: string }; res: Empty }
   }
 
   compose: {

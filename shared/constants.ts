@@ -112,6 +112,10 @@ export const LIMITS = {
   usagesMax: 20,
   /** 历史页每页几条 */
   historyPage: 20,
+  /** 昵称最长几个字 */
+  nicknameMax: 20,
+  /** 「我的分享」最多列几条 */
+  sharesMax: 50,
 } as const
 
 /** 评分权重：发音 40%、流利度 20%、内容还原 25%、表达正确 15% */
