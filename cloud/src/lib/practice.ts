@@ -23,6 +23,8 @@ export interface SentenceMatch {
  * 按大模型给出的词序号范围，换算每句原文在录音里的起止时间。
  * 范围越界或颠倒时视为没有对应；缺少的句子补成"没背出来"。
  */
+const isPunctuation = (word: string) => !/[\p{L}\p{N}]/u.test(word)
+
 export function mapSentenceTimings(
   matches: SentenceMatch[],
   words: SpokenWord[],
@@ -40,7 +42,10 @@ export function mapSentenceTimings(
       !!m?.intended.trim()
     if (!m || !valid)
       return { index, intended: valid ? (m?.intended ?? '') : '', startMs: 0, endMs: 0 }
-    const first = words[range[0]]!
+    // 识别结果里单独的标点也带时间，而且常常压在下一句开头的语音上：句首前紧挨的标点算作这一句的开始
+    let start = range[0]
+    while (start > 0 && isPunctuation(words[start - 1]!.word)) start--
+    const first = words[start]!
     const last = words[range[1]]!
     return {
       index,
@@ -62,32 +67,65 @@ export interface Segment {
 
 /** 句子模式最多 30 个词，超过的用段落模式（只有分数，没有音素和时间） */
 const SENTENCE_MODE_MAX_WORDS = 30
-/** 切片前后各多留一点，避免切掉首尾的音 */
-const PADDING_MS = 150
+/**
+ * 识别给的单词时间不太准，结尾尤其容易偏早：切片往前后的停顿里延伸，
+ * 但不超过和相邻句子之间停顿的中点，避免切进别的句子
+ */
+const LEAD_MS = 400
+const TAIL_MS = 800
 
 export function planSegments(sentences: AlignedSentence[], durationMs: number): Segment[] {
-  return sentences
+  const spoken = sentences
     .filter((s) => s.intended && s.endMs > s.startMs)
-    .map((s) => {
-      const wordCount = s.intended.split(/\s+/).filter(Boolean).length
-      return {
-        sentenceIndex: s.index,
-        refText: s.intended,
-        mode: wordCount <= SENTENCE_MODE_MAX_WORDS ? 'sentence' : 'paragraph',
-        startMs: Math.max(0, s.startMs - PADDING_MS),
-        endMs: Math.min(durationMs || s.endMs + PADDING_MS, s.endMs + PADDING_MS),
+    .sort((a, b) => a.startMs - b.startMs)
+  return spoken.map((s, i) => {
+    const prev = spoken[i - 1]
+    const next = spoken[i + 1]
+    const wordCount = s.intended.split(/\s+/).filter(Boolean).length
+    const lead = s.startMs - LEAD_MS
+    const tail = s.endMs + TAIL_MS
+    return {
+      sentenceIndex: s.index,
+      refText: s.intended,
+      mode: wordCount <= SENTENCE_MODE_MAX_WORDS ? 'sentence' : 'paragraph',
+      startMs: Math.round(Math.max(0, lead, prev ? (prev.endMs + s.startMs) / 2 : 0)),
+      endMs: Math.round(
+        Math.min(tail, next ? (s.endMs + next.startMs) / 2 : durationMs > 0 ? durationMs : tail),
+      ),
+    }
+  })
+}
+
+/** 评测返回的单词都是小写：按顺序对上原句的词，恢复原来的大小写 */
+function restoreCase(refText: string, words: string[]): string[] {
+  const tokens = refText
+    .split(/\s+/)
+    .map((t) => t.replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, ''))
+    .filter(Boolean)
+  let j = 0
+  return words.map((w) => {
+    for (let k = j; k < tokens.length; k++) {
+      if (tokens[k]!.toLowerCase() === w.toLowerCase()) {
+        j = k + 1
+        return tokens[k]!
       }
-    })
+    }
+    return w
+  })
 }
 
 /** 把一句的评测结果转成整段录音时间轴上的单词；段落模式没有时间，按词数平均分配 */
 export function toScoredWords(segment: Segment, result: SoeResult): ScoredWord[] {
   const span = segment.endMs - segment.startMs
   const n = result.words.length
+  const display = restoreCase(
+    segment.refText,
+    result.words.map((w) => w.word || w.refWord),
+  )
   return result.words.map((w, i) => {
     const hasTime = segment.mode === 'sentence' && w.endMs > w.startMs
     return {
-      word: w.word || w.refWord,
+      word: display[i]!,
       sentenceIndex: segment.sentenceIndex,
       startMs: hasTime ? segment.startMs + w.startMs : segment.startMs + Math.round((span * i) / n),
       endMs: hasTime

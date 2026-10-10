@@ -9,6 +9,10 @@
  * 隐藏窗口通过 System Events 完成，首次运行 macOS 会询问是否允许，拒绝也不影响测试本身。
  */
 import { execFile, execFileSync, spawn } from 'node:child_process'
+import { readdirSync, readFileSync } from 'node:fs'
+import { connect } from 'node:net'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import automator from 'miniprogram-automator'
 
 export const CLI_PATH =
@@ -54,6 +58,51 @@ async function waitFor(check: () => boolean, timeoutMs: number): Promise<boolean
   return check()
 }
 
+/** 开发者工具把服务端口写在 Default/.ide 里；退出后文件还在，所以只能用来知道端口号 */
+function idePort(): number | null {
+  const base = join(homedir(), 'Library/Application Support/微信开发者工具')
+  try {
+    for (const dir of readdirSync(base)) {
+      try {
+        const port = Number(readFileSync(join(base, dir, 'Default/.ide'), 'utf8').trim())
+        if (Number.isInteger(port) && port > 0) return port
+      } catch {
+        // 不是用户数据目录
+      }
+    }
+  } catch {
+    // 没找到目录时按默认流程走
+  }
+  return null
+}
+
+function portOpen(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect({ host: '127.0.0.1', port })
+    socket.setTimeout(1000)
+    socket.once('connect', () => {
+      socket.destroy()
+      resolve(true)
+    })
+    socket.once('error', () => resolve(false))
+    socket.once('timeout', () => {
+      socket.destroy()
+      resolve(false)
+    })
+  })
+}
+
+/** 刚启动时进程已在但服务端口还没就绪，这时命令行会读到旧的端口文件、连不上就放弃 */
+async function waitForPort(timeoutMs: number): Promise<void> {
+  const port = idePort()
+  if (!port) return
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (await portOpen(port)) return
+    await new Promise((r) => setTimeout(r, 500))
+  }
+}
+
 function quitDevtools(): void {
   try {
     execFileSync(CLI_PATH, ['quit'], { stdio: 'ignore', timeout: 30_000 })
@@ -72,6 +121,7 @@ export async function withHiddenDevtools<T>(fn: () => Promise<T>): Promise<T> {
     execFileSync('open', ['-g', '-j', '-a', APP_PATH])
     await waitFor(() => devtoolsPid() !== null, 20_000)
   }
+  await waitForPort(40_000)
 
   const hider = setInterval(() => void hideDevtools(), 400)
   try {
@@ -80,6 +130,8 @@ export async function withHiddenDevtools<T>(fn: () => Promise<T>): Promise<T> {
     clearInterval(hider)
     if (startedByUs) {
       quitDevtools()
+      // 等进程真正退出，否则紧接着的下一次运行会连到正在退出的实例
+      await waitFor(() => devtoolsPid() === null, 20_000)
     } else {
       await hideDevtools()
     }

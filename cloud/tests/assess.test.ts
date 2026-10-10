@@ -250,9 +250,9 @@ describe('assess.advance', () => {
       expression: 95,
     })
     expect(practice.report!.summary).toBe('整体很流畅')
-    // 单词时间换算到整段录音上
+    // 单词时间换算到整段录音上：第二句切片从两句之间停顿的中点开始（1200 和 1300 之间）
     const catchWord = practice.pronunciation!.words.find((w) => w.word === 'Catch')!
-    expect(catchWord.startMs).toBe(1300 - 150)
+    expect(catchWord.startMs).toBe(1250)
   })
 
   it('时间不够时停在中间，下次调用从这一步继续', async () => {
@@ -387,8 +387,8 @@ describe('WAV 回放与评测切片', () => {
     const wav = files.get(`cloud://env.x/recordings/o_me/${practiceId}.wav`)!
     expect(wav.equals(pcmToWav(Buffer.alloc(32 * 3000)))).toBe(true)
     const firstSlice = (deps.evaluate as ReturnType<typeof vi.fn>).mock.calls[0]![0] as Buffer
-    // 第一句 100～1200ms，前后各留 150ms
-    expect(firstSlice.length).toBe((1350 - 0) * 32)
+    // 第一句 100～1200ms：开头延伸到录音起点，结尾到和下一句之间停顿的中点
+    expect(firstSlice.length).toBe((1250 - 0) * 32)
   })
 })
 

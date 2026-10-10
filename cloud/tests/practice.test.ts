@@ -35,6 +35,24 @@ describe('mapSentenceTimings', () => {
     ])
   })
 
+  it('句首前紧挨的标点算作这一句的开始', () => {
+    const withDot: SpokenWord[] = [
+      { word: 'out', startMs: 2440, endMs: 2740 },
+      { word: '.', startMs: 3140, endMs: 3515 },
+      { word: "I'mat", startMs: 3515, endMs: 3640 },
+      { word: 'work', startMs: 3640, endMs: 3865 },
+    ]
+    const [, s] = mapSentenceTimings(
+      [
+        { index: 0, intended: 'Test this out.', wordRange: [0, 0] },
+        { index: 1, intended: "I'm at work.", wordRange: [2, 3] },
+      ],
+      withDot,
+      2,
+    )
+    expect(s).toMatchObject({ startMs: 3140, endMs: 3865 })
+  })
+
   it.each([
     ['越界', [3, 9] as [number, number]],
     ['颠倒', [2, 1] as [number, number]],
@@ -46,7 +64,7 @@ describe('mapSentenceTimings', () => {
 })
 
 describe('planSegments', () => {
-  it('跳过没背出来的句子，前后留余量且不超出录音', () => {
+  it('跳过没背出来的句子，往停顿里延伸但不越过相邻句子', () => {
     const segs = planSegments(
       [
         { index: 0, intended: "I'm going hiking.", startMs: 100, endMs: 1000 },
@@ -56,8 +74,22 @@ describe('planSegments', () => {
       1950,
     )
     expect(segs).toEqual([
-      { sentenceIndex: 0, refText: "I'm going hiking.", mode: 'sentence', startMs: 0, endMs: 1150 },
-      { sentenceIndex: 2, refText: 'See you.', mode: 'sentence', startMs: 1350, endMs: 1950 },
+      { sentenceIndex: 0, refText: "I'm going hiking.", mode: 'sentence', startMs: 0, endMs: 1250 },
+      { sentenceIndex: 2, refText: 'See you.', mode: 'sentence', startMs: 1250, endMs: 1950 },
+    ])
+  })
+
+  it('停顿很长时只延伸固定余量，最后一句延伸到录音结束为止', () => {
+    const segs = planSegments(
+      [
+        { index: 0, intended: 'Hi there.', startMs: 1000, endMs: 2000 },
+        { index: 1, intended: 'See you.', startMs: 6000, endMs: 7000 },
+      ],
+      7300,
+    )
+    expect(segs.map((s) => [s.startMs, s.endMs])).toEqual([
+      [600, 2800],
+      [5600, 7300],
     ])
   })
 
@@ -84,6 +116,29 @@ const result = (accuracy: number, fluency: number, n: number): SoeResult => ({
 })
 
 describe('toScoredWords / mergeResults', () => {
+  it('按原句恢复单词的大小写，对不上的保持原样', () => {
+    const seg = {
+      sentenceIndex: 0,
+      refText: "Ah, I'm at work — today's Saturday.",
+      mode: 'sentence' as const,
+      startMs: 0,
+      endMs: 3000,
+    }
+    const soe = result(80, 1, 5)
+    soe.words = ['ah', "i'm", 'at', 'home', 'saturday'].map((word, i) => ({
+      ...soe.words[i]!,
+      word,
+      refWord: word,
+    }))
+    expect(toScoredWords(seg, soe).map((w) => w.word)).toEqual([
+      'Ah',
+      "I'm",
+      'at',
+      'home',
+      'Saturday',
+    ])
+  })
+
   it('句子模式的时间加上切片起点', () => {
     const seg = {
       sentenceIndex: 1,
