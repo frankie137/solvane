@@ -146,7 +146,7 @@ flowchart LR
 | --------- | ------------------------------------------------------------------------------------------- | ---- | ----- |
 | `compose` | 新建对话、生成、修改、解析、补全收藏表达的释义；大模型配置（读取 / 保存 / 清除 / 测试连接） | 60s  | ✅ M3 |
 | `speech`  | 中文语音识别（识别后删除录音）；示范朗读按句合成并缓存；单词和短语的标准发音                | 20s  | ✅ M3 |
-| `data`    | 学习偏好、对话读取、最近对话、切换版本；文件夹、收藏、标签、溯源、历史与搜索；M4 起加分享   | 10s  | ✅ M3 |
+| `data`    | 学习偏好、对话读取、最近对话、切换版本；文件夹、收藏、标签、溯源、历史与搜索；署名与分享    | 10s  | ✅ M4 |
 | `assess`  | 背诵评测四步流程（识别 → 对照 → 评测 → 报告）、每个对话保留最近 3 次练习                    | 60s  | ✅ M2 |
 
 函数内部按 `action` 字段分发，所有 action 的入参和出参登记在 `shared/api.ts`。
@@ -168,8 +168,9 @@ solvane/
 │   ├── pkg-settings/             # 分包：大模型配置（含管理员的全局默认）
 │   ├── pkg-recite/               # 分包：背诵（遮挡与逐级提示、示范朗读、录音）、评分报告
 │   ├── pkg-library/              # 分包：文件夹、表达卡片与溯源、全部对话（历史与搜索）
-│   ├── pkg-share/                # 分包（规划 M4）：歌词播放页
+│   ├── pkg-share/                # 分包：歌词播放页（逐句 + 逐词高亮、分享卡片封面）、我的分享
 │   ├── components/sv-*/          # 基础组件：导航栏、tab 栏、按钮、卡片、列表、骨架屏、图标
+│   ├── components/profile/       # 头像昵称面板（「我的」页和分享入口共用）
 │   ├── components/library/       # 收藏公共组件：文件夹选择、标签编辑、收藏列表、收藏提示（多个分包共用，放主包）
 │   ├── components.d.ts           # sv-* 组件的全局类型登记
 │   ├── composables/              # 组合式函数
@@ -285,12 +286,12 @@ solvane/
 
 | 集合          | 主要字段                                                                                                                                                                                                | 状态  |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| `settings`    | `_id`(openid 或 `__global__`)、`level`、`accent`、`ttsVoice`、`ttsSpeed`、`llm{preset, baseUrl, model, apiKeyCipher, apiKeyMask, updatedAt}`                                                            | ✅ M2 |
+| `settings`    | `_id`(openid 或 `__global__`)、`level`、`accent`、`ttsVoice`、`ttsSpeed`、`llm{preset, baseUrl, model, apiKeyCipher, apiKeyMask, updatedAt}`、`profile{nickname, avatarFileID}`                         | ✅ M4 |
 | `sessions`    | `_openid`、`title`、`input{mode, rawText}`、`polishedZh`、`versions[]`、`currentVid`、`job`、`lastError`、`starredAt`、`folderId`、`tags[]`、`createdAt`、`updatedAt`                                   | ✅ M3 |
 | `practices`   | `_openid`、`sessionId`、`vid`、`stage`、`job`、`lastError`、`pcmFileID`、`wavFileID`、`durationMs`、`transcript`、`alignment`、`pronunciation`、`report`、`createdAt`、`updatedAt`                      | ✅ M2 |
 | `folders`     | `_openid`、`name`、`parentId`、`depth`(1–3)、`order`、`createdAt`                                                                                                                                       | ✅ M3 |
 | `expressions` | `_openid`、`text`、`key`(合并键)、`kind`(phrase / slang / word)、`meaning`、`usage`、`example`、`note`、`fill`、`fillStartedAt`、`folderId`、`tags[]`、`sources[]`、`createdAt`、`savedAt`、`updatedAt` | ✅ M3 |
-| `shares`      | `_id`(shareId)、`_openid`、`sessionId`、`practiceId`、`snapshot{sentences, timings, audioFileID, author}`、`createdAt`                                                                                  | M4    |
+| `shares`      | `_openid`、`sessionId`、`practiceId`、`title`、`sentences[]{en, zh, startMs, endMs, words[]}`、`audioFileID`(录音副本)、`durationMs`、`author{nickname, avatarFileID}`、`createdAt`                     | ✅ M4 |
 
 集合在第一次写入时由云函数自动创建。建议在云开发控制台把集合权限设为"所有用户不可读写"，所有访问都经云函数。
 

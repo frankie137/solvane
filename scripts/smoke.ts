@@ -53,6 +53,12 @@ const ROUTES: Route[] = [
     url: '/pkg-library/expression/index?id=smoke-missing',
     path: 'pkg-library/expression/index',
   },
+  {
+    name: '12-share-missing',
+    url: '/pkg-share/play/index?shareId=smoke-missing',
+    path: 'pkg-share/play/index',
+  },
+  { name: '13-my-shares', url: '/pkg-share/mine/index', path: 'pkg-share/mine/index' },
 ]
 
 /** 等 tab 切换和入场动画结束 */

@@ -135,6 +135,13 @@
           </sv-card>
         </view>
 
+        <view v-if="practice.audioUrl" class="share-entry">
+          <sv-button type="plain" block :loading="shareFlow.state.busy" @click="sharePractice">
+            <sv-icon name="share" :size="16" color="var(--sv-accent)" />
+            <text>分享这次背诵</text>
+          </sv-button>
+        </view>
+
         <view class="footer">
           <view class="footer__item">
             <sv-button type="secondary" block @click="backToSession">返回对话</sv-button>
@@ -166,6 +173,13 @@
     :current="organizer.picker.current"
     @pick="organizer.onPick"
   />
+  <profile-sheet
+    v-model:show="shareFlow.state.sheet"
+    title="设置署名"
+    hint="好友打开分享时会看到「你的昵称 的朗读」，只需设置一次。"
+    confirm-text="保存并分享"
+    @saved="shareFlow.onProfileSaved"
+  />
   <saved-toast
     :show="organizer.saved.show"
     :text="organizer.saved.text"
@@ -181,9 +195,11 @@ import { onHide, onLoad, onUnload } from '@dcloudio/uni-app'
 import { storeToRefs } from 'pinia'
 import type { DiffKind, Practice, ScoredWord, Version } from '@shared/types'
 import FolderPicker from '@/components/library/FolderPicker.vue'
+import ProfileSheet from '@/components/profile/ProfileSheet.vue'
 import SavedToast from '@/components/library/SavedToast.vue'
 import { useAudio } from '@/composables/useAudio'
 import { useOrganizer } from '@/composables/useOrganizer'
+import { useShareFlow } from '@/composables/useShareFlow'
 import { CloudError } from '@/services/cloud'
 import { getPractice, runPractice, wordAudioPath } from '@/services/practice'
 import { getSession } from '@/services/sessions'
@@ -315,6 +331,16 @@ const sheet = reactive<{
   loadingStandard: false,
   saving: false,
 })
+
+// --- 分享 -------------------------------------------------------------------
+
+const shareFlow = useShareFlow()
+
+function sharePractice() {
+  audio.stop()
+  playingAll.value = false
+  if (practice.value) void shareFlow.share(practice.value.id)
+}
 
 // --- 收藏单词 ---------------------------------------------------------------
 
@@ -709,6 +735,10 @@ function backToSession() {
 .advice__item {
   font-size: 15px;
   line-height: 22px;
+}
+
+.share-entry {
+  margin-top: -8px;
 }
 
 .footer {

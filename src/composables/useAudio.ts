@@ -14,7 +14,7 @@ let audioOptionSet = false
 const SEEK_SETTLE_MS = 600
 
 /** 静音模式下也要能听示范；只需设置一次 */
-function ensureAudioOption() {
+export function ensureAudioOption() {
   if (audioOptionSet) return
   audioOptionSet = true
   wx.setInnerAudioOption({ obeyMuteSwitch: false, fail: () => {} })

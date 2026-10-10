@@ -109,3 +109,31 @@ page {
     --sv-scrim-soft: rgba(0, 0, 0, 0.5);
   }
 }
+
+// 沉浸式深色舞台（歌词播放页）：不跟随系统，始终是深色。
+// 放在页面根节点上，覆盖的变量会继承进子组件（导航栏、按钮等）。
+.sv-stage {
+  --sv-stage-bg: linear-gradient(160deg, #1c1b3a 0%, #121226 45%, #0b0b14 100%);
+  --sv-stage-glow: radial-gradient(
+    60% 40% at 50% 0%,
+    rgba(125, 122, 255, 0.35) 0%,
+    transparent 100%
+  );
+  --sv-stage-line: rgba(255, 255, 255, 0.38);
+  --sv-stage-line-active: #ffffff;
+  --sv-stage-word-done: #a9a7ff;
+  --sv-stage-track: rgba(255, 255, 255, 0.18);
+
+  --sv-bg: #0b0b14;
+  --sv-surface: rgba(255, 255, 255, 0.08);
+  --sv-fill: rgba(255, 255, 255, 0.12);
+  --sv-fill-strong: rgba(255, 255, 255, 0.2);
+  --sv-bar: rgba(18, 18, 38, 0.72);
+  --sv-text: #ffffff;
+  --sv-text-2: rgba(235, 235, 245, 0.6);
+  --sv-text-3: rgba(235, 235, 245, 0.3);
+  --sv-separator: rgba(255, 255, 255, 0.12);
+  --sv-accent: #a9a7ff;
+  --sv-accent-soft: rgba(169, 167, 255, 0.18);
+  --sv-shadow-card: none;
+}

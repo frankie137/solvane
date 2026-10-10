@@ -11,16 +11,42 @@
 
     <view class="me">
       <sv-card :padding="20">
-        <view class="profile">
-          <view class="profile__avatar">
+        <view
+          class="profile"
+          hover-class="is-pressed"
+          :hover-stay-time="60"
+          @tap="editingProfile = true"
+        >
+          <image
+            v-if="profile?.avatarUrl"
+            class="profile__avatar"
+            :src="profile.avatarUrl"
+            mode="aspectFill"
+          />
+          <view v-else class="profile__avatar">
             <sv-icon name="person.fill" :size="30" color="var(--sv-text-on-accent)" />
           </view>
           <view class="profile__info">
-            <text class="sv-headline">Solvane 用户</text>
-            <text class="sv-footnote sv-secondary">{{ envLabel }}</text>
+            <text class="sv-headline">{{ profile?.nickname || '设置头像和昵称' }}</text>
+            <text class="sv-footnote sv-secondary">{{
+              profile ? `分享时显示 · ${envLabel}` : `分享时会显示给好友 · ${envLabel}`
+            }}</text>
           </view>
+          <sv-icon name="chevron.right" :size="16" :weight="2.2" color="var(--sv-text-3)" />
         </view>
       </sv-card>
+
+      <sv-group>
+        <sv-cell
+          title="我的分享"
+          icon="share"
+          icon-bg="var(--sv-tint-cyan)"
+          arrow
+          clickable
+          :divider="false"
+          @click="openShares"
+        />
+      </sv-group>
 
       <sv-group header="学习偏好" footer="英语水平决定用词和句式的难度，口吻始终是日常对话。">
         <sv-cell
@@ -112,16 +138,20 @@
 
     <view :style="bottomInset" />
   </scroll-view>
+
+  <profile-sheet v-model:show="editingProfile" />
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ACCENTS, LEVELS, TTS_SPEEDS, TTS_VOICES } from '@shared/constants'
 import type { UserSettings } from '@shared/types'
 import { useCollapsingTitle } from '@/composables/useCollapsingTitle'
 import { useTabBarInset } from '@/composables/useTabBarInset'
 import { callCloud, CloudError } from '@/services/cloud'
+import ProfileSheet from '@/components/profile/ProfileSheet.vue'
+import { useProfileStore } from '@/stores/profile'
 import { useSettingsStore } from '@/stores/settings'
 import { getEnvVersion } from '@/utils/env'
 
@@ -129,6 +159,16 @@ const { collapsed, onScroll } = useCollapsingTitle()
 const bottomInset = useTabBarInset()
 const settingsStore = useSettingsStore()
 const { settings, llm, loaded } = storeToRefs(settingsStore)
+
+const profileStore = useProfileStore()
+const { profile } = storeToRefs(profileStore)
+const editingProfile = ref(false)
+// 资料只用于显示，取不到时显示默认文案
+void profileStore.load().catch(() => {})
+
+function openShares() {
+  uni.navigateTo({ url: '/pkg-share/mine/index' })
+}
 
 const version = __APP_VERSION__
 const env = getEnvVersion()
@@ -276,6 +316,11 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 14px;
+  transition: opacity var(--sv-dur-1) var(--sv-ease);
+
+  &.is-pressed {
+    opacity: 0.6;
+  }
 }
 
 .profile__avatar {
@@ -289,6 +334,7 @@ onMounted(() => {
 }
 
 .profile__info {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
