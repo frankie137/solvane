@@ -145,7 +145,7 @@ export interface CloudApi {
     recognize: { req: { fileID: string }; res: { text: string } }
     /** 某个版本的示范朗读（按句合成，按音色和语速缓存） */
     tts: { req: { sessionId: string; vid: string }; res: { sentences: TtsSentence[] } }
-    /** 单个单词的标准发音：base64 编码的 mp3（很小，不落盘） */
+    /** 单词或短语的标准发音：base64 编码的 mp3（很小，不落盘） */
     ttsWord: { req: { word: string }; res: { audio: string } }
   }
 

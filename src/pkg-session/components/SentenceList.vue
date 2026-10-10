@@ -4,10 +4,15 @@
       v-for="(s, i) in sentences"
       :key="i"
       class="sentence"
-      :class="{ 'has-divider': i > 0, 'is-active': i === activeSentence }"
+      :class="{
+        'has-divider': i > 0,
+        'is-active': i === activeSentence,
+        'is-located': i === located,
+      }"
       :hover-class="interactive ? 'is-pressed' : 'none'"
       :hover-stay-time="60"
       @tap="onTap(i)"
+      @longpress="onHold(i)"
     >
       <!-- 正在朗读的句子逐词渲染以便高亮，其余句子整句渲染，减少节点 -->
       <view v-if="i === activeSentence" class="sentence__en sv-en">
@@ -36,19 +41,27 @@ const props = withDefaults(
     /** 正在朗读的句子和词，-1 表示没有 */
     activeSentence?: number
     activeToken?: number
-    /** 点句子可以单独重听 */
+    /** 点句子可以单独重听，长按可以挑词收藏 */
     interactive?: boolean
+    /** 从收藏溯源过来时要突出的那一句，-1 表示没有 */
+    located?: number
   }>(),
-  { activeSentence: -1, activeToken: -1, interactive: false },
+  { activeSentence: -1, activeToken: -1, interactive: false, located: -1 },
 )
 
-const emit = defineEmits<{ select: [index: number] }>()
+const emit = defineEmits<{ select: [index: number]; hold: [index: number] }>()
 
 const tokens = computed(() => props.sentences.map((s) => tokenize(s.en)))
 const tokensOf = (i: number) => tokens.value[i] ?? []
 
 function onTap(i: number) {
   if (props.interactive) emit('select', i)
+}
+
+function onHold(i: number) {
+  if (!props.interactive) return
+  uni.vibrateShort({ type: 'light', fail: () => {} })
+  emit('hold', i)
 }
 </script>
 
@@ -74,6 +87,21 @@ function onTap(i: number) {
 
   &.is-active {
     background-color: var(--sv-accent-soft);
+  }
+
+  &.is-located {
+    animation: sentence-located 2.4s var(--sv-ease) 1;
+  }
+}
+
+@keyframes sentence-located {
+  0%,
+  60% {
+    background-color: var(--sv-accent-soft);
+  }
+
+  100% {
+    background-color: transparent;
   }
 }
 

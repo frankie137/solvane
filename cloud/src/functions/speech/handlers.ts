@@ -112,10 +112,11 @@ export function createSpeechHandlers(deps: SpeechDeps): Handlers<'speech'> {
     async ttsWord(payload, ctx) {
       const { word } = parsePayload(
         z.object({
+          // 单词或收藏的短语：只允许字母、撇号、连字符和空格
           word: z
             .string()
-            .trim()
-            .regex(/^[A-Za-z][A-Za-z'-]{0,39}$/),
+            .transform((w) => w.replace(/\s+/g, ' ').trim())
+            .pipe(z.string().regex(/^[A-Za-z][A-Za-z' -]{0,59}$/)),
         }),
         payload,
       )

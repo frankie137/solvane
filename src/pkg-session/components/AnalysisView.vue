@@ -7,7 +7,16 @@
         class="item"
         :class="{ 'has-divider': i > 0, 'is-first': i === 0 }"
       >
-        <text class="item__phrase sv-en">{{ item.phrase }}</text>
+        <view class="item__row">
+          <text class="item__phrase is-grow sv-en">{{ item.phrase }}</text>
+          <view class="save" hover-class="is-pressed" @tap="emit('save', 'phrase', i)">
+            <sv-icon
+              :name="isSaved(item.phrase) ? 'bookmark.fill' : 'bookmark'"
+              :size="18"
+              color="var(--sv-accent)"
+            />
+          </view>
+        </view>
         <text class="item__body">{{ item.meaning }}</text>
         <text class="item__note">{{ item.usage }}</text>
         <text class="item__example sv-en">{{ item.example }}</text>
@@ -25,6 +34,14 @@
           <text class="item__phrase sv-en">{{ item.phrase }}</text>
           <text class="tag">{{ item.register }}</text>
           <text class="tag">{{ item.region }}</text>
+          <view class="item__spacer" />
+          <view class="save" hover-class="is-pressed" @tap="emit('save', 'slang', i)">
+            <sv-icon
+              :name="isSaved(item.phrase) ? 'bookmark.fill' : 'bookmark'"
+              :size="18"
+              color="var(--sv-accent)"
+            />
+          </view>
         </view>
         <text class="item__body">{{ item.meaning }}</text>
       </view>
@@ -64,9 +81,22 @@
 </template>
 
 <script setup lang="ts">
+import { expressionKey } from '@shared/expression'
 import type { Analysis } from '@shared/types'
 
-defineProps<{ analysis: Analysis }>()
+const props = withDefaults(
+  defineProps<{
+    analysis: Analysis
+    /** 已收藏表达的合并键 → id，用来显示实心的收藏图标 */
+    savedKeys?: Record<string, string>
+  }>(),
+  { savedKeys: () => ({}) },
+)
+
+/** 点收藏：关键表达或俚语里的第几条 */
+const emit = defineEmits<{ save: [kind: 'phrase' | 'slang', index: number] }>()
+
+const isSaved = (phrase: string) => Boolean(props.savedKeys[expressionKey(phrase)])
 </script>
 
 <style lang="scss">
@@ -105,11 +135,34 @@ defineProps<{ analysis: Analysis }>()
   gap: 6px;
 }
 
+.item__spacer {
+  flex: 1;
+}
+
+.save {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: -8px -8px -8px 0;
+  border-radius: 18px;
+  flex-shrink: 0;
+
+  &.is-pressed {
+    background-color: var(--sv-fill);
+  }
+}
+
 .item__phrase {
   font-size: 17px;
   line-height: 22px;
   font-weight: 600;
   color: var(--sv-accent);
+
+  &.is-grow {
+    flex: 1;
+  }
 }
 
 .item__title {

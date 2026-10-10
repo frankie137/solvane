@@ -42,6 +42,17 @@ const ROUTES: Route[] = [
     url: '/pkg-recite/report/index?practiceId=smoke-missing',
     path: 'pkg-recite/report/index',
   },
+  { name: '09-history', url: '/pkg-library/history/index', path: 'pkg-library/history/index' },
+  {
+    name: '10-folder-missing',
+    url: '/pkg-library/folder/index?id=smoke-missing',
+    path: 'pkg-library/folder/index',
+  },
+  {
+    name: '11-expression-missing',
+    url: '/pkg-library/expression/index?id=smoke-missing',
+    path: 'pkg-library/expression/index',
+  },
 ]
 
 /** 等 tab 切换和入场动画结束 */

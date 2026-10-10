@@ -77,7 +77,7 @@ const keywordSchema = z
 function normalizeTags(raw: string[]): string[] {
   const tags: string[] = []
   for (const t of raw) {
-    const tag = t.replace(/^#+/, '').replace(/\s+/g, ' ').trim()
+    const tag = t.trim().replace(/^#+/, '').replace(/\s+/g, ' ').trim()
     if (!tag) continue
     if (tag.length > LIMITS.tagMax) {
       throw new AppError('BAD_REQUEST', `标签最多 ${LIMITS.tagMax} 个字`)
