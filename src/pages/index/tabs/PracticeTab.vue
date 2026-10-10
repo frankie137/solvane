@@ -23,15 +23,14 @@
             <view
               class="hero__mic"
               :class="{ 'is-active': recorder.recording.value }"
-              @touchstart.stop="onPress"
-              @touchmove.stop.prevent="onMove"
-              @touchend="onRelease"
-              @touchcancel="onTouchCancel"
+              hover-class="is-pressed"
+              :hover-stay-time="80"
+              @tap="startRecording"
             >
               <sv-icon name="mic.fill" :size="34" color="var(--sv-text-on-accent)" :weight="2" />
             </view>
           </view>
-          <text class="hero__hint sv-footnote sv-secondary">按住说话 · 最长 60 秒</text>
+          <text class="hero__hint sv-footnote sv-secondary">点一下开始说话 · 最长 60 秒</text>
 
           <sv-button type="secondary" size="sm" @click="openTextInput">
             <sv-icon name="keyboard" :size="18" />
@@ -59,7 +58,8 @@
     :visible="recorder.recording.value"
     :levels="recorder.levels.value"
     :elapsed-ms="recorder.elapsedMs.value"
-    :cancel-armed="cancelArmed"
+    @finish="recorder.stop(false)"
+    @cancel="recorder.stop(true)"
   />
 
   <compose-sheet
@@ -75,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { reactive, watch } from 'vue'
 import type { InputMode } from '@shared/types'
 import { useCollapsingTitle } from '@/composables/useCollapsingTitle'
 import { useRecorder, type RecordingResult } from '@/composables/useRecorder'
@@ -90,9 +90,6 @@ import RecordingOverlay from '../components/RecordingOverlay.vue'
 const { collapsed, onScroll } = useCollapsingTitle()
 const bottomInset = useTabBarInset()
 const sessionsStore = useSessionsStore()
-
-/** 手指上滑超过这个距离进入"松开取消"状态 */
-const CANCEL_DISTANCE = 80
 
 const sheet = reactive<{
   show: boolean
@@ -114,34 +111,8 @@ watch(
 )
 
 const recorder = useRecorder(recognize)
-const cancelArmed = ref(false)
-let touchStartY = 0
-
-type TouchLike = { touches: { clientY: number }[] }
-
-function onPress(e: TouchLike) {
-  touchStartY = e.touches[0]?.clientY ?? 0
-  cancelArmed.value = false
+function startRecording() {
   void recorder.start()
-}
-
-function onMove(e: TouchLike) {
-  if (!recorder.recording.value) return
-  const armed = touchStartY - (e.touches[0]?.clientY ?? touchStartY) > CANCEL_DISTANCE
-  if (armed !== cancelArmed.value) {
-    cancelArmed.value = armed
-    uni.vibrateShort({ type: 'light', fail: () => {} })
-  }
-}
-
-function onRelease() {
-  recorder.stop(cancelArmed.value)
-  cancelArmed.value = false
-}
-
-function onTouchCancel() {
-  recorder.stop(true)
-  cancelArmed.value = false
 }
 
 async function recognize(result: RecordingResult) {
@@ -235,6 +206,10 @@ function openSession(id: string) {
   transition:
     transform var(--sv-dur-2) var(--sv-ease-spring),
     box-shadow var(--sv-dur-2) var(--sv-ease);
+
+  &.is-pressed {
+    transform: scale(0.94);
+  }
 
   &.is-active {
     transform: scale(1.08);

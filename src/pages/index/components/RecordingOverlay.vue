@@ -1,6 +1,11 @@
 <template>
-  <view class="rec" :class="{ 'is-visible': visible, 'is-cancel': cancelArmed }">
+  <view class="rec" :class="{ 'is-visible': visible }" @touchmove.stop.prevent="noop">
     <view class="rec__card">
+      <view class="rec__status">
+        <view class="rec__dot" />
+        <text class="rec__title">正在听你说</text>
+      </view>
+
       <view class="rec__wave">
         <view
           v-for="(level, i) in levels"
@@ -9,8 +14,21 @@
           :style="`height:${4 + Math.round(level * 40)}px`"
         />
       </view>
+
       <text class="rec__time sv-en">{{ timeText }}</text>
-      <text class="rec__hint">{{ hint }}</text>
+      <text class="rec__hint" :class="{ 'is-warn': nearLimit }">{{ hint }}</text>
+
+      <view class="rec__actions">
+        <view class="rec__action">
+          <sv-button type="secondary" block @click="emit('cancel')">取消</sv-button>
+        </view>
+        <view class="rec__action">
+          <sv-button block haptic @click="emit('finish')">
+            <sv-icon name="checkmark" :size="18" :weight="2.4" color="var(--sv-text-on-accent)" />
+            <text>完成</text>
+          </sv-button>
+        </view>
+      </view>
     </view>
   </view>
 </template>
@@ -24,19 +42,28 @@ const props = defineProps<{
   visible: boolean
   levels: number[]
   elapsedMs: number
-  cancelArmed: boolean
 }>()
+
+const emit = defineEmits<{ finish: []; cancel: [] }>()
+
+/** 最后 10 秒提示剩余时间 */
+const WARN_SECONDS = 10
+
+const secondsLeft = computed(() =>
+  Math.max(0, Math.ceil((LIMITS.recordMaxMs - props.elapsedMs) / 1000)),
+)
+const nearLimit = computed(() => secondsLeft.value <= WARN_SECONDS)
 
 const timeText = computed(
   () => `${formatDuration(props.elapsedMs)} / ${formatDuration(LIMITS.recordMaxMs)}`,
 )
 
-const hint = computed(() => {
-  if (props.cancelArmed) return '松开手指，取消录音'
-  const left = Math.ceil((LIMITS.recordMaxMs - props.elapsedMs) / 1000)
-  if (left <= 10) return `还可以说 ${Math.max(left, 0)} 秒`
-  return '松开结束 · 上滑取消'
-})
+const hint = computed(() =>
+  nearLimit.value ? `还可以说 ${secondsLeft.value} 秒` : '说完点「完成」，我来帮你整理',
+)
+
+// 录音时挡住背后的页面滚动
+function noop() {}
 </script>
 
 <style lang="scss">
@@ -63,13 +90,14 @@ const hint = computed(() => {
   &.is-visible {
     opacity: 1;
     visibility: visible;
+    pointer-events: auto;
     transition-delay: 0s;
   }
 }
 
 .rec__card {
-  width: 260px;
-  padding: 28px 20px 22px;
+  width: 300px;
+  padding: 24px 20px 20px;
   border-radius: var(--sv-radius-l);
   background-color: var(--sv-surface);
   box-shadow: var(--sv-shadow-float);
@@ -84,6 +112,29 @@ const hint = computed(() => {
   transform: scale(1);
 }
 
+.rec__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+// 录音指示灯，和系统录音的红点一致
+.rec__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--sv-danger);
+  animation: sv-rec-blink 1.2s var(--sv-ease) infinite;
+  animation-play-state: var(--sv-play);
+}
+
+.rec__title {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
 .rec__wave {
   display: flex;
   align-items: center;
@@ -96,13 +147,7 @@ const hint = computed(() => {
   width: 4px;
   border-radius: 2px;
   background-color: var(--sv-accent);
-  transition:
-    height 80ms linear,
-    background-color var(--sv-dur-1) var(--sv-ease);
-}
-
-.rec.is-cancel .rec__bar {
-  background-color: var(--sv-danger);
+  transition: height 80ms linear;
 }
 
 .rec__time {
@@ -113,14 +158,35 @@ const hint = computed(() => {
 }
 
 .rec__hint {
-  margin-top: 6px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--sv-text);
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--sv-text-2);
   transition: color var(--sv-dur-1) var(--sv-ease);
+
+  &.is-warn {
+    color: var(--sv-warning);
+    font-weight: 600;
+  }
 }
 
-.rec.is-cancel .rec__hint {
-  color: var(--sv-danger);
+.rec__actions {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  margin-top: 22px;
+}
+
+.rec__action {
+  flex: 1;
+}
+
+@keyframes sv-rec-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
 }
 </style>

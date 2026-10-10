@@ -71,7 +71,7 @@ function guideToSettings() {
 }
 
 /**
- * 按住说话的录音逻辑：权限、实时音量、时长、取消、过短判断。
+ * 点按开始、点「完成」或「取消」结束的录音逻辑：权限、实时音量、时长、取消、过短判断。
  * 录音格式为 16kHz 单声道 PCM，便于计算音量，也符合语音识别的要求。
  */
 export function useRecorder(onFinish: (result: RecordingResult) => void) {
@@ -83,8 +83,8 @@ export function useRecorder(onFinish: (result: RecordingResult) => void) {
   let startedAt = 0
   let ticker: ReturnType<typeof setInterval> | null = null
   let starting = false
-  /** 松手时录音还没真正开始，开始后立即按取消处理 */
-  let releasedEarly = false
+  /** 录音还没真正开始就点了完成或取消：开始后立即停止并丢弃 */
+  let stopRequested = false
   let cancelled = false
 
   function stopTicker() {
@@ -101,20 +101,19 @@ export function useRecorder(onFinish: (result: RecordingResult) => void) {
   async function start(): Promise<void> {
     if (recording.value || starting) return
     starting = true
-    releasedEarly = false
+    stopRequested = false
     cancelled = false
 
     const permission = await ensurePermission().catch((): Permission => 'denied')
     if (permission !== 'granted') {
       starting = false
       if (permission === 'denied') guideToSettings()
-      // 刚弹窗授权时手指早已离开按钮，请对方重新按住
-      else uni.showToast({ title: '已开启麦克风，请按住再说', icon: 'none' })
+      // 刚弹窗授权完，等对方准备好再开始，不直接开录
+      else uni.showToast({ title: '已开启麦克风，请再点一次开始说话', icon: 'none' })
       return
     }
-    if (releasedEarly) {
+    if (stopRequested) {
       starting = false
-      uni.showToast({ title: '请按住说话', icon: 'none' })
       return
     }
 
@@ -131,7 +130,7 @@ export function useRecorder(onFinish: (result: RecordingResult) => void) {
           elapsedMs.value = Date.now() - startedAt
           levels.value = [...new Array(WAVE_BARS - recent.length).fill(0), ...recent]
         }, UI_TICK_MS)
-        if (releasedEarly) getManager().stop()
+        if (stopRequested) getManager().stop()
       },
       onFrame(frame) {
         recent.push(pcmLevel(frame))
@@ -140,7 +139,7 @@ export function useRecorder(onFinish: (result: RecordingResult) => void) {
       onStop(res) {
         const durationMs = res.duration || Date.now() - startedAt
         reset()
-        if (cancelled || releasedEarly) return
+        if (cancelled || stopRequested) return
         if (durationMs < LIMITS.recordMinMs) {
           uni.showToast({ title: '说话时间太短', icon: 'none' })
           return
@@ -169,13 +168,13 @@ export function useRecorder(onFinish: (result: RecordingResult) => void) {
     }
   }
 
-  /** 松手：cancel 为 true 表示上滑取消 */
+  /** 结束录音：cancel 为 true 表示取消，录音直接丢弃 */
   function stop(cancel: boolean) {
     cancelled = cancel
     if (recording.value) {
       getManager().stop()
     } else if (starting) {
-      releasedEarly = true
+      stopRequested = true
     }
   }
 
