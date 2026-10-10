@@ -8,7 +8,7 @@
  */
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { withQuietDevtools } from './devtools'
+import { withAutomator } from './devtools'
 import { isPrivateMode, parseEnvFile, setEnvValue } from './lib/secrets'
 
 // evaluate 里的函数运行在小程序环境中，这里只声明用到的 wx 接口
@@ -42,7 +42,7 @@ async function main(): Promise<void> {
   }
   const envId = readEnvId()
 
-  const openid = await withQuietDevtools(root, async (mp) => {
+  const openid = await withAutomator(root, async (mp) => {
     // 在小程序运行环境里直接调用云函数，结果只留在本进程内
     const result = (await mp.evaluate(async (env: string) => {
       wx.cloud.init({ env, traceUser: true })
@@ -75,7 +75,10 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err: unknown) => {
-  console.error(err instanceof Error ? err.message : err)
-  process.exit(1)
-})
+// 自动化连接断开后可能还留着句柄，结束时主动退出
+main()
+  .then(() => process.exit(0))
+  .catch((err: unknown) => {
+    console.error(err instanceof Error ? err.message : err)
+    process.exit(1)
+  })
