@@ -93,6 +93,11 @@ export function validateSecrets(values: Map<string, string>): string[] {
     problems.push(
       `SOE_APP_ID 应该是 5～12 位数字，现在有 ${soeAppId.length} 个字符；注意不是 wx 开头的微信 AppID`,
     )
+  } else if (/^100\d{9}$/.test(soeAppId)) {
+    // 控制台右上角显示的是账号 ID（12 位、100 开头），和 AppID 不是同一个
+    problems.push(
+      'SOE_APP_ID 看起来是账号 ID（控制台右上角那串），不是 AppID：到腾讯云「账号中心 → 账号信息」找 APPID 一栏（通常 10 位）',
+    )
   }
   return problems
 }

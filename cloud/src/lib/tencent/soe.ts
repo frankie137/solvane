@@ -125,21 +125,28 @@ export function parseSoeResult(result: unknown): SoeResult {
 /** 接口返回的错误码转成可操作的提示 */
 export function toSoeError(code: number, message: string): AppError {
   const brief = message.replace(/\s+/g, ' ').slice(0, 60)
-  if (code === 4002 || /auth|signature|签名|鉴权/i.test(message)) {
+  // 附上错误码和原因便于排查（不含敏感信息）
+  const tag = `（${code}${brief ? `：${brief}` : ''}）`
+  // 先按错误码判断：未开通、欠费的文案里也可能出现 auth 字样
+  if (code === 4003 || code === 4004 || code === 4005) {
+    return new AppError('NOT_CONFIGURED', `腾讯云口语评测未开通、额度已用完或已欠费${tag}`)
+  }
+  if (code === 4002) {
     return new AppError(
       'NOT_CONFIGURED',
-      '口语评测鉴权失败，请检查 assess 云函数的 TENCENT_SECRET_ID / TENCENT_SECRET_KEY / SOE_APP_ID',
+      `口语评测鉴权失败，请检查 assess 云函数的 TENCENT_SECRET_ID / TENCENT_SECRET_KEY / SOE_APP_ID，以及子账号是否有口语评测权限${tag}`,
     )
   }
-  if (
-    /欠费|未开通|not open|余额|额度|quota|arrear/i.test(message) ||
-    code === 4003 ||
-    code === 4004 ||
-    code === 4005
-  ) {
-    return new AppError('NOT_CONFIGURED', '腾讯云口语评测未开通、额度已用完或已欠费')
+  if (/欠费|未开通|not open|余额|额度|quota|arrear/i.test(message)) {
+    return new AppError('NOT_CONFIGURED', `腾讯云口语评测未开通、额度已用完或已欠费${tag}`)
   }
-  return new AppError('UPSTREAM_ERROR', `口语评测失败（${code}${brief ? `：${brief}` : ''}）`)
+  if (/auth|signature|签名|鉴权/i.test(message)) {
+    return new AppError(
+      'NOT_CONFIGURED',
+      `口语评测鉴权失败，请检查 assess 云函数的 TENCENT_SECRET_ID / TENCENT_SECRET_KEY / SOE_APP_ID，以及子账号是否有口语评测权限${tag}`,
+    )
+  }
+  return new AppError('UPSTREAM_ERROR', `口语评测失败${tag}`)
 }
 
 /** 最小的 WebSocket 接口，便于测试时替换 */

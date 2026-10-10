@@ -5,6 +5,7 @@ import {
   buildSoeUrl,
   evaluatePronunciation,
   parseSoeResult,
+  toSoeError,
   streamDurationMs,
   type SocketLike,
 } from '../src/lib/tencent/soe'
@@ -144,6 +145,17 @@ const req = {
   timeoutMs: 1000,
   chunkIntervalMs: 0,
 }
+
+describe('toSoeError', () => {
+  it('先按错误码归类，提示里带上错误码', () => {
+    const notOpen = toSoeError(4003, 'appid not authorized')
+    expect(notOpen.code).toBe('NOT_CONFIGURED')
+    expect(notOpen.message).toContain('未开通')
+    expect(notOpen.message).toContain('4003')
+    expect(toSoeError(4002, 'auth failed').message).toContain('鉴权失败')
+    expect(toSoeError(5000, 'busy')).toMatchObject({ code: 'UPSTREAM_ERROR' })
+  })
+})
 
 describe('evaluatePronunciation', () => {
   it('分片发送音频，最后发结束标记，拿到最终结果', async () => {
