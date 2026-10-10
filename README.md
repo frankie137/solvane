@@ -142,22 +142,14 @@ flowchart LR
 
 ### 云函数划分
 
-| 云函数    | 职责                                                                    | 超时 | 状态  |
-| --------- | ----------------------------------------------------------------------- | ---- | ----- |
-| `compose` | 新建对话、生成、修改、解析；大模型配置（读取 / 保存 / 清除 / 测试连接） | 60s  | ✅ M1 |
-| `speech`  | 中文语音识别（识别后删除录音）；M2 加示范朗读合成                       | 20s  | ✅ M1 |
-| `data`    | 学习偏好、对话读取、最近对话、切换版本；M3 起加文件夹、标签、分享       | 10s  | ✅ M1 |
-| `assess`  | 背诵评测流水线、练习记录管理                                            | 60s  | 📋 M2 |
+| 云函数    | 职责                                                                     | 超时 | 状态  |
+| --------- | ------------------------------------------------------------------------ | ---- | ----- |
+| `compose` | 新建对话、生成、修改、解析；大模型配置（读取 / 保存 / 清除 / 测试连接）  | 60s  | ✅ M1 |
+| `speech`  | 中文语音识别（识别后删除录音）；示范朗读按句合成并缓存；单词标准发音     | 20s  | ✅ M2 |
+| `data`    | 学习偏好、对话读取、最近对话、切换版本；M3 起加文件夹、标签、收藏、分享  | 10s  | ✅ M1 |
+| `assess`  | 背诵评测四步流程（识别 → 对照 → 评测 → 报告）、每个对话保留最近 3 次练习 | 60s  | ✅ M2 |
 
 函数内部按 `action` 字段分发，所有 action 的入参和出参登记在 `shared/api.ts`。
-
---------- | ---------------------------------------------- | ---- |
-| `compose` | 中文润色、英文生成、解析、多轮修改 | 60s |
-| `speech` | 中文语音识别、示范朗读合成（含缓存） | 20s |
-| `assess` | 背诵评测流水线、练习记录管理 | 60s |
-| `data` | 对话、文件夹、标签、设置、分享、用户的增删改查 | 10s |
-
-函数内部按 `action` 字段分发，函数数量保持精简。
 
 ---
 
@@ -174,7 +166,7 @@ solvane/
 │   ├── pkg-dev/                  # 分包：组件预览（仅开发版可见）
 │   ├── pkg-session/              # 分包：对话详情（逐句对照、解析、版本切换、修改栏）
 │   ├── pkg-settings/             # 分包：大模型配置（含管理员的全局默认）
-│   ├── pkg-recite/               # 分包（规划 M2）：背诵录音、评分报告、练习记录
+│   ├── pkg-recite/               # 分包：背诵（遮挡与逐级提示、示范朗读、录音）、评分报告
 │   ├── pkg-share/                # 分包（规划 M4）：歌词播放页
 │   ├── components/sv-*/          # 基础组件：导航栏、tab 栏、按钮、卡片、列表、骨架屏、图标
 │   ├── components.d.ts           # sv-* 组件的全局类型登记
@@ -186,7 +178,7 @@ solvane/
 │   └── App.vue / main.ts / pages.json / manifest.json / theme.json
 ├── cloud/                        # 云函数源码（TypeScript）
 │   ├── src/functions/<name>/     #   index.ts 入口（接线真实依赖）+ handlers.ts 业务
-│   ├── src/lib/                  #   路由、数据访问、大模型客户端、加密、URL 校验
+│   ├── src/lib/                  #   路由、数据访问、大模型、加密、音频、腾讯云（识别 / 合成 / 口语评测）
 │   ├── src/prompts/              #   提示词模板
 │   └── tests/                    #   单元测试（内存数据库 + 假大模型）
 ├── shared/                       # 前后端共用：接口约定、业务类型、常量、统一返回结构
@@ -289,15 +281,17 @@ solvane/
 
 所有集合的权限均为"仅云函数可读写"。`_openid` 为数据所属用户。
 
-| 集合        | 主要字段                                                                                                                                                                                       | 状态  |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| `settings`  | `_id`(openid 或 `__global__`)、`level`、`accent`、`llm{preset, baseUrl, model, apiKeyCipher, apiKeyMask, updatedAt}`；M2 加 `ttsVoice`、`ttsSpeed`                                             | ✅ M1 |
-| `sessions`  | `_openid`、`title`、`input{mode, rawText}`、`polishedZh`、`versions[]`、`currentVid`、`job`、`lastError`、`folderId`、`tags[]`、`createdAt`、`updatedAt`                                       | ✅ M1 |
-| `practices` | `_openid`、`sessionId`、`vid`、`audioFileID`、`durationMs`、`scores{overall, pronunciation, fluency, content, expression}`、`diffs[]`、`words[]`、`sentenceTimings[]`、`feedback`、`createdAt` | M2    |
-| `folders`   | `_openid`、`name`、`parentId`、`depth`(1–3)、`order`                                                                                                                                           | M3    |
-| `shares`    | `_id`(shareId)、`_openid`、`sessionId`、`practiceId`、`snapshot{sentences, timings, audioFileID, author}`、`createdAt`                                                                         | M4    |
+| 集合        | 主要字段                                                                                                                                                                           | 状态  |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `settings`  | `_id`(openid 或 `__global__`)、`level`、`accent`、`ttsVoice`、`ttsSpeed`、`llm{preset, baseUrl, model, apiKeyCipher, apiKeyMask, updatedAt}`                                       | ✅ M2 |
+| `sessions`  | `_openid`、`title`、`input{mode, rawText}`、`polishedZh`、`versions[]`、`currentVid`、`job`、`lastError`、`folderId`、`tags[]`、`createdAt`、`updatedAt`                           | ✅ M1 |
+| `practices` | `_openid`、`sessionId`、`vid`、`stage`、`job`、`lastError`、`pcmFileID`、`wavFileID`、`durationMs`、`transcript`、`alignment`、`pronunciation`、`report`、`createdAt`、`updatedAt` | ✅ M2 |
+| `folders`   | `_openid`、`name`、`parentId`、`depth`(1–3)、`order`                                                                                                                               | M3    |
+| `shares`    | `_id`(shareId)、`_openid`、`sessionId`、`practiceId`、`snapshot{sentences, timings, audioFileID, author}`、`createdAt`                                                             | M4    |
 
 集合在第一次写入时由云函数自动创建。建议在云开发控制台把集合权限设为"所有用户不可读写"，所有访问都经云函数。
+
+`sessions` 另有服务端专用的 `tts` 字段（版本 → 音色语速 → 每句的音频文件和逐词时间），不发给前端。
 
 `sessions` 的任务字段：
 
@@ -359,11 +353,12 @@ solvane/
 
 每个云函数的超时和所需环境变量定义在 `cloud/src/function-config.ts`：
 
-| 云函数    | 超时 | 环境变量                                                                                |
-| --------- | ---- | --------------------------------------------------------------------------------------- |
-| `compose` | 60s  | `KEY_ENCRYPTION_SECRET`（加密 API Key，留空自动生成）、`ADMIN_OPENIDS`（管理员用户 ID） |
-| `speech`  | 20s  | `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY`（腾讯云子账号密钥，只授权语音识别）          |
-| `data`    | 10s  | 无                                                                                      |
+| 云函数    | 超时 | 环境变量                                                                                                                  |
+| --------- | ---- | ------------------------------------------------------------------------------------------------------------------------- |
+| `compose` | 60s  | `KEY_ENCRYPTION_SECRET`（加密 API Key，留空自动生成）、`ADMIN_OPENIDS`（管理员用户 ID）                                   |
+| `speech`  | 20s  | `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY`（腾讯云子账号密钥：语音识别、语音合成）                                        |
+| `data`    | 10s  | 无                                                                                                                        |
+| `assess`  | 60s  | `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY`（还需口语评测权限）、`SOE_APP_ID`（腾讯云账号 AppID）、`KEY_ENCRYPTION_SECRET` |
 
 **设置方式**：填写本地文件 `.keys/cloud.env`（模板见 `cloud.env.example`），然后运行：
 
@@ -377,31 +372,11 @@ pnpm cloud:config
 - 文件权限必须是 600（仅本人可读写），否则脚本拒绝运行；首次运行会自动以 600 权限创建空模板
 - 脚本不打印任何值，只报告"已核对"
 - `KEY_ENCRYPTION_SECRET` 生成后不要修改或删除，否则已保存的 API Key 无法解密，需要重新填写
+- 用户 ID 可以在小程序「我的 → 用户 ID」点一下复制，也可以运行 `pnpm cloud:fill-admin` 自动写入
 
 `pnpm cloud:config` 通过代码上传密钥鉴权。本项目已关闭代码上传 IP 白名单（家用宽带 IP 会变），因此代码上传密钥一旦泄露就能部署云函数：它只存在 `.keys/`（权限 600、不进 git），怀疑泄露时立即到公众平台重置。也可以在云开发控制台里给每个函数手动设置超时和环境变量。
 
 另外需要在公众平台「设置 → 服务内容声明 → 用户隐私保护指引」中声明使用麦克风，否则无法录音。
-
---------- | ---- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `compose` | 60s | `KEY_ENCRYPTION_SECRET`：加密 API Key 用的随机字符串（至少 16 位，设好后不要改）；`ADMIN_OPENIDS`：管理员用户 ID，多个用逗号分隔 |
-| `speech` | 20s | `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY`：腾讯云子账号密钥，只授权语音识别（M2 加评测、合成） |
-| `data` | 10s | 无 |
-
-生成随机的 `KEY_ENCRYPTION_SECRET`：
-
-```bash
-openssl rand -base64 32
-```
-
-用户 ID 可以在小程序「我的 → 用户 ID」点一下复制。
-
-另外需要在公众平台「设置 → 服务内容声明 → 用户隐私保护指引」中声明使用麦克风，否则无法录音。
-
------------------------------------------- | -------------------------------------------- |
-| `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY` | 腾讯云子账号密钥，只授权识别、评测、合成三项 |
-| `SOE_APP_ID` | 口语评测（新版）的应用 ID |
-| `KEY_ENCRYPTION_SECRET` | 加密大模型 API Key 用的密钥 |
-| `ADMIN_OPENIDS` | 管理员 openid，多个用逗号分隔 |
 
 ---
 

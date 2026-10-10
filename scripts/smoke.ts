@@ -32,6 +32,16 @@ const ROUTES: Route[] = [
     url: '/pkg-session/session/index?id=smoke-missing',
     path: 'pkg-session/session/index',
   },
+  {
+    name: '07-recite-missing',
+    url: '/pkg-recite/recite/index?sessionId=smoke-missing&vid=v1',
+    path: 'pkg-recite/recite/index',
+  },
+  {
+    name: '08-report-missing',
+    url: '/pkg-recite/report/index?practiceId=smoke-missing',
+    path: 'pkg-recite/report/index',
+  },
 ]
 
 /** 等 tab 切换和入场动画结束 */
