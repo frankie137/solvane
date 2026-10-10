@@ -169,7 +169,7 @@ async function load() {
     sessions.value = res.sessions
   } catch (err) {
     if (id !== requestId) return
-    error.value = err instanceof CloudError ? err.message : '请检查网络后重试'
+    error.value = err instanceof CloudError ? err.message : '出了点问题，请重试'
   } finally {
     if (id === requestId) loaded.value = true
   }

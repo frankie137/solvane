@@ -92,8 +92,8 @@ export function useTrackPlayer(tickMs = 80) {
     else play()
   }
 
-  /** 跳到某个位置并播放 */
-  function seek(ms: number) {
+  /** 跳到某个位置；autoplay 为 false 时只记下位置，下次播放从这里开始 */
+  function seek(ms: number, autoplay = true) {
     if (!ctx) return
     const target = Math.max(0, durationMs.value > 0 ? Math.min(ms, durationMs.value) : ms)
     positionMs.value = target
@@ -102,7 +102,7 @@ export function useTrackPlayer(tickMs = 80) {
       ctx.seek(target / 1000)
     } else {
       pendingSeek = target
-      ctx.play()
+      if (autoplay) ctx.play()
     }
   }
 

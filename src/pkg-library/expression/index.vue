@@ -238,7 +238,7 @@ async function load() {
     expression.value = res.expression
     sources.value = res.sources
   } catch (err) {
-    loadError.value = err instanceof CloudError ? err.message : '请检查网络后重试'
+    loadError.value = err instanceof CloudError ? err.message : '出了点问题，请重试'
     return
   }
   void loadUsages()

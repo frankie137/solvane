@@ -114,7 +114,7 @@ async function load() {
     version.value = v
     levels.value = v.sentences.map(() => 0)
   } catch (err) {
-    loadError.value = err instanceof CloudError ? err.message : '请检查网络后重试'
+    loadError.value = err instanceof CloudError ? err.message : '出了点问题，请重试'
   }
 }
 
@@ -225,7 +225,8 @@ async function submit(result: RecordingResult) {
 .tools {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  // 行距不小于 chip 上下各扩出的点击区，换行后两行的点击区不重叠
+  gap: 12px 8px;
 }
 
 .recite__content {

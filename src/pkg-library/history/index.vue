@@ -110,7 +110,7 @@ async function reload(keep = false) {
     if (!keep || rest.length === 0) hasMore.value = res.hasMore
   } catch (err) {
     if (gen === generation)
-      error.value = err instanceof CloudError ? err.message : '请检查网络后重试'
+      error.value = err instanceof CloudError ? err.message : '出了点问题，请重试'
   } finally {
     if (gen === generation) {
       reloading = false

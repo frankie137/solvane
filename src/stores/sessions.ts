@@ -17,7 +17,7 @@ export const useSessionsStore = defineStore('sessions', () => {
         recent.value = await listRecentSessions()
         error.value = ''
       } catch (err) {
-        error.value = err instanceof CloudError ? err.message : '请检查网络后重试'
+        error.value = err instanceof CloudError ? err.message : '出了点问题，请重试'
       } finally {
         loaded.value = true
         inFlight = null

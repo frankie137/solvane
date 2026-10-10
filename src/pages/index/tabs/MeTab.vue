@@ -161,6 +161,10 @@ const profileStore = useProfileStore()
 const { profile } = storeToRefs(profileStore)
 const editingProfile = ref(false)
 const profileFailed = ref(false)
+/** 上次因头像出错重新取资料的时间；头像文件本身坏了时，避免反复重取 */
+let avatarRetryAt = 0
+const AVATAR_RETRY_GAP_MS = 60_000
+let settingsFailed = false
 
 async function loadProfile() {
   try {
@@ -173,11 +177,10 @@ async function loadProfile() {
 }
 void loadProfile()
 
-/** 头像链接过期或坏了：重新取一次 */
-let avatarRetried = false
+/** 头像链接过期或坏了：重新取资料换新链接，一分钟内最多一次 */
 function onAvatarError() {
-  if (avatarRetried) return
-  avatarRetried = true
+  if (Date.now() - avatarRetryAt < AVATAR_RETRY_GAP_MS) return
+  avatarRetryAt = Date.now()
   void loadProfile()
 }
 
@@ -255,8 +258,8 @@ async function checkCloud() {
     cloud.latency = Date.now() - start
     cloud.openid = res.openid
     cloud.state = 'ok'
-    // 云服务恢复了，之前没加载成功的设置补上
-    if (!loaded.value) void loadSettings()
+    // 云服务恢复了，之前加载失败的设置补上（还在加载中的不重复发）
+    if (settingsFailed) void loadSettings()
   } catch (err) {
     cloud.state = 'error'
     cloud.message = err instanceof CloudError ? err.message : '连接失败'
@@ -268,8 +271,10 @@ async function checkCloud() {
 async function loadSettings(): Promise<boolean> {
   try {
     await settingsStore.load()
+    settingsFailed = false
     return true
   } catch {
+    settingsFailed = true
     // 失败原因会显示在"云服务"那一行，这里保持"—"；点设置项时会重新加载
     return false
   }

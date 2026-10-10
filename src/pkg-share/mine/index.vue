@@ -84,7 +84,7 @@ async function load() {
   try {
     items.value = await listShares()
   } catch (err) {
-    error.value = err instanceof CloudError ? err.message : '请检查网络后重试'
+    error.value = err instanceof CloudError ? err.message : '出了点问题，请重试'
   } finally {
     loaded.value = true
   }

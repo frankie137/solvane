@@ -157,6 +157,11 @@ export function useRecorder(
         onFinish({ tempFilePath: res.tempFilePath, durationMs })
       },
       onInterrupt() {
+        // 还没真正开始：交给开始后的处理直接停掉并丢弃，不提示
+        if (!recording.value) {
+          stopRequested = true
+          return
+        }
         cancelled = true
         getManager().stop()
         uni.showToast({ title: '录音被打断了，请重新开始', icon: 'none' })

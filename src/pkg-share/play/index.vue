@@ -186,11 +186,13 @@ async function load() {
   error.value = null
   // 录音加载失败后重新加载：换新的临时链接，从原来的位置接着播
   const resumeAt = share.value ? player.positionMs.value : 0
+  const wasPlaying = player.playing.value
   try {
     const s = await getShare(shareId.value)
     share.value = s
     player.load(s.audioUrl, s.durationMs)
-    if (resumeAt > 0) player.seek(resumeAt)
+    // 只回到原来的位置；原来在播才接着播
+    if (resumeAt > 0) player.seek(resumeAt, wasPlaying)
     await nextTick()
     // 等列表渲染完再量每一行的位置
     if (measureTimer) clearTimeout(measureTimer)
@@ -199,7 +201,7 @@ async function load() {
       void makeCover(s)
     }, 80)
   } catch (err) {
-    error.value = err instanceof CloudError ? err : new CloudError('INTERNAL', '请检查网络后重试')
+    error.value = err instanceof CloudError ? err : new CloudError('INTERNAL', '出了点问题，请重试')
   }
 }
 
