@@ -261,6 +261,8 @@ export interface Practice {
     fluency: number
     completeness: number
     words: ScoredWord[]
+    /** 背了但没能评测的句子（评测服务出错或时间不够），报告里要和"没背出来"区分 */
+    unscored: number[]
   } | null
   report: {
     scores: PracticeScores

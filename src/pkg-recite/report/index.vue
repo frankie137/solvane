@@ -73,6 +73,10 @@
                   >{{ w.word }}</text
                 >
               </view>
+              <view v-else-if="row.unscored" class="row__unscored">
+                <text class="row__spoken sv-en">{{ row.spoken }}</text>
+                <text class="row__note">这一句没能评测发音，可以再背一次</text>
+              </view>
               <text v-else class="row__missing">这一句没有背出来</text>
               <text class="row__ref sv-en">{{ row.original }}</text>
             </view>
@@ -247,9 +251,14 @@ const rows = computed(() => {
   const count =
     version.value?.sentences.length ??
     Math.max(0, ...(practice.value?.alignment?.sentences.map((s) => s.index + 1) ?? [0]))
+  const unscored = new Set(practice.value?.pronunciation?.unscored ?? [])
+  const aligned = practice.value?.alignment?.sentences ?? []
   return Array.from({ length: count }, (_, index) => ({
     original: version.value?.sentences[index]?.en ?? '',
     words: words.filter((w) => w.sentenceIndex === index && w.match !== 'missing'),
+    // 背了但评测失败的句子：显示还原出的句子，不能当成没背出来
+    unscored: unscored.has(index),
+    spoken: aligned.find((a) => a.index === index)?.intended ?? '',
   }))
 })
 
@@ -510,6 +519,21 @@ function backToSession() {
   display: block;
   font-size: 15px;
   color: var(--sv-danger);
+}
+
+.row__spoken {
+  display: block;
+  font-size: 17px;
+  line-height: 25px;
+  color: var(--sv-text);
+}
+
+.row__note {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--sv-warning);
 }
 
 .row__ref {

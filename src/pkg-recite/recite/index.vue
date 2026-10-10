@@ -68,6 +68,7 @@ import { computed, ref } from 'vue'
 import { onHide, onLoad } from '@dcloudio/uni-app'
 import { storeToRefs } from 'pinia'
 import type { Version } from '@shared/types'
+import { LIMITS } from '@shared/constants'
 import { useDemoPlayer } from '@/composables/useDemoPlayer'
 import { useRecorder, type RecordingResult } from '@/composables/useRecorder'
 import { CloudError } from '@/services/cloud'
@@ -150,7 +151,7 @@ onHide(() => {
 
 // --- 录音与提交 -------------------------------------------------------------
 
-const recorder = useRecorder(submit)
+const recorder = useRecorder(submit, { maxMs: LIMITS.reciteMaxMs })
 
 function startRecording() {
   stopDemo()

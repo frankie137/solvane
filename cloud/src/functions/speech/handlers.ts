@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { TTS_SPEEDS, TTS_VOICES } from '@shared/constants'
 import type { TtsSentence } from '@shared/types'
+import { mapLimit } from '../../lib/concurrency'
 import { AppError } from '../../lib/errors'
 import type { Repos, TtsCachedSentence } from '../../lib/repos'
 import type { Handlers } from '../../lib/router'
@@ -36,20 +37,6 @@ const MAX_AUDIO_BYTES = 2_100_000
 
 /** 同时合成的句子数，低于腾讯云的默认并发上限 */
 const TTS_CONCURRENCY = 4
-
-/** 按顺序分批并发执行 */
-async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, i: number) => Promise<R>) {
-  const results: R[] = new Array(items.length)
-  let next = 0
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (next < items.length) {
-      const i = next++
-      results[i] = await fn(items[i] as T, i)
-    }
-  })
-  await Promise.all(workers)
-  return results
-}
 
 export function createSpeechHandlers(deps: SpeechDeps): Handlers<'speech'> {
   const { sessions, settings } = deps.repos

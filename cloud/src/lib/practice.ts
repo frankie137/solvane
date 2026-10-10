@@ -103,6 +103,7 @@ export function toScoredWords(segment: Segment, result: SoeResult): ScoredWord[]
 /** 各句结果按词数加权汇总；返回值都是 0～1 或 0～100 的原始尺度 */
 export function mergeResults(
   parts: { segment: Segment; result: SoeResult }[],
+  unscored: number[] = [],
 ): NonNullable<Practice['pronunciation']> {
   const weight = (p: { result: SoeResult }) => Math.max(1, p.result.words.length)
   const total = parts.reduce((sum, p) => sum + weight(p), 0)
@@ -113,6 +114,7 @@ export function mergeResults(
     fluency: avg((r) => r.fluency),
     completeness: avg((r) => r.completeness),
     words: parts.flatMap((p) => toScoredWords(p.segment, p.result)),
+    unscored,
   }
 }
 

@@ -4,6 +4,9 @@ import type { RecordingResult } from '@/composables/useRecorder'
 import { pollUntil } from '@/utils/poll'
 import { callCloud, CloudError, uploadFile } from './cloud'
 
+/** 这两类错误说明请求可能已经到达云端、操作可能仍在进行 */
+const RECOVERABLE = new Set(['TIMEOUT', 'NETWORK'])
+
 export async function startPractice(
   sessionId: string,
   vid: string,
@@ -11,13 +14,21 @@ export async function startPractice(
 ): Promise<string> {
   const cloudPath = `recite-input/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.pcm`
   const fileID = await uploadFile(recording.tempFilePath, cloudPath)
-  const { practiceId } = await callCloud('assess', 'start', {
-    sessionId,
-    vid,
-    fileID,
-    durationMs: Math.round(recording.durationMs),
-  })
-  return practiceId
+  try {
+    const { practiceId } = await callCloud('assess', 'start', {
+      sessionId,
+      vid,
+      fileID,
+      durationMs: Math.round(recording.durationMs),
+    })
+    return practiceId
+  } catch (err) {
+    // 明确被拒绝时练习没有创建，录音没人引用了，顺手删掉；超时或断网时练习可能已经建好，不能删
+    if (!(err instanceof CloudError) || !RECOVERABLE.has(err.code)) {
+      wx.cloud.deleteFile({ fileList: [fileID], fail: () => {} })
+    }
+    throw err
+  }
 }
 
 export async function getPractice(practiceId: string): Promise<Practice> {
@@ -28,8 +39,6 @@ export async function listPractices(sessionId: string): Promise<PracticeSummary[
   return (await callCloud('assess', 'list', { sessionId })).items
 }
 
-/** 这两类错误说明请求可能已经到达云端、步骤可能仍在运行 */
-const RECOVERABLE = new Set(['TIMEOUT', 'NETWORK'])
 /** 防止异常情况下无限循环：正常最多四步 */
 const MAX_ROUNDS = 10
 

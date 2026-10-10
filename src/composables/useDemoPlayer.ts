@@ -1,6 +1,7 @@
 import { computed, ref, shallowRef, watch, type Ref } from 'vue'
 import type { SentencePair, TtsSentence } from '@shared/types'
 import { CloudError, callCloud } from '@/services/cloud'
+import { useSettingsStore } from '@/stores/settings'
 import { activeTokenIndex, tokenize } from '@/utils/recite'
 import { useAudio } from './useAudio'
 
@@ -8,14 +9,19 @@ import { useAudio } from './useAudio'
  * 示范朗读：按句播放，读到哪个词高亮哪个词。
  * 音频按需加载（第一次播放时合成并缓存），换版本后重新加载。
  */
+/** 云端给的临时链接 2 小时过期，提前换新 */
+const TRACK_TTL_MS = 90 * 60_000
+
 export function useDemoPlayer(
   sessionId: Ref<string>,
   vid: Ref<string | null>,
   sentences: Ref<SentencePair[]>,
 ) {
   const audio = useAudio()
+  const settings = useSettingsStore()
   const tracks = shallowRef<TtsSentence[]>([])
   const loadedFor = ref('')
+  let loadedAt = 0
   const loading = ref(false)
   const activeSentence = ref(-1)
   const activeToken = ref(-1)
@@ -23,14 +29,17 @@ export function useDemoPlayer(
   const tokens = computed(() => sentences.value.map((s) => tokenize(s.en)))
 
   async function load(): Promise<boolean> {
-    const key = `${sessionId.value}:${vid.value}`
-    if (loadedFor.value === key && tracks.value.length > 0) return true
+    const { ttsVoice, ttsSpeed } = settings.settings
+    const key = `${sessionId.value}:${vid.value}:${ttsVoice}:${ttsSpeed}`
+    const fresh = Date.now() - loadedAt < TRACK_TTL_MS
+    if (loadedFor.value === key && tracks.value.length > 0 && fresh) return true
     if (!vid.value || loading.value) return false
     loading.value = true
     try {
       const res = await callCloud('speech', 'tts', { sessionId: sessionId.value, vid: vid.value })
       tracks.value = res.sentences
       loadedFor.value = key
+      loadedAt = Date.now()
       return true
     } catch (err) {
       uni.showToast({

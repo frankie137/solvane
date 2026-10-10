@@ -125,7 +125,13 @@ describe('toScoredWords / mergeResults', () => {
   })
 
   it('没有任何片段时全部为 0', () => {
-    expect(mergeResults([])).toEqual({ accuracy: 0, fluency: 0, completeness: 0, words: [] })
+    expect(mergeResults([])).toEqual({
+      accuracy: 0,
+      fluency: 0,
+      completeness: 0,
+      words: [],
+      unscored: [],
+    })
   })
 })
 
@@ -133,7 +139,7 @@ describe('computeScores', () => {
   it('四项加权得到总分', () => {
     const scores = computeScores(
       { sentences: [], diffs: [], content: 80, expression: 90 },
-      { accuracy: 70, fluency: 0.9, completeness: 1, words: [] },
+      { accuracy: 70, fluency: 0.9, completeness: 1, words: [], unscored: [] },
     )
     // 70×0.4 + 90×0.2 + 80×0.25 + 90×0.15 = 79.5
     expect(scores).toEqual({
@@ -148,7 +154,7 @@ describe('computeScores', () => {
   it('超出范围的值被限制在 0～100', () => {
     const scores = computeScores(
       { sentences: [], diffs: [], content: 120, expression: -5 },
-      { accuracy: 101, fluency: 1.2, completeness: 1, words: [] },
+      { accuracy: 101, fluency: 1.2, completeness: 1, words: [], unscored: [] },
     )
     expect(scores).toMatchObject({ pronunciation: 100, fluency: 100, content: 100, expression: 0 })
   })

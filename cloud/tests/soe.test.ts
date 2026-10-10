@@ -5,6 +5,7 @@ import {
   buildSoeUrl,
   evaluatePronunciation,
   parseSoeResult,
+  streamDurationMs,
   type SocketLike,
 } from '../src/lib/tencent/soe'
 
@@ -18,7 +19,7 @@ describe('buildSoeUrl', () => {
       'eval_mode=1',
       'expired=1700003600',
       'nonce=12345',
-      'rec_mode=1',
+      'rec_mode=0',
       "ref_text=I'm going hiking.",
       'score_coeff=3.5',
       'secretid=AKIDtest',
@@ -137,22 +138,35 @@ class FakeSocket {
 }
 
 const audio = Buffer.alloc(320)
-const req = { refText: 'Hi there.', mode: 'sentence' as const, timeoutMs: 1000 }
+const req = {
+  refText: 'Hi there.',
+  mode: 'sentence' as const,
+  timeoutMs: 1000,
+  chunkIntervalMs: 0,
+}
 
 describe('evaluatePronunciation', () => {
-  it('发送音频和结束标记，拿到最终结果', async () => {
+  it('分片发送音频，最后发结束标记，拿到最终结果', async () => {
+    const long = Buffer.alloc(6400 * 2 + 100)
     const { factory, sent } = fakeSocket((s) => {
       s.emit('open')
-      s.emit('message', JSON.stringify({ code: 0, final: 0, result: {} }))
-      s.emit(
-        'message',
-        JSON.stringify({ code: 0, final: 1, result: { PronAccuracy: 90, Words: [] } }),
-      )
+      // 等分片发完再回结果
+      setTimeout(() => {
+        s.emit('message', JSON.stringify({ code: 0, final: 0, result: {} }))
+        s.emit(
+          'message',
+          JSON.stringify({ code: 0, final: 1, result: { PronAccuracy: 90, Words: [] } }),
+        )
+      }, 20)
     })
-    const r = await evaluatePronunciation(CRED, audio, req, factory)
+    const r = await evaluatePronunciation(CRED, long, req, factory)
     expect(r.accuracy).toBe(90)
-    expect(sent[0]).toBe(audio)
-    expect(sent[1]).toBe('{"type":"end"}')
+    expect(sent.slice(0, 3).map((c) => (c as Buffer).length)).toEqual([6400, 6400, 100])
+    expect(sent[3]).toBe('{"type":"end"}')
+  })
+
+  it('按实时率估算发送时长', () => {
+    expect(streamDurationMs(Buffer.alloc(32_000))).toBe(1000)
   })
 
   it('接口报错时给出可读提示', async () => {

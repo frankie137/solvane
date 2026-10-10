@@ -74,7 +74,11 @@ function guideToSettings() {
  * 点按开始、点「完成」或「取消」结束的录音逻辑：权限、实时音量、时长、取消、过短判断。
  * 录音格式为 16kHz 单声道 PCM，便于计算音量，也符合语音识别的要求。
  */
-export function useRecorder(onFinish: (result: RecordingResult) => void) {
+export function useRecorder(
+  onFinish: (result: RecordingResult) => void,
+  options: { maxMs?: number } = {},
+) {
+  const maxMs = options.maxMs ?? LIMITS.recordMaxMs
   const recording = ref(false)
   const elapsedMs = ref(0)
   const levels = shallowRef<number[]>(new Array(WAVE_BARS).fill(0))
@@ -154,7 +158,7 @@ export function useRecorder(onFinish: (result: RecordingResult) => void) {
     }
     try {
       getManager().start({
-        duration: LIMITS.recordMaxMs,
+        duration: maxMs,
         sampleRate: 16000,
         numberOfChannels: 1,
         format: 'PCM',

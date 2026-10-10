@@ -2,8 +2,9 @@
  * 腾讯云智聆口语评测（新版）WebSocket 接口。官方没有 Node SDK，按文档实现：
  * https://cloud.tencent.cn/document/product/1774/107497
  *
- * 用「录音模式」（rec_mode=1）：每个连接一次性发送不超过 60 秒的完整音频，再发 {"type":"end"}，
- * 等到 final=1 的结果后断开。签名为 HMAC-SHA1，签名原文是不带 wss:// 的地址加按字典序排列的参数。
+ * 用文档推荐的实时流式（rec_mode=0）：按 1:1 的实时率分片发送 PCM（发得比实时快会报错），
+ * 发完后发 {"type":"end"}，等到 final=1 的结果后断开。
+ * 签名为 HMAC-SHA1，签名原文是不带 wss:// 的地址加按字典序排列的参数。
  */
 import { createHmac, randomUUID } from 'node:crypto'
 import WebSocket from 'ws'
@@ -49,7 +50,7 @@ export function buildSoeUrl(cred: SoeCredential, req: SoeRequest): string {
     eval_mode: req.mode === 'sentence' ? 1 : 2,
     score_coeff: SCORE_COEFF,
     sentence_info_enabled: 0,
-    rec_mode: 1,
+    rec_mode: 0,
   }
   const keys = Object.keys(params).sort()
   // 签名用未编码的原值，请求时 key 和 value 都要编码
@@ -156,20 +157,32 @@ export type SocketFactory = (url: string) => SocketLike
 
 const defaultSocket: SocketFactory = (url) => new WebSocket(url) as unknown as SocketLike
 
+/** 每片 200ms 的 16kHz 单声道 PCM */
+const CHUNK_BYTES = 6400
+const CHUNK_INTERVAL_MS = 200
+
+/** 按实时率发完一段音频大约要多久（毫秒） */
+export function streamDurationMs(audio: Buffer): number {
+  return Math.ceil(audio.length / CHUNK_BYTES) * CHUNK_INTERVAL_MS
+}
+
 /** 评测一段 PCM（16kHz 单声道）；超时、连接中断、接口报错都转成 AppError */
 export function evaluatePronunciation(
   cred: SoeCredential,
   audio: Buffer,
-  req: SoeRequest & { timeoutMs: number },
+  req: SoeRequest & { timeoutMs: number; chunkIntervalMs?: number },
   socketFactory: SocketFactory = defaultSocket,
 ): Promise<SoeResult> {
+  const interval = req.chunkIntervalMs ?? CHUNK_INTERVAL_MS
   return new Promise((resolve, reject) => {
     let settled = false
+    let sendTimer: ReturnType<typeof setTimeout> | null = null
     const socket = socketFactory(buildSoeUrl(cred, req))
     const finish = (fn: () => void) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
+      if (sendTimer) clearTimeout(sendTimer)
       fn()
       try {
         socket.close()
@@ -183,8 +196,18 @@ export function evaluatePronunciation(
     )
 
     socket.on('open', () => {
-      socket.send(audio)
-      socket.send(JSON.stringify({ type: 'end' }))
+      let offset = 0
+      const sendNext = () => {
+        if (settled) return
+        if (offset >= audio.length) {
+          socket.send(JSON.stringify({ type: 'end' }))
+          return
+        }
+        socket.send(audio.subarray(offset, offset + CHUNK_BYTES))
+        offset += CHUNK_BYTES
+        sendTimer = setTimeout(sendNext, interval)
+      }
+      sendNext()
     })
     socket.on('message', (data) => {
       let msg: Raw

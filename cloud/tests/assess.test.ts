@@ -188,6 +188,30 @@ describe('assess.start', () => {
     expect([...repos.practiceDocs.keys()].sort()).toEqual(ids.slice(1).sort())
     expect(removed).toEqual(['cloud://env.x/recite-input/r0.pcm'])
   })
+
+  it('清理旧练习时跳过还在评测中的', async () => {
+    const { handlers, repos, files, tick } = setup()
+    const sessionId = await addSession(repos)
+    const ids: string[] = []
+    for (let i = 0; i < 4; i++) {
+      const fileID = `cloud://env.x/recite-input/r${i}.pcm`
+      files.set(fileID, Buffer.alloc(32))
+      const { practiceId } = await handlers.start(
+        { sessionId, vid: 'v1', fileID, durationMs: 1 },
+        ME,
+      )
+      ids.push(practiceId)
+      if (i === 0) {
+        const doc = repos.practiceDocs.get(practiceId)!
+        repos.practiceDocs.set(practiceId, {
+          ...doc,
+          job: { stage: 'score', startedAt: 1_000_000 },
+        })
+      }
+      tick(1000)
+    }
+    expect(repos.practiceDocs.has(ids[0]!)).toBe(true)
+  })
 })
 
 describe('assess.advance', () => {
@@ -275,6 +299,24 @@ describe('assess.advance', () => {
     const { practice } = await handlers.advance({ practiceId }, ME)
     expect(practice.stage).toBe('done')
     expect(practice.pronunciation!.accuracy).toBe(80)
+    // 没能评测的句子单独标出，报告里不会显示成没背出来
+    expect(practice.pronunciation!.unscored).toEqual([1])
+  })
+
+  it('剩余时间不够评完一句时不再开始，记为没能评测', async () => {
+    let clock = 0
+    const { handlers, practiceId, deps, repos } = await started({
+      now: () => clock,
+      evaluate: vi.fn(async () => {
+        clock += 45_000 // 第一句用掉了大半时间，第二句开始前已经不够
+        return soe(80, ["I'm", 'going', 'hiking'])
+      }),
+    })
+    await handlers.advance({ practiceId }, ME)
+    expect(deps.evaluate).toHaveBeenCalledTimes(1)
+    const [, req] = (deps.evaluate as ReturnType<typeof vi.fn>).mock.calls[0]!
+    expect((req as { timeoutMs: number }).timeoutMs).toBeLessThan(55_000)
+    expect(repos.practiceDocs.get(practiceId)!.pronunciation!.unscored).toEqual([1])
   })
 
   it('口语评测未配置时直接报错，停在评测这一步', async () => {

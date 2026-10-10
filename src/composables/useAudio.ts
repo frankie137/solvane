@@ -10,6 +10,8 @@ export interface PlayOptions {
 }
 
 let audioOptionSet = false
+/** 等待跳转完成的最长时间；个别机型不触发 onSeeked，到时间后照常读进度 */
+const SEEK_SETTLE_MS = 600
 
 /** 静音模式下也要能听示范；只需设置一次 */
 function ensureAudioOption() {
@@ -30,6 +32,10 @@ export function useAudio(tickMs = 60) {
   let timer: ReturnType<typeof setInterval> | null = null
   let endAt: number | null = null
   let onEnded: (() => void) | undefined
+  /** 重播同一个音频时要跳到的位置（秒）：停止状态下 seek 不一定生效，等开始播放后再跳 */
+  let pendingSeek: number | null = null
+  /** 跳转完成前 currentTime 还是旧值，这段时间不读进度，避免误判已到 endMs */
+  let settleUntil = 0
 
   function clearTimer() {
     if (timer) clearInterval(timer)
@@ -52,6 +58,14 @@ export function useAudio(tickMs = 60) {
     ctx.onEnded(() => {
       if (playing.value) finish(true)
     })
+    ctx.onPlay(() => {
+      if (pendingSeek === null || !ctx) return
+      ctx.seek(pendingSeek)
+      pendingSeek = null
+    })
+    ctx.onSeeked(() => {
+      settleUntil = 0
+    })
     ctx.onError(() => {
       if (!playing.value) return
       finish(false)
@@ -71,8 +85,11 @@ export function useAudio(tickMs = 60) {
     onEnded = options.onEnded
     positionMs.value = options.startMs ?? 0
     if (audio.src === src) {
-      audio.seek(startSec)
+      pendingSeek = startSec
+      settleUntil = Date.now() + SEEK_SETTLE_MS
     } else {
+      pendingSeek = null
+      settleUntil = 0
       audio.src = src
       audio.startTime = startSec
     }
@@ -81,6 +98,7 @@ export function useAudio(tickMs = 60) {
 
     clearTimer()
     timer = setInterval(() => {
+      if (pendingSeek !== null || Date.now() < settleUntil) return
       const ms = Math.round(audio.currentTime * 1000)
       if (ms !== positionMs.value) positionMs.value = ms
       if (endAt !== null && ms >= endAt) {

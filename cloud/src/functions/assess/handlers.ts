@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { JOB_STALE_MS, LIMITS } from '@shared/constants'
 import type { Practice, PracticeStage, PracticeSummary } from '@shared/types'
 import { pcmDurationMs, pcmToWav, slicePcm, wavToPcm } from '../../lib/audio'
+import { mapLimit } from '../../lib/concurrency'
 import { AppError } from '../../lib/errors'
 import type { LlmContext } from '../../lib/llm-context'
 import { alignSchema, reportSchema } from '../../lib/llm/schemas'
@@ -18,7 +19,7 @@ import type { PracticeDoc, PracticePatch, Repos } from '../../lib/repos'
 import type { Handlers, RequestContext } from '../../lib/router'
 import { requireSession } from '../../lib/sessions'
 import type { RecognizeOptions, RecognizeResult } from '../../lib/tencent/asr'
-import type { SoeResult, SoeRequest } from '../../lib/tencent/soe'
+import { streamDurationMs, type SoeRequest, type SoeResult } from '../../lib/tencent/soe'
 import { parsePayload } from '../../lib/validate'
 import { buildAlignMessages, buildReportMessages } from '../../prompts/assess'
 import type { SpeechStorage } from '../speech/handlers'
@@ -52,25 +53,15 @@ const NEXT: Record<Exclude<PracticeStage, 'done'>, PracticeStage> = {
   score: 'report',
   report: 'done',
 }
-/** 同时评测的句子数 */
-const SOE_CONCURRENCY = 3
+/** 同时评测的句子数（腾讯云默认并发上限 50 路） */
+const SOE_CONCURRENCY = 6
+/** 一句发送完以后，等待评测结果的余量 */
+const SOE_RESULT_MS = 10_000
 
-async function mapLimit<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = new Array(items.length)
-  let next = 0
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, async () => {
-      while (next < items.length) {
-        const i = next++
-        results[i] = await fn(items[i] as T)
-      }
-    }),
-  )
-  return results
+/** 一步的结果：要写入的字段，以及写入成功后才能删除的文件 */
+interface StageResult {
+  patch: PracticePatch
+  cleanup?: string[]
 }
 
 export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
@@ -113,7 +104,7 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
 
   // --- 四个步骤，每步返回要写入的字段 ---------------------------------------
 
-  async function transcribe(doc: PracticeDoc, ctx: RequestContext): Promise<PracticePatch> {
+  async function transcribe(doc: PracticeDoc, ctx: RequestContext): Promise<StageResult> {
     if (!doc.pcmFileID) throw new AppError('INTERNAL', '找不到录音，请重新背一遍')
     const pcm = await deps.storage.download(doc.pcmFileID)
     if (pcm.length > MAX_AUDIO_BYTES) {
@@ -127,13 +118,15 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
       `recordings/${ctx.openid}/${doc._id}.wav`,
       pcmToWav(pcm),
     )
-    // 原始 PCM 已经转存成 WAV，不再需要
-    await deps.storage.remove(doc.pcmFileID).catch(() => {})
     return {
-      wavFileID,
-      pcmFileID: null,
-      durationMs: pcmDurationMs(pcm),
-      transcript: { text: text.trim(), words },
+      patch: {
+        wavFileID,
+        pcmFileID: null,
+        durationMs: pcmDurationMs(pcm),
+        transcript: { text: text.trim(), words },
+      },
+      // 原始 PCM 等结果写入成功后再删，否则写入失败时重试就找不到录音了
+      cleanup: [doc.pcmFileID],
     }
   }
 
@@ -141,7 +134,7 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
     doc: PracticeDoc,
     ctx: RequestContext,
     deadline: number,
-  ): Promise<PracticePatch> {
+  ): Promise<StageResult> {
     const session = await requireSession(sessions, doc.sessionId, ctx.openid)
     const version = session.versions.find((v) => v.vid === doc.vid)
     if (!version) throw new AppError('NOT_FOUND', '背诵的版本已不存在')
@@ -158,31 +151,36 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
     )
     const count = version.sentences.length
     return {
-      alignment: {
-        sentences: mapSentenceTimings(result.sentences, words, count),
-        diffs: result.diffs.filter((d) => d.sentenceIndex < count),
-        content: result.content,
-        expression: result.expression,
+      patch: {
+        alignment: {
+          sentences: mapSentenceTimings(result.sentences, words, count),
+          diffs: result.diffs.filter((d) => d.sentenceIndex < count),
+          content: result.content,
+          expression: result.expression,
+        },
       },
     }
   }
 
-  async function score(doc: PracticeDoc, deadline: number): Promise<PracticePatch> {
-    if (!doc.wavFileID || !doc.alignment)
+  async function score(doc: PracticeDoc, deadline: number): Promise<StageResult> {
+    if (!doc.wavFileID || !doc.alignment) {
       throw new AppError('INTERNAL', '评测数据不完整，请重新背一遍')
-    const segments = planSegments(doc.alignment.sentences, doc.durationMs)
-    if (segments.length === 0) {
-      return { pronunciation: mergeResults([]) }
     }
+    const segments = planSegments(doc.alignment.sentences, doc.durationMs)
+    if (segments.length === 0) return { patch: { pronunciation: mergeResults([]) } }
     const pcm = wavToPcm(await deps.storage.download(doc.wavFileID))
-    const timeoutMs = Math.max(5_000, Math.min(25_000, deadline - deps.now() - 3_000))
 
     const outcomes = await mapLimit(segments, SOE_CONCURRENCY, async (segment: Segment) => {
+      const audio = slicePcm(pcm, segment.startMs, segment.endMs)
+      // 按实时率发送，一句多长就要发多久；剩余时间不够评完这一句就不开始，记为没能评测
+      const needed = streamDurationMs(audio) + SOE_RESULT_MS
+      const remaining = deadline - deps.now()
+      if (remaining < needed) return { segment, error: new AppError('TIMEOUT', '时间不够') }
       try {
-        const result = await deps.evaluate(slicePcm(pcm, segment.startMs, segment.endMs), {
+        const result = await deps.evaluate(audio, {
           refText: segment.refText,
           mode: segment.mode,
-          timeoutMs,
+          timeoutMs: Math.min(needed, remaining),
         })
         return { segment, result }
       } catch (err) {
@@ -192,21 +190,35 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
         }
       }
     })
-    const succeeded = outcomes.filter(
-      (o): o is { segment: Segment; result: SoeResult } => 'result' in o,
-    )
-    const failed = outcomes.find((o) => 'error' in o) as { error: AppError } | undefined
-    // 配置类问题直接报错；个别句子偶发失败时，用其余句子的结果
-    if (failed && (failed.error.code === 'NOT_CONFIGURED' || succeeded.length === 0))
-      throw failed.error
-    return { pronunciation: mergeResults(succeeded) }
+
+    const succeeded: { segment: Segment; result: SoeResult }[] = []
+    const failed: { segment: Segment; error: AppError }[] = []
+    for (const o of outcomes) {
+      if (o.result) succeeded.push({ segment: o.segment, result: o.result })
+      else if (o.error) failed.push({ segment: o.segment, error: o.error })
+    }
+    // 配置类问题直接报错；全部失败也报错；个别句子失败时用其余句子的结果，并标出没能评测的句子
+    const config = failed.find((f) => f.error.code === 'NOT_CONFIGURED')
+    if (config) throw config.error
+    if (succeeded.length === 0) throw failed[0]!.error
+    for (const f of failed) {
+      console.error(`[assess.score] 第 ${f.segment.sentenceIndex} 句没能评测：${f.error.message}`)
+    }
+    return {
+      patch: {
+        pronunciation: mergeResults(
+          succeeded,
+          failed.map((f) => f.segment.sentenceIndex),
+        ),
+      },
+    }
   }
 
   async function report(
     doc: PracticeDoc,
     ctx: RequestContext,
     deadline: number,
-  ): Promise<PracticePatch> {
+  ): Promise<StageResult> {
     if (!doc.alignment || !doc.pronunciation) {
       throw new AppError('INTERNAL', '评测数据不完整，请重新背一遍')
     }
@@ -224,14 +236,14 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
       reportSchema,
       { deadline, maxTokens: 1000, temperature: 0.5 },
     )
-    return { report: { scores, ...feedback } }
+    return { patch: { report: { scores, ...feedback } } }
   }
 
   async function runStage(
     doc: PracticeDoc,
     ctx: RequestContext,
     deadline: number,
-  ): Promise<PracticePatch> {
+  ): Promise<StageResult> {
     switch (doc.stage) {
       case 'transcribe':
         return transcribe(doc, ctx)
@@ -242,7 +254,7 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
       case 'report':
         return report(doc, ctx, deadline)
       default:
-        return {}
+        return { patch: {} }
     }
   }
 
@@ -286,7 +298,10 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
 
       // 每个对话只保留最近几次练习，更早的连同录音一起删除
       const all = await practices.listBySession(ctx.openid, sessionId, 20)
+      // 还在评测中的先不动，下次再清理
+      const running = (d: PracticeDoc) => !!d.job && d.job.startedAt >= now - JOB_STALE_MS
       for (const old of all.slice(LIMITS.practicesPerSession)) {
+        if (running(old)) continue
         await removeFiles(old)
         await practices.remove(old._id, ctx.openid)
       }
@@ -317,7 +332,7 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
           const stage = current.stage
           if (!first && deadline - deps.now() < MIN_BUDGET[stage]) break
           first = false
-          const patch = await runStage(current, ctx, deadline)
+          const { patch, cleanup } = await runStage(current, ctx, deadline)
           const next = NEXT[stage]
           const written = await practices.updateIfJob(practiceId, ctx.openid, startedAt, {
             ...patch,
@@ -328,6 +343,9 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
           })
           // 锁已被接管（本次运行超时后有人重新发起），停止并以数据库为准
           if (!written) break
+          for (const fileID of cleanup ?? []) {
+            await deps.storage.remove(fileID).catch(() => {})
+          }
           current = { ...current, ...patch, stage: next } as PracticeDoc
         }
         if (current.stage !== 'done') {
