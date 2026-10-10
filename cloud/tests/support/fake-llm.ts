@@ -1,7 +1,12 @@
 import type { z } from 'zod'
 import type { LlmService } from '../../src/functions/compose/handlers'
 import type { LlmTarget } from '../../src/lib/llm/client'
-import { analysisSchema, draftSchema, revisionSchema } from '../../src/lib/llm/schemas'
+import {
+  analysisSchema,
+  draftSchema,
+  explainSchema,
+  revisionSchema,
+} from '../../src/lib/llm/schemas'
 
 export const DRAFT = {
   title: '周末计划',
@@ -32,6 +37,12 @@ export const ANALYSIS = {
   chinglish: [{ literal: 'climb mountain', natural: 'go hiking', why: '休闲爬山通常说 hiking' }],
 }
 
+export const EXPLAIN = {
+  meaning: '赶上进度',
+  usage: '常说 catch up on sth，表示补上落下的事',
+  example: 'I need to catch up on sleep. (我得补补觉。)',
+}
+
 /** 按 schema 返回预设结果的假大模型，记录调用 */
 export function createFakeLlm() {
   const calls: { kind: string; target: LlmTarget; prompt: string }[] = []
@@ -49,10 +60,19 @@ export function createFakeLlm() {
             ? 'revision'
             : schema === (analysisSchema as z.ZodType)
               ? 'analysis'
-              : 'unknown'
+              : schema === (explainSchema as z.ZodType)
+                ? 'explain'
+                : 'unknown'
       calls.push({ kind, target, prompt: messages.map((m) => m.content).join('\n') })
       if (failWith) throw failWith
-      const raw = kind === 'draft' ? DRAFT : kind === 'revision' ? REVISION : ANALYSIS
+      const raw =
+        kind === 'draft'
+          ? DRAFT
+          : kind === 'revision'
+            ? REVISION
+            : kind === 'explain'
+              ? EXPLAIN
+              : ANALYSIS
       return schema.parse(raw) as z.infer<S>
     },
     async ping(target) {

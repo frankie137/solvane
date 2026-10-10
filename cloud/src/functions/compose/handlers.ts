@@ -4,10 +4,11 @@ import { JOB_STALE_MS, LIMITS } from '@shared/constants'
 import type { JobKind, LlmConfigState, LlmConfigView, LlmScope, Session } from '@shared/types'
 import { decryptSecret, encryptSecret, maskSecret } from '../../lib/crypto'
 import { AppError } from '../../lib/errors'
+import { requireExpression, toExpression } from '../../lib/expressions'
 import { createLlmContextLoader } from '../../lib/llm-context'
 import type { LlmTarget } from '../../lib/llm/client'
 import type { LlmService } from '../../lib/llm/service'
-import { analysisSchema, draftSchema, revisionSchema } from '../../lib/llm/schemas'
+import { analysisSchema, draftSchema, explainSchema, revisionSchema } from '../../lib/llm/schemas'
 import {
   GLOBAL_SETTINGS_ID,
   type LlmStored,
@@ -21,6 +22,7 @@ import { normalizeBaseUrl } from '../../lib/url'
 import { parsePayload } from '../../lib/validate'
 import {
   buildAnalyzeMessages,
+  buildExplainMessages,
   buildGenerateMessages,
   buildReviseMessages,
 } from '../../prompts/compose'
@@ -38,6 +40,8 @@ export interface ComposeDeps {
 /** 云函数超时设为 60 秒，留 5 秒给读写数据库 */
 const JOB_BUDGET_MS = 55_000
 const MAX_VERSIONS = 20
+/** 讲解只参考最近收藏的两句 */
+const EXPLAIN_CONTEXT_SENTENCES = 2
 
 const presetSchema = z.enum(['deepseek', 'qwen', 'moonshot', 'zhipu', 'doubao', 'custom'])
 const scopeSchema = z.enum(['own', 'global'])
@@ -62,7 +66,7 @@ function toView(stored: LlmStored | null | undefined): LlmConfigView | null {
 }
 
 export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
-  const { sessions, settings } = deps.repos
+  const { sessions, settings, expressions } = deps.repos
 
   const isAdmin = (openid: string) => deps.adminOpenids().includes(openid)
   const settingsId = (scope: LlmScope, openid: string) =>
@@ -295,6 +299,61 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
           versions: fresh.versions.map((v) => (v.vid === vid ? { ...v, analysis } : v)),
         }
       })
+    },
+
+    async explainExpression(payload, ctx) {
+      const { expressionId } = parsePayload(
+        z.object({ expressionId: z.string().min(1).max(64) }),
+        payload,
+      )
+      const doc = await requireExpression(expressions, expressionId, ctx.openid)
+      if (doc.fill === 'ready') return { expression: toExpression(doc) }
+
+      const startedAt = deps.now()
+      const acquired = await expressions.acquireFill(
+        expressionId,
+        ctx.openid,
+        startedAt,
+        startedAt - JOB_STALE_MS,
+      )
+      // 已有补全在运行：返回当前状态，由前端轮询
+      if (!acquired) return { expression: toExpression(doc) }
+
+      try {
+        const { target, userSettings } = await loadJobContext(ctx.openid)
+        const context = [...new Set(doc.sources.map((s) => s.sentence).filter(Boolean))]
+          .slice(-EXPLAIN_CONTEXT_SENTENCES)
+          .reverse()
+        const result = await deps.llm.chatJson(
+          target,
+          buildExplainMessages(doc.text, context, userSettings),
+          explainSchema,
+          { deadline: startedAt + JOB_BUDGET_MS, maxTokens: 400, temperature: 0.3 },
+        )
+        await expressions.updateIfFill(expressionId, ctx.openid, startedAt, {
+          ...result,
+          fill: 'ready',
+          fillStartedAt: null,
+          updatedAt: deps.now(),
+        })
+      } catch (err) {
+        const appErr =
+          err instanceof AppError ? err : new AppError('INTERNAL', '释义生成失败，请稍后重试')
+        if (!(err instanceof AppError)) {
+          console.error(
+            '[compose.explainExpression]',
+            err instanceof Error ? err.stack : String(err),
+          )
+        }
+        await expressions.updateIfFill(expressionId, ctx.openid, startedAt, {
+          fill: 'failed',
+          fillStartedAt: null,
+        })
+        throw appErr
+      }
+      return {
+        expression: toExpression(await requireExpression(expressions, expressionId, ctx.openid)),
+      }
     },
 
     async getLlmConfig(_payload, ctx) {

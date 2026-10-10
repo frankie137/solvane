@@ -12,8 +12,23 @@ export function toSession(doc: SessionDoc): Session {
     currentVid: doc.currentVid,
     job: doc.job,
     lastError: doc.lastError,
+    ...favoriteFields(doc),
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
+  }
+}
+
+/** 旧数据没有 starredAt；没收藏时文件夹和标签一律视为空 */
+export function favoriteFields(doc: Pick<SessionDoc, 'starredAt' | 'folderId' | 'tags'>): {
+  starredAt: number | null
+  folderId: string | null
+  tags: string[]
+} {
+  const starredAt = doc.starredAt ?? null
+  return {
+    starredAt,
+    folderId: starredAt === null ? null : (doc.folderId ?? null),
+    tags: starredAt === null ? [] : (doc.tags ?? []),
   }
 }
 
@@ -25,6 +40,7 @@ export function toSummary(doc: SessionDoc): SessionSummary {
     preview: current?.sentences[0]?.en ?? doc.input.rawText,
     versionCount: doc.versions.length,
     state: summaryState(doc),
+    ...favoriteFields(doc),
     updatedAt: doc.updatedAt,
   }
 }

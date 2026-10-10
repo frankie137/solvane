@@ -118,6 +118,38 @@ ${quote(version.en)}`
   ]
 }
 
+/** 收藏的单词或短语：按收藏时所在的句子讲解 */
+export function buildExplainMessages(
+  text: string,
+  sentences: string[],
+  settings: UserSettings,
+): ChatMessage[] {
+  const level = LEVELS.find((l) => l.id === settings.level) ?? LEVELS[3]!
+  const system = `${COACH}
+
+任务：学习者从一句英文里收藏了一个单词或短语。请用中文为「${level.name}」水平的学习者讲解它在这句话里的意思：
+- meaning：在这个语境下的中文意思，简洁，不超过 30 个字；有多个常见义项时只写这里用到的。
+- usage：一句话说明怎么用、和什么词搭配、语气或场合，不超过 60 个字。
+- example：一个新的英文例句（不要照抄原句），括号里附中文。
+
+如果收藏的内容不是有意义的英文表达，meaning 写"不是常用表达"，其余字段尽量给出参考。
+
+只输出一个 JSON 对象，不要输出其他文字：
+{"meaning": "", "usage": "", "example": ""}`
+
+  const context = sentences.length > 0 ? sentences.map((s) => quote(s)).join('\n') : '（无）'
+  const user = `收藏的内容：
+${quote(text)}
+
+它所在的句子：
+${context}`
+
+  return [
+    { role: 'system', content: system },
+    { role: 'user', content: user },
+  ]
+}
+
 /** 测试连接用的最小请求 */
 export const PING_MESSAGES: ChatMessage[] = [
   { role: 'system', content: '你是连通性测试助手。' },
