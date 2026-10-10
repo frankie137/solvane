@@ -14,17 +14,20 @@
       </view>
 
       <view v-else class="compose__edit">
+        <!-- 只在打开或识别完成时写入初始内容，打字过程中不回写，避免打断中文输入法 -->
         <textarea
+          :key="seedVersion"
           class="compose__textarea"
-          :value="text"
+          :value="seed"
           :maxlength="LIMITS.rawTextMax"
-          :focus="autoFocus"
+          :focus="focusRequested"
           :adjust-position="false"
           :show-confirm-bar="false"
           :disable-default-padding="true"
           placeholder="用中文说说你想表达什么，零碎一点也没关系"
           placeholder-class="compose__placeholder"
           @input="onInput"
+          @blur="focusRequested = false"
         />
         <view class="compose__footer">
           <text class="compose__count">{{ text.length }} / {{ LIMITS.rawTextMax }}</text>
@@ -39,7 +42,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { LIMITS } from '@shared/constants'
 import type { InputMode } from '@shared/types'
 
@@ -62,8 +65,29 @@ const emit = defineEmits<{
 }>()
 
 const title = computed(() => (props.mode === 'voice' ? '确认你说的话' : '写下你想说的'))
-// 打字输入时自动弹出键盘；语音识别后先让人看一眼结果
-const autoFocus = computed(() => props.show && props.mode === 'text' && props.phase === 'editing')
+
+/** 写进输入框的初始内容；打字时不跟着变 */
+const seed = ref('')
+/** 每次重新进入编辑都换一个新的输入框，避免沿用上一次没清掉的内容 */
+const seedVersion = ref(0)
+/** 只在进入编辑时请求一次聚焦；键盘收起后不再抢焦点 */
+const focusRequested = ref(false)
+
+watch(
+  () => [props.show, props.phase, props.mode] as const,
+  ([show, phase, mode], previous) => {
+    const entering =
+      show &&
+      phase === 'editing' &&
+      (!previous || !previous[0] || previous[1] !== 'editing' || previous[2] !== mode)
+    if (!entering) return
+    seed.value = props.text
+    seedVersion.value++
+    // 打字输入时自动弹出键盘；语音识别后先让人看一眼结果
+    focusRequested.value = mode === 'text'
+  },
+  { immediate: true },
+)
 
 function onShow(value: boolean) {
   emit('update:show', value)

@@ -14,9 +14,10 @@
       </view>
     </scroll-view>
     <view class="revise__row">
+      <!-- 输入时不回写内容，避免打断中文输入法；发送后换新的输入框来清空 -->
       <input
+        :key="inputVersion"
         class="revise__input"
-        :value="modelValue"
         :placeholder="placeholder"
         placeholder-class="revise__placeholder"
         :maxlength="LIMITS.instructionMax"
@@ -33,7 +34,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { LIMITS, QUICK_INSTRUCTIONS } from '@shared/constants'
 import { useSystemStore } from '@/stores/system'
@@ -44,17 +45,26 @@ const emit = defineEmits<{ 'update:modelValue': [value: string]; submit: [instru
 
 const { metrics } = storeToRefs(useSystemStore())
 const keyboardHeight = ref(0)
+const inputVersion = ref(0)
 
 function onKeyboard(res: { height: number }) {
-  keyboardHeight.value = res.height
+  if (res.height !== keyboardHeight.value) keyboardHeight.value = res.height
 }
+
+// 外部把内容清空时（发送成功），换一个新的输入框
+watch(
+  () => props.modelValue,
+  (value) => {
+    if (value === '') inputVersion.value++
+  },
+)
 const unwatchKeyboard = watchKeyboard(onKeyboard)
 onUnmounted(unwatchKeyboard)
 
 const barStyle = computed(() => {
   // 键盘弹起时贴着键盘，不再留安全区
   const padding = keyboardHeight.value > 0 ? 8 : metrics.value.safeAreaBottom + 8
-  return `padding-bottom:${padding}px;transform:translateY(${-keyboardHeight.value}px)`
+  return `padding-bottom:${padding}px;bottom:${keyboardHeight.value}px`
 })
 
 const placeholder = computed(() => props.hint || '想怎么改？比如：换成跟老板说的语气')
@@ -77,7 +87,7 @@ function send() {
   bottom: 0;
   z-index: 100;
   padding-top: 10px;
-  transition: transform var(--sv-dur-2) var(--sv-ease);
+  transition: bottom var(--sv-dur-keyboard) var(--sv-ease-out);
 }
 
 .revise__bg {

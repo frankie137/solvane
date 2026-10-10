@@ -56,6 +56,9 @@ page {
   --sv-dur-1: 200ms;
   --sv-dur-2: 300ms;
   --sv-dur-3: 450ms;
+  // 跟随系统键盘的移动，和 iOS 键盘动画时长一致
+  --sv-dur-keyboard: 250ms;
+  --sv-ease-out: cubic-bezier(0.25, 0.1, 0.25, 1);
   // 循环动画的播放状态；不在前台的 tab 会把它设为 paused，循环动画统一引用它
   --sv-play: running;
 

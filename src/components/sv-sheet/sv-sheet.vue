@@ -45,14 +45,17 @@ let timer: ReturnType<typeof setTimeout> | null = null
 let unwatchKeyboard: (() => void) | null = null
 
 const panelStyle = computed(() => {
-  const bottom = Math.max(metrics.value.safeAreaBottom, 12)
-  // 打开时随键盘上移；关闭时整体移出屏幕
-  const transform = visible.value ? `translateY(${-keyboardHeight.value}px)` : 'translateY(100%)'
-  return `padding-bottom:${bottom}px;transform:${transform}`
+  const keyboard = keyboardHeight.value
+  // 键盘弹起时贴着键盘，不再留安全区
+  const padding = keyboard > 0 ? 12 : Math.max(metrics.value.safeAreaBottom, 12)
+  // 键盘偏移用 bottom、打开关闭用 transform，两者各自过渡，互不干扰
+  const transform = visible.value ? 'translateY(0)' : 'translateY(100%)'
+  return `padding-bottom:${padding}px;bottom:${keyboard}px;transform:${transform}`
 })
 
 function onKeyboard(res: { height: number }) {
-  keyboardHeight.value = res.height
+  // 打中文时候选栏出现 / 消失会反复触发，值没变就不更新
+  if (res.height !== keyboardHeight.value) keyboardHeight.value = res.height
 }
 
 watch(
@@ -129,7 +132,10 @@ onUnmounted(() => {
   border-radius: var(--sv-radius-l) var(--sv-radius-l) 0 0;
   background-color: var(--sv-surface);
   box-shadow: var(--sv-shadow-float);
-  transition: transform var(--sv-dur-3) var(--sv-ease);
+  // 跟随键盘要快（和系统键盘动画同步），打开关闭可以慢一点
+  transition:
+    transform var(--sv-dur-3) var(--sv-ease),
+    bottom var(--sv-dur-keyboard) var(--sv-ease-out);
 }
 
 .sv-sheet__grabber {
