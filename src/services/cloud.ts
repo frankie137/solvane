@@ -1,5 +1,6 @@
 import type { ActionName, ActionReq, ActionRes, CloudEvent, FunctionName } from '@shared/api'
 import { isApiResult } from '@shared/result'
+import { logError } from '@/utils/log'
 import { CloudError, toCloudError } from './cloud-error'
 
 export { CloudError } from './cloud-error'
@@ -36,14 +37,20 @@ export async function callCloud<F extends FunctionName, A extends ActionName<F>>
     })
     raw = res.result
   } catch (err) {
-    throw toCloudError(err)
+    const e = toCloudError(err)
+    logError(`${name}.${action}`, e)
+    throw e
   }
 
   if (!isApiResult(raw)) {
-    throw new CloudError('INTERNAL', '服务返回了无法识别的数据')
+    const e = new CloudError('INTERNAL', '服务返回了无法识别的数据')
+    logError(`${name}.${action}`, e)
+    throw e
   }
   if (!raw.ok) {
-    throw new CloudError(raw.error.code, raw.error.message)
+    const e = new CloudError(raw.error.code, raw.error.message)
+    logError(`${name}.${action}`, e)
+    throw e
   }
   return raw.data as ActionRes<F, A>
 }
@@ -55,6 +62,8 @@ export async function uploadFile(filePath: string, cloudPath: string): Promise<s
     const res = await wx.cloud.uploadFile({ cloudPath, filePath })
     return res.fileID
   } catch (err) {
-    throw toCloudError(err)
+    const e = toCloudError(err)
+    logError('uploadFile', e)
+    throw e
   }
 }
