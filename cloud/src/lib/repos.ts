@@ -12,6 +12,7 @@ import type {
   PracticeError,
   PracticeJob,
   PracticeStage,
+  ShareSentence,
   TimedText,
   TtsSpeed,
   TtsVoice,
@@ -124,7 +125,29 @@ export interface SettingsDoc {
   ttsVoice?: TtsVoice
   ttsSpeed?: TtsSpeed
   llm?: LlmStored | null
+  /** 分享时的署名 */
+  profile?: ProfileStored | null
   updatedAt: number
+}
+
+export interface ProfileStored {
+  nickname: string
+  avatarFileID: string | null
+}
+
+/** 分享快照：内容在分享时定下来，之后对话、练习怎么变都不影响 */
+export interface ShareDoc {
+  _id: string
+  _openid: string
+  sessionId: string
+  practiceId: string
+  title: string
+  sentences: ShareSentence[]
+  /** 录音副本，撤回时删除 */
+  audioFileID: string
+  durationMs: number
+  author: ProfileStored
+  createdAt: number
 }
 
 /** 一句示范朗读的缓存：云存储文件 + 逐词时间 */
@@ -208,12 +231,22 @@ export interface PracticeRepo {
   remove(id: string, openid: string): Promise<void>
 }
 
+export interface ShareRepo {
+  create(doc: Omit<ShareDoc, '_id'>): Promise<string>
+  /** 任何人凭 id 都能读，调用方只能返回快照字段 */
+  get(id: string): Promise<ShareDoc | null>
+  findByPractice(openid: string, practiceId: string): Promise<ShareDoc | null>
+  listByOwner(openid: string, limit: number): Promise<ShareDoc[]>
+  remove(id: string, openid: string): Promise<void>
+}
+
 export interface Repos {
   sessions: SessionRepo
   settings: SettingsRepo
   practices: PracticeRepo
   folders: FolderRepo
   expressions: ExpressionRepo
+  shares: ShareRepo
 }
 
 // ---------------------------------------------------------------------------
@@ -268,6 +301,7 @@ const SETTINGS = 'settings'
 const PRACTICES = 'practices'
 const FOLDERS = 'folders'
 const EXPRESSIONS = 'expressions'
+const SHARES = 'shares'
 
 /** 云函数端一次最多取 100 条，更多的分页取 */
 const PAGE = 100
@@ -653,11 +687,45 @@ export function createWxRepos(db: WxDatabase): Repos {
       }),
   }
 
+  const shares = () => db.collection(SHARES)
+  const shareRepo: ShareRepo = {
+    create: (doc) =>
+      withCollection(db, SHARES, async () => (await shares().add({ data: doc }))._id),
+
+    get: (id) =>
+      withCollection(db, SHARES, async () => {
+        const { data } = await shares().where({ _id: id }).limit(1).get()
+        return (data[0] as ShareDoc | undefined) ?? null
+      }),
+
+    findByPractice: (openid, practiceId) =>
+      withCollection(db, SHARES, async () => {
+        const { data } = await shares().where({ _openid: openid, practiceId }).limit(1).get()
+        return (data[0] as ShareDoc | undefined) ?? null
+      }),
+
+    listByOwner: (openid, limit) =>
+      withCollection(db, SHARES, async () => {
+        const { data } = await shares()
+          .where({ _openid: openid })
+          .orderBy('createdAt', 'desc')
+          .limit(limit)
+          .get()
+        return data as ShareDoc[]
+      }),
+
+    remove: (id, openid) =>
+      withCollection(db, SHARES, async () => {
+        await shares().where({ _id: id, _openid: openid }).remove()
+      }),
+  }
+
   return {
     sessions: sessionRepo,
     settings: settingsRepo,
     practices: practiceRepo,
     folders: folderRepo,
     expressions: expressionRepo,
+    shares: shareRepo,
   }
 }

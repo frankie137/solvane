@@ -3,6 +3,7 @@ import type {
   FolderDoc,
   PracticeDoc,
   PracticePatch,
+  ShareDoc,
   Repos,
   SessionDoc,
   SessionPatch,
@@ -16,12 +17,14 @@ export function createMemoryRepos(): Repos & {
   practiceDocs: Map<string, PracticeDoc>
   folderDocs: Map<string, FolderDoc>
   expressionDocs: Map<string, ExpressionDoc>
+  shareDocs: Map<string, ShareDoc>
 } {
   const sessionDocs = new Map<string, SessionDoc>()
   const settingsDocs = new Map<string, SettingsDoc>()
   const practiceDocs = new Map<string, PracticeDoc>()
   const folderDocs = new Map<string, FolderDoc>()
   const expressionDocs = new Map<string, ExpressionDoc>()
+  const shareDocs = new Map<string, ShareDoc>()
   let seq = 0
 
   /** 和云数据库一样不返回示范朗读缓存 */
@@ -64,6 +67,31 @@ export function createMemoryRepos(): Repos & {
     practiceDocs,
     folderDocs,
     expressionDocs,
+    shareDocs,
+    shares: {
+      async create(doc) {
+        const _id = `sh${++seq}`
+        shareDocs.set(_id, clone({ ...doc, _id }))
+        return _id
+      },
+      async get(id) {
+        const doc = shareDocs.get(id)
+        return doc ? clone(doc) : null
+      },
+      async findByPractice(openid, practiceId) {
+        const doc = mine(shareDocs, openid).find((d) => d.practiceId === practiceId)
+        return doc ? clone(doc) : null
+      },
+      async listByOwner(openid, limit) {
+        return mine(shareDocs, openid)
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .slice(0, limit)
+          .map(clone)
+      },
+      async remove(id, openid) {
+        if (shareDocs.get(id)?._openid === openid) shareDocs.delete(id)
+      },
+    },
     folders: {
       async list(openid) {
         return mine(folderDocs, openid)

@@ -7,10 +7,13 @@ import { requireSession, toSession, toSummary } from '../../lib/sessions'
 import { toUserSettings } from '../../lib/settings'
 import { parsePayload } from '../../lib/validate'
 import { createLibraryHandlers } from './library'
+import { createShareHandlers, type ShareStorage } from './share'
 
 export interface DataDeps {
   repos: Repos
+  storage: ShareStorage
   now: () => number
+  newFileName: () => string
 }
 
 const levelSchema = z.enum(['junior', 'senior', 'cet4', 'cet6', 'ielts', 'toefl'])
@@ -25,6 +28,7 @@ export function createDataHandlers(deps: DataDeps): Handlers<'data'> {
 
   return {
     ...createLibraryHandlers(deps),
+    ...createShareHandlers(deps),
 
     async ping(_payload, ctx) {
       return { pong: true, openid: ctx.openid, serverTime: deps.now() }

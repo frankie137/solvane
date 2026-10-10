@@ -3,8 +3,14 @@ import { AppError } from '../src/lib/errors'
 import { createRouter } from '../src/lib/router'
 import { createDataHandlers } from '../src/functions/data/handlers'
 import { createMemoryRepos } from './support/memory-repos'
+import { createMemoryStorage } from './support/memory-storage'
 
-const handlers = createDataHandlers({ repos: createMemoryRepos(), now: () => 1000 })
+const handlers = createDataHandlers({
+  repos: createMemoryRepos(),
+  now: () => 1000,
+  storage: createMemoryStorage(),
+  newFileName: () => 'f',
+})
 
 const withUser = () => ({ openid: 'o_test', appid: 'wx_test' })
 

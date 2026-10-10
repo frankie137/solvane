@@ -380,3 +380,45 @@ export interface TagCount {
   name: string
   count: number
 }
+
+// ---------------------------------------------------------------------------
+// 分享（M4）
+
+/** 分享和歌词页上显示的署名；头像为临时链接 */
+export interface Profile {
+  nickname: string
+  avatarUrl: string | null
+}
+
+export interface ShareSentence {
+  en: string
+  zh: string
+  /** 这一句在录音里的起止时间；没背出来的句子为 -1 */
+  startMs: number
+  endMs: number
+  /** 逐词时间，字符位置对应 en；没有单词时间时为空 */
+  words: TimedText[]
+}
+
+export interface Share {
+  id: string
+  title: string
+  sentences: ShareSentence[]
+  /** 录音的临时播放链接 */
+  audioUrl: string
+  durationMs: number
+  author: Profile
+  createdAt: number
+  /** 是不是自己分享的（决定显示「发给朋友」还是「我也来练」） */
+  mine: boolean
+}
+
+export interface ShareSummary {
+  id: string
+  title: string
+  /** 第一句英文 */
+  preview: string
+  durationMs: number
+  createdAt: number
+}
+

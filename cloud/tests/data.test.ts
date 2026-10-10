@@ -4,6 +4,7 @@ import type { Version } from '@shared/types'
 import { createDataHandlers } from '../src/functions/data/handlers'
 import type { SessionDoc } from '../src/lib/repos'
 import { createMemoryRepos } from './support/memory-repos'
+import { createMemoryStorage } from './support/memory-storage'
 
 const ME = { openid: 'o_me' }
 
@@ -39,7 +40,15 @@ function sessionDoc(patch: Partial<SessionDoc>): Omit<SessionDoc, '_id'> {
 
 function setup() {
   const repos = createMemoryRepos()
-  return { repos, handlers: createDataHandlers({ repos, now: () => 5_000 }) }
+  return {
+    repos,
+    handlers: createDataHandlers({
+      repos,
+      now: () => 5_000,
+      storage: createMemoryStorage(),
+      newFileName: () => 'f',
+    }),
+  }
 }
 
 describe('设置', () => {
