@@ -142,6 +142,8 @@ export interface ShareDoc {
   sessionId: string
   practiceId: string
   title: string
+  /** 第一句英文，列表里显示（列表不取 sentences） */
+  preview: string
   sentences: ShareSentence[]
   /** 录音副本，撤回时删除 */
   audioFileID: string
@@ -232,7 +234,8 @@ export interface PracticeRepo {
 }
 
 export interface ShareRepo {
-  create(doc: Omit<ShareDoc, '_id'>): Promise<string>
+  /** 用指定 id 新建；id 已存在时不覆盖，返回 false（同一次练习并发分享时只留一个） */
+  create(id: string, doc: Omit<ShareDoc, '_id'>): Promise<boolean>
   /** 任何人凭 id 都能读，调用方只能返回快照字段 */
   get(id: string): Promise<ShareDoc | null>
   findByPractice(openid: string, practiceId: string): Promise<ShareDoc | null>
@@ -334,6 +337,11 @@ function isCollectionMissing(err: unknown): boolean {
       `${e?.errMsg ?? ''}${e?.message ?? ''}`,
     )
   )
+}
+
+function isDuplicateKey(err: unknown): boolean {
+  const e = err as { errCode?: number; errMsg?: string; message?: string }
+  return e?.errCode === -502001 || /duplicate/i.test(`${e?.errMsg ?? ''}${e?.message ?? ''}`)
 }
 
 /** 首次使用时集合可能还不存在：自动创建后重试一次 */
@@ -689,8 +697,16 @@ export function createWxRepos(db: WxDatabase): Repos {
 
   const shares = () => db.collection(SHARES)
   const shareRepo: ShareRepo = {
-    create: (doc) =>
-      withCollection(db, SHARES, async () => (await shares().add({ data: doc }))._id),
+    create: (id, doc) =>
+      withCollection(db, SHARES, async () => {
+        try {
+          await shares().add({ data: { ...doc, _id: id } })
+          return true
+        } catch (err) {
+          if (isDuplicateKey(err)) return false
+          throw err
+        }
+      }),
 
     get: (id) =>
       withCollection(db, SHARES, async () => {
@@ -710,6 +726,7 @@ export function createWxRepos(db: WxDatabase): Repos {
           .where({ _openid: openid })
           .orderBy('createdAt', 'desc')
           .limit(limit)
+          .field({ sentences: false })
           .get()
         return data as ShareDoc[]
       }),

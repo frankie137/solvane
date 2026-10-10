@@ -56,16 +56,16 @@
           :class="{ 'is-current': i === current, 'is-silent': s.startMs < 0 }"
           @tap="jumpTo(i)"
         >
-          <view v-if="i === current && s.words.length" class="line__en sv-en">
+          <!-- 每句都按词渲染：当前句切换时排版不变，量好的行位置一直有效 -->
+          <view class="line__en sv-en">
             <text
               v-for="(t, j) in tokensOf(i)"
               :key="j"
               class="line__word"
-              :class="{ 'is-lit': j <= litToken }"
+              :class="{ 'is-lit': i === current && (s.words.length === 0 || j <= litToken) }"
               >{{ t.text + ' ' }}</text
             >
           </view>
-          <text v-else class="line__en sv-en">{{ s.en }}</text>
           <text class="line__zh">{{ s.zh }}</text>
         </view>
         <view :style="padStyle" />
@@ -88,6 +88,12 @@
             :class="{ 'is-dragging': dragging }"
             :style="`left:${progress}%`"
           />
+        </view>
+        <view v-if="player.failed.value" class="audio-error">
+          <text>录音没能加载</text>
+          <view class="audio-error__retry" hover-class="is-pressed" @tap="load">
+            <text>重新加载</text>
+          </view>
         </view>
         <view class="times">
           <text>{{ formatClock(shownMs) }}</text>
@@ -210,7 +216,26 @@ let followTimer: ReturnType<typeof setTimeout> | null = null
 /** 上下留半屏空白，第一句和最后一句也能滚到中间 */
 const padStyle = computed(() => `height:${Math.max(0, Math.round(viewport.value / 2 - 40))}px`)
 
+/**
+ * 先量出歌词区的高度，定下上下留白；等留白渲染好以后再量每一行的位置，
+ * 否则量到的是加留白之前的位置，整体偏差半屏。进度条的位置也在这里量好备用。
+ */
 function measure() {
+  uni
+    .createSelectorQuery()
+    .in(instance?.proxy)
+    .select('.lyrics')
+    .boundingClientRect((rect) => {
+      const box = rect as UniApp.NodeInfo | null
+      if (!box?.height) return
+      viewport.value = box.height
+      void nextTick(() => setTimeout(measureLines, 50))
+    })
+    .exec()
+  void measureBar()
+}
+
+function measureLines() {
   const query = uni.createSelectorQuery().in(instance?.proxy)
   query.select('.lyrics').boundingClientRect()
   query.select('.lyrics').scrollOffset(() => {})
@@ -220,7 +245,6 @@ function measure() {
     const offset = res[1] as UniApp.NodeInfo | null
     const lines = (res[2] as UniApp.NodeInfo[] | null) ?? []
     if (!box) return
-    viewport.value = box.height ?? 0
     const base = (box.top ?? 0) - (offset?.scrollTop ?? 0)
     tops = lines.map((r) => (r.top ?? 0) - base)
     heights = lines.map((r) => r.height ?? 0)
@@ -280,26 +304,43 @@ function msAt(e: TouchEvent): number {
   return Math.round(ratio * player.durationMs.value)
 }
 
+function measureBar(): Promise<void> {
+  return new Promise((resolve) => {
+    uni
+      .createSelectorQuery()
+      .in(instance?.proxy)
+      .select('#bar')
+      .boundingClientRect((rect) => {
+        const r = rect as UniApp.NodeInfo | null
+        if (r?.width) barRect = { left: r.left ?? 0, width: r.width }
+        resolve()
+      })
+      .exec()
+  })
+}
+
+/** 按下时如果还没量到进度条的位置，量好以后再算；松手早于量好时，等量好再跳转 */
+let barReady: Promise<void> | null = null
+
 function onBarStart(e: TouchEvent) {
   dragging.value = true
-  uni
-    .createSelectorQuery()
-    .in(instance?.proxy)
-    .select('#bar')
-    .boundingClientRect((rect) => {
-      const r = rect as UniApp.NodeInfo | null
-      barRect = r ? { left: r.left ?? 0, width: r.width ?? 0 } : null
+  if (barRect) {
+    dragMs.value = msAt(e)
+    barReady = null
+  } else {
+    barReady = measureBar().then(() => {
       dragMs.value = msAt(e)
     })
-    .exec()
+  }
 }
 
 function onBarMove(e: TouchEvent) {
   if (dragging.value && barRect) dragMs.value = msAt(e)
 }
 
-function onBarEnd(e: TouchEvent) {
+async function onBarEnd(e: TouchEvent) {
   if (!dragging.value) return
+  if (barReady) await barReady
   if (barRect) dragMs.value = msAt(e)
   dragging.value = false
   manualUntil = 0
@@ -533,6 +574,27 @@ function goHome() {
 
   &.is-dragging {
     transform: scale(1.5);
+  }
+}
+
+.audio-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--sv-text-2);
+}
+
+.audio-error__retry {
+  padding: 4px 10px;
+  border-radius: 12px;
+  color: var(--sv-accent);
+  background-color: var(--sv-accent-soft);
+
+  &.is-pressed {
+    opacity: 0.6;
   }
 }
 

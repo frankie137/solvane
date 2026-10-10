@@ -35,6 +35,7 @@
           @input="onNickname"
           @blur="onNickname"
           @change="onNickname"
+          @nicknamereview="onReview"
         />
       </view>
 
@@ -94,6 +95,17 @@ function onChooseAvatar(e: unknown) {
 
 function onNickname(e: { detail: { value?: string } }) {
   if (typeof e.detail.value === 'string') nickname.value = e.detail.value
+}
+
+/** 微信在失焦后异步检查昵称，没通过时会清空输入框（不一定触发 input），这里同步清掉 */
+function onReview(e: unknown) {
+  const detail = (e as { detail?: { pass?: boolean; timeout?: boolean } }).detail
+  if (detail?.pass === false && !detail.timeout) {
+    nickname.value = ''
+    seed.value = ''
+    inputVersion.value++
+    toast('这个昵称没有通过微信的检查，请换一个')
+  }
 }
 
 async function save() {

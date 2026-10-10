@@ -38,6 +38,8 @@ const AVATAR_FILE = /^cloud:\/\/[^/]+\/avatars\/[\w-]+\.(jpe?g|png|webp)$/
 
 const id = z.string().min(1).max(64)
 
+const shareIdOf = (practiceId: string) => `share-${practiceId}`
+
 /** 昵称在函数里检查，报错能说清楚原因 */
 const nickname = z
   .string()
@@ -116,6 +118,7 @@ export function createShareHandlers(deps: ShareDeps): Pick<Handlers<'data'>, Sha
         sessionId: practice.sessionId,
         practiceId,
         title: sessionTitle(session),
+        preview: version.sentences[0]?.en ?? '',
         sentences: buildShareSentences(
           version.sentences,
           practice.alignment.sentences,
@@ -126,12 +129,15 @@ export function createShareHandlers(deps: ShareDeps): Pick<Handlers<'data'>, Sha
         author: profile,
         createdAt: deps.now(),
       }
+      // 分享 id 由练习决定：同一次练习并发分享（重复点、超时后重试）时只会留下一个
+      const shareId = shareIdOf(practiceId)
+      let created = false
       try {
-        return { shareId: await shares.create(doc), created: true }
-      } catch (err) {
-        await deps.storage.remove(audioFileID).catch(() => {})
-        throw err
+        created = await shares.create(shareId, doc)
+      } finally {
+        if (!created) await deps.storage.remove(audioFileID).catch(() => {})
       }
+      return { shareId, created }
     },
 
     async getShare(payload, ctx) {
@@ -139,7 +145,8 @@ export function createShareHandlers(deps: ShareDeps): Pick<Handlers<'data'>, Sha
       const doc = await shares.get(shareId)
       if (!doc) throw new AppError('NOT_FOUND', '分享已撤回或不存在')
       const [audioUrl] = await deps.storage.tempUrls([doc.audioFileID])
-      if (!audioUrl) throw new AppError('NOT_FOUND', '录音已经不在了')
+      // 分享还在，只是暂时取不到录音：不能说成已撤回
+      if (!audioUrl) throw new AppError('UPSTREAM_ERROR', '录音暂时取不到，请稍后再试')
       const share: Share = {
         id: doc._id,
         title: doc.title,
@@ -158,7 +165,7 @@ export function createShareHandlers(deps: ShareDeps): Pick<Handlers<'data'>, Sha
       const items: ShareSummary[] = docs.map((d) => ({
         id: d._id,
         title: d.title,
-        preview: d.sentences[0]?.en ?? '',
+        preview: d.preview,
         durationMs: d.durationMs,
         createdAt: d.createdAt,
       }))

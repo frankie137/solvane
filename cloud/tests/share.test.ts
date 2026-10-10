@@ -185,6 +185,7 @@ describe('分享', () => {
     expect(ctx.storage.files.get('cloud://env.x/shares/copy1.wav')?.toString()).toBe('wav-bytes')
     const again = await ctx.data.createShare({ practiceId }, ME)
     expect(again).toEqual({ shareId: first.shareId, created: false })
+    expect(ctx.repos.shareDocs.size).toBe(1)
 
     const { share } = await ctx.data.getShare({ shareId: first.shareId }, FRIEND)
     expect(share).toMatchObject({
@@ -200,6 +201,31 @@ describe('分享', () => {
     )
     const mine = await ctx.data.getShare({ shareId: first.shareId }, ME)
     expect(mine.share.mine).toBe(true)
+  })
+
+  it('同时发起两次只留一个分享，多余的录音副本删掉', async () => {
+    const ctx = setup()
+    await ctx.data.updateProfile({ nickname: '小明' }, ME)
+    const { practiceId } = await donePractice(ctx)
+    const [a, b] = await Promise.all([
+      ctx.data.createShare({ practiceId }, ME),
+      ctx.data.createShare({ practiceId }, ME),
+    ])
+    expect(a.shareId).toBe(b.shareId)
+    expect([a.created, b.created].sort()).toEqual([false, true])
+    expect(ctx.repos.shareDocs.size).toBe(1)
+    expect(ctx.storage.removed).toHaveLength(1)
+  })
+
+  it('录音暂时取不到时不说成已撤回', async () => {
+    const ctx = setup()
+    await ctx.data.updateProfile({ nickname: '小明' }, ME)
+    const { practiceId } = await donePractice(ctx)
+    const { shareId } = await ctx.data.createShare({ practiceId }, ME)
+    ctx.storage.files.delete('cloud://env.x/shares/copy1.wav')
+    await expect(ctx.data.getShare({ shareId }, FRIEND)).rejects.toMatchObject({
+      code: 'UPSTREAM_ERROR',
+    })
   })
 
   it('练习被清理后分享仍然能听', async () => {

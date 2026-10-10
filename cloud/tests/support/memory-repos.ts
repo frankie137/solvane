@@ -69,10 +69,10 @@ export function createMemoryRepos(): Repos & {
     expressionDocs,
     shareDocs,
     shares: {
-      async create(doc) {
-        const _id = `sh${++seq}`
-        shareDocs.set(_id, clone({ ...doc, _id }))
-        return _id
+      async create(id, doc) {
+        if (shareDocs.has(id)) return false
+        shareDocs.set(id, clone({ ...doc, _id: id }))
+        return true
       },
       async get(id) {
         const doc = shareDocs.get(id)
