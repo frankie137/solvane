@@ -212,4 +212,5 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch(explain)
+// miniprogram-ci 完成后会留着网络连接，进程不会自己退出，这里在任务结束后主动退出
+main().then(() => process.exit(0), explain)

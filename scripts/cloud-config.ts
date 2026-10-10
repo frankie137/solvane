@@ -173,7 +173,11 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err: unknown) => {
-  console.error(err instanceof Error ? err.message : err)
-  process.exit(1)
-})
+// miniprogram-ci 会留着网络连接，任务结束后主动退出
+main().then(
+  () => process.exit(0),
+  (err: unknown) => {
+    console.error(err instanceof Error ? err.message : err)
+    process.exit(1)
+  },
+)
