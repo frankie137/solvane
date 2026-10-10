@@ -32,11 +32,16 @@ export function favoriteFields(doc: Pick<SessionDoc, 'starredAt' | 'folderId' | 
   }
 }
 
+/** 还没生成标题时用原文开头 */
+export function sessionTitle(doc: Pick<SessionDoc, 'title' | 'input'>): string {
+  return doc.title || doc.input.rawText.slice(0, 12)
+}
+
 export function toSummary(doc: SessionDoc): SessionSummary {
   const current = doc.versions.find((v) => v.vid === doc.currentVid) ?? doc.versions.at(-1)
   return {
     id: doc._id,
-    title: doc.title || doc.input.rawText.slice(0, 12),
+    title: sessionTitle(doc),
     preview: current?.sentences[0]?.en ?? doc.input.rawText,
     versionCount: doc.versions.length,
     state: summaryState(doc),

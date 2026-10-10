@@ -16,7 +16,13 @@
     </sv-nav-bar>
 
     <view class="folder">
-      <sv-card v-if="missing" :padding="24">
+      <sv-card v-if="storeError && !folder" :padding="24">
+        <sv-state icon="alert" tone="danger" title="加载失败" :description="storeError">
+          <sv-button type="secondary" size="sm" @click="store.refresh()">重试</sv-button>
+        </sv-state>
+      </sv-card>
+
+      <sv-card v-else-if="missing" :padding="24">
         <sv-state icon="folder" tone="danger" title="文件夹不存在" description="它可能已经被删除了">
           <sv-button type="secondary" size="sm" @click="goBack">返回</sv-button>
         </sv-state>
@@ -54,7 +60,7 @@ import { canCreateIn, folderPath } from '@/utils/folders'
 
 const { collapsed, onScroll } = useCollapsingTitle()
 const store = useLibraryStore()
-const { folders, loaded } = storeToRefs(store)
+const { folders, loaded, error: storeError } = storeToRefs(store)
 const { metrics } = storeToRefs(useSystemStore())
 // 删掉当前文件夹（自己的菜单，或在上一级页面里）后返回
 const { folders: folderActions } = provideLibraryActions({

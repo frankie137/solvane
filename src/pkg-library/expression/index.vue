@@ -81,7 +81,7 @@
               :hover-stay-time="60"
               @tap="openSource(s)"
             >
-              <view class="usage__sentence sv-en">
+              <view v-if="s.sentence" class="usage__sentence sv-en">
                 <text
                   v-for="(p, j) in piecesOf(s.sentence)"
                   :key="j"
@@ -89,6 +89,8 @@
                   >{{ p.text }}</text
                 >
               </view>
+              <!-- 解析里推荐的说法不一定出现在原文里 -->
+              <text v-else class="usage__none">解析里推荐的说法，原文没有直接用到</text>
               <text class="usage__meta">{{ sourceMeta(s) }}</text>
             </view>
           </sv-card>
@@ -491,6 +493,12 @@ async function unstarCard() {
 .usage__hit {
   font-weight: 700;
   color: var(--sv-accent);
+}
+
+.usage__none {
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--sv-text-2);
 }
 
 .usage__meta {

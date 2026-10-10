@@ -104,6 +104,14 @@ export function createMemoryRepos(): Repos & {
           .sort((a, b) => b.savedAt - a.savedAt)
           .map(clone)
       },
+      async listMeta(openid) {
+        return mine(expressionDocs, openid).map((d) => ({
+          _id: d._id,
+          key: d.key,
+          folderId: d.folderId,
+          tags: clone(d.tags),
+        }))
+      },
       async update(id, openid, patch) {
         const doc = expressionDocs.get(id)
         if (!doc || doc._openid !== openid) return false
@@ -224,6 +232,21 @@ export function createMemoryRepos(): Repos & {
           .filter((d) => d.starredAt !== null && d.starredAt !== undefined)
           .sort((a, b) => (b.starredAt ?? 0) - (a.starredAt ?? 0))
           .map(withoutTts)
+      },
+      async listStarredMeta(openid) {
+        return mine(sessionDocs, openid)
+          .filter((d) => d.starredAt !== null && d.starredAt !== undefined)
+          .map((d) => ({
+            _id: d._id,
+            starredAt: d.starredAt,
+            folderId: d.folderId,
+            tags: clone(d.tags),
+          }))
+      },
+      async listTitles(openid, ids) {
+        return mine(sessionDocs, openid)
+          .filter((d) => ids.includes(d._id))
+          .map((d) => ({ _id: d._id, title: d.title, input: clone(d.input) }))
       },
       async updateInFolders(openid, folderIds, patch) {
         for (const doc of mine(sessionDocs, openid)) {

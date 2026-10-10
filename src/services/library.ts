@@ -12,6 +12,7 @@ import type {
 } from '@shared/types'
 import { pollUntil } from '@/utils/poll'
 import { callCloud, CloudError } from './cloud'
+import { mayStillRun } from './cloud-error'
 
 export interface FavoriteQuery {
   folderId?: string | null
@@ -77,9 +78,6 @@ export async function deleteFolder(folderId: string, mode: FolderDeleteMode): Pr
   await callCloud('data', 'deleteFolder', { folderId, mode })
 }
 
-/** 请求可能已经到达云端、补全可能仍在运行 */
-const RECOVERABLE = new Set(['TIMEOUT', 'NETWORK'])
-
 /**
  * 补全表达的释义：调用云端补全；等不到返回、或别人正在补全时，轮询直到出结果。
  * 返回最新的表达；补全失败时 fill 为 failed，不抛错（未配置大模型等错误除外）。
@@ -92,7 +90,7 @@ export async function explainExpression(
   try {
     expression = (await callCloud('compose', 'explainExpression', { expressionId })).expression
   } catch (err) {
-    if (!(err instanceof CloudError) || !RECOVERABLE.has(err.code)) throw err
+    if (!mayStillRun(err)) throw err
   }
   if (expression && expression.fill !== 'pending') return expression
 

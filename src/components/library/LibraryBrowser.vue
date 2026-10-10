@@ -28,7 +28,6 @@
         <folder-rows
           :folders="folders"
           :counts="counts"
-          :child-counts="childCounts"
           :editing="editing"
           @open="openFolder"
           @more="folderActions.more"
@@ -98,11 +97,6 @@ const editing = ref(false)
 const flat = computed(() => Boolean(props.keyword || props.tag))
 const folders = computed(() => (flat.value ? [] : childrenOf(allFolders.value, props.folderId)))
 const counts = computed(() => allCounts.value[props.tab])
-const childCounts = computed(() => {
-  const out: Record<string, number> = {}
-  for (const f of allFolders.value) if (f.parentId) out[f.parentId] = (out[f.parentId] ?? 0) + 1
-  return out
-})
 
 const items = computed(() => (props.tab === 'expression' ? expressions.value : sessions.value))
 const hasContent = computed(() => folders.value.length > 0 || items.value.length > 0)
@@ -157,11 +151,16 @@ async function load() {
   }
 }
 
+// 换了要看的内容时先显示加载中，不显示上一次的结果或空状态；收藏有变化时原地刷新
 watch(
-  () => [props.tab, props.folderId, props.tag, props.keyword, revision.value],
-  () => void load(),
+  () => [props.tab, props.folderId, props.tag, props.keyword],
+  () => {
+    loaded.value = false
+    void load()
+  },
   { immediate: true },
 )
+watch(revision, () => void load())
 
 watch(
   () => props.tab,

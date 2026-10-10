@@ -17,7 +17,7 @@ import { AppError } from '../../lib/errors'
 import { requireExpression, toExpression, toExpressionSummary } from '../../lib/expressions'
 import type { ExpressionDoc, FolderDoc, Repos, SessionDoc } from '../../lib/repos'
 import type { Handlers } from '../../lib/router'
-import { favoriteFields, requireSession, toSummary } from '../../lib/sessions'
+import { favoriteFields, requireSession, sessionTitle, toSummary } from '../../lib/sessions'
 import { parsePayload } from '../../lib/validate'
 
 export interface LibraryDeps {
@@ -122,8 +122,14 @@ function subtree(folders: FolderDoc[], rootId: string): FolderDoc[] {
   return out
 }
 
-function sessionTitle(doc: Pick<SessionDoc, 'title' | 'input'>): string {
-  return doc.title || doc.input.rawText.slice(0, 12)
+/** 和已有名字重复时加序号：工作 → 工作 2 → 工作 3 */
+function freeName(taken: Set<string>, name: string): string {
+  if (!taken.has(name)) return name
+  for (let n = 2; ; n++) {
+    const suffix = ` ${n}`
+    const candidate = name.slice(0, LIMITS.folderNameMax - suffix.length) + suffix
+    if (!taken.has(candidate)) return candidate
+  }
 }
 
 const contains = (keyword: string, ...texts: string[]) => {
@@ -212,8 +218,8 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
     async listFolders(_payload, ctx) {
       const [all, exprs, starred] = await Promise.all([
         folders.list(ctx.openid),
-        expressions.listAll(ctx.openid),
-        sessions.listStarred(ctx.openid),
+        expressions.listMeta(ctx.openid),
+        sessions.listStarredMeta(ctx.openid),
       ])
       const existing = new Set(all.map((f) => f._id))
       const count = (items: { folderId: string | null }[]) => {
@@ -336,12 +342,19 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
         // 子文件夹和收藏都移到上一级；子树整体上移一级，深度只会变小
         const parentId = folder.parentId
         let order = nextOrder(all, parentId)
+        // 上一级已有同名文件夹时，移上去的改名为「名字 2」，保持同一层不重名
+        const taken = new Set(
+          all.filter((f) => f.parentId === parentId && f._id !== folderId).map((f) => f.name),
+        )
         for (const f of subtree(all, folderId)) {
           if (f._id === folderId) continue
           const isChild = f.parentId === folderId
+          const name = isChild ? freeName(taken, f.name) : f.name
+          if (isChild) taken.add(name)
           await folders.update(f._id, ctx.openid, {
             depth: f.depth - 1,
             ...(isChild ? { parentId, order: order++ } : {}),
+            ...(name !== f.name ? { name } : {}),
           })
         }
         await expressions.updateInFolders(ctx.openid, [folderId], { folderId: parentId })
@@ -396,8 +409,8 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
 
     async listTags(payload, ctx) {
       const { tab } = parsePayload(z.object({ tab: tabSchema }), payload)
-      if (tab === 'expression') return { tags: countTags(await expressions.listAll(ctx.openid)) }
-      const starred = await sessions.listStarred(ctx.openid)
+      if (tab === 'expression') return { tags: countTags(await expressions.listMeta(ctx.openid)) }
+      const starred = await sessions.listStarredMeta(ctx.openid)
       return { tags: countTags(starred.map((s) => favoriteFields(s))) }
     },
 
@@ -527,8 +540,8 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
       const { expressionId } = parsePayload(z.object({ expressionId: id }), payload)
       const doc = await requireExpression(expressions, expressionId, ctx.openid)
       const ids = [...new Set(doc.sources.map((s) => s.sessionId))]
-      const docs = await Promise.all(ids.map((sid) => sessions.get(sid, ctx.openid)))
-      const titles = new Map(ids.map((sid, i) => [sid, docs[i] ? sessionTitle(docs[i]!) : null]))
+      const found = await sessions.listTitles(ctx.openid, ids)
+      const titles = new Map(found.map((d) => [d._id, sessionTitle(d)]))
       // 最近收藏的来源在前
       const sources: SourceView[] = [...doc.sources]
         .reverse()
@@ -554,7 +567,7 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
     },
 
     async expressionKeys(_payload, ctx) {
-      const all = await expressions.listAll(ctx.openid)
+      const all = await expressions.listMeta(ctx.openid)
       return { keys: Object.fromEntries(all.map((e) => [e.key, e._id])) }
     },
 

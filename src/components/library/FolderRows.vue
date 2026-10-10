@@ -49,13 +49,11 @@ import type { Folder } from '@shared/types'
 const props = withDefaults(
   defineProps<{
     folders: Folder[]
-    /** 文件夹 id → 里面直接放着的收藏数（包括子文件夹的数量另算） */
+    /** 文件夹 id → 里面直接放着的这一栏收藏数 */
     counts: Record<string, number>
-    /** 子文件夹数，显示在数量里 */
-    childCounts?: Record<string, number>
     editing?: boolean
   }>(),
-  { childCounts: () => ({}), editing: false },
+  { editing: false },
 )
 
 const emit = defineEmits<{
@@ -65,7 +63,7 @@ const emit = defineEmits<{
 }>()
 
 function countOf(id: string): string {
-  const n = (props.counts[id] ?? 0) + (props.childCounts[id] ?? 0)
+  const n = props.counts[id] ?? 0
   return n > 0 ? String(n) : ''
 }
 </script>

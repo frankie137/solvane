@@ -161,6 +161,22 @@ describe('文件夹', () => {
     expect(counts.session).toEqual({ [a.id]: 1 })
   })
 
+  it('内容移到上一级时遇到同名文件夹，改名避免重名', async () => {
+    const { data } = setup()
+    const { folder: a } = await data.createFolder({ name: 'A', parentId: null }, ME)
+    await data.createFolder({ name: '工作', parentId: a.id }, ME)
+    const { folder: b } = await data.createFolder({ name: 'B', parentId: a.id }, ME)
+    await data.createFolder({ name: '工作', parentId: b.id }, ME)
+    await data.deleteFolder({ folderId: b.id, mode: 'moveUp' }, ME)
+    const { folders } = await data.listFolders({}, ME)
+    expect(
+      folders
+        .filter((f) => f.parentId === a.id)
+        .map((f) => f.name)
+        .sort(),
+    ).toEqual(['工作', '工作 2'])
+  })
+
   it('一起删除：表达卡片删掉，对话只取消收藏', async () => {
     const { data, repos, addSession } = setup()
     const { folder: a } = await data.createFolder({ name: 'A', parentId: null }, ME)

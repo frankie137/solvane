@@ -72,44 +72,56 @@ const footer = computed(() => {
   return `共 ${items.value.length} 个对话`
 })
 
-let requestId = 0
+/** 换关键词时加一：旧关键词的第一页和翻页结果都作废 */
+let generation = 0
+let reloading = false
 let shownOnce = false
 
-async function fetchPage(offset: number) {
-  const id = ++requestId
-  const res = await callCloud('data', 'listHistory', {
+function fetchPage(offset: number) {
+  return callCloud('data', 'listHistory', {
     offset,
     ...(keyword.value ? { keyword: keyword.value } : {}),
   })
-  return id === requestId ? res : null
 }
 
-async function reload() {
+/** 重新取第一页；keep 为 true 时保留已经翻过的后面几页（从对话页返回时用，不丢位置） */
+async function reload(keep = false) {
+  const gen = keep ? generation : ++generation
   error.value = ''
+  if (!keep) hasMore.value = false
+  reloading = true
   try {
     const res = await fetchPage(0)
-    if (!res) return
-    items.value = res.items
-    hasMore.value = res.hasMore
+    if (gen !== generation) return
+    const first = new Set(res.items.map((s) => s.id))
+    const rest = keep ? items.value.slice(res.items.length).filter((s) => !first.has(s.id)) : []
+    items.value = [...res.items, ...rest]
+    if (!keep || rest.length === 0) hasMore.value = res.hasMore
   } catch (err) {
-    error.value = err instanceof CloudError ? err.message : '加载失败'
+    if (gen === generation) error.value = err instanceof CloudError ? err.message : '加载失败'
   } finally {
-    loaded.value = true
+    if (gen === generation) {
+      reloading = false
+      loaded.value = true
+    }
   }
 }
 
 async function loadMore() {
-  if (!hasMore.value || loadingMore.value) return
+  if (!hasMore.value || loadingMore.value || reloading) return
+  const gen = generation
   loadingMore.value = true
   try {
     const res = await fetchPage(items.value.length)
-    if (!res) return
+    if (gen !== generation) return
     // 翻页期间对话可能更新了顺序，按 id 去重
     const seen = new Set(items.value.map((s) => s.id))
     items.value = [...items.value, ...res.items.filter((s) => !seen.has(s.id))]
     hasMore.value = res.hasMore
   } catch (err) {
-    uni.showToast({ title: err instanceof CloudError ? err.message : '加载失败', icon: 'none' })
+    if (gen === generation) {
+      uni.showToast({ title: err instanceof CloudError ? err.message : '加载失败', icon: 'none' })
+    }
   } finally {
     loadingMore.value = false
   }
@@ -125,9 +137,9 @@ onLoad(() => {
   void reload()
 })
 
-// 从对话页回来时刷新（可能新收藏了或者改了内容）
+// 从对话页回来时刷新第一页（可能新收藏了或者改了内容），已经翻过的保留
 onShow(() => {
-  if (shownOnce) void reload()
+  if (shownOnce) void reload(true)
   shownOnce = true
 })
 

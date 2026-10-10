@@ -93,6 +93,10 @@ export interface ExpressionDoc {
   updatedAt: number
 }
 
+export type SessionMeta = Pick<SessionDoc, '_id' | 'starredAt' | 'folderId' | 'tags'>
+export type SessionTitle = Pick<SessionDoc, '_id' | 'title' | 'input'>
+export type ExpressionMeta = Pick<ExpressionDoc, '_id' | 'key' | 'folderId' | 'tags'>
+
 export type FolderPatch = Partial<Omit<FolderDoc, '_id' | '_openid' | 'createdAt'>>
 export type ExpressionPatch = Partial<Omit<ExpressionDoc, '_id' | '_openid' | 'createdAt'>>
 
@@ -150,6 +154,10 @@ export interface SessionRepo {
   ): Promise<SessionDoc[]>
   /** 已收藏的对话 */
   listStarred(openid: string): Promise<SessionDoc[]>
+  /** 已收藏对话的收藏字段（计数、标签用，不取内容） */
+  listStarredMeta(openid: string): Promise<SessionMeta[]>
+  /** 这些对话的标题（溯源显示用，不取内容） */
+  listTitles(openid: string, ids: string[]): Promise<SessionTitle[]>
   /** 把这些文件夹里的已收藏对话一起改掉（删除文件夹时用） */
   updateInFolders(openid: string, folderIds: string[], patch: SessionPatch): Promise<void>
 }
@@ -167,6 +175,8 @@ export interface ExpressionRepo {
   findByKey(openid: string, key: string): Promise<ExpressionDoc | null>
   /** 全部表达，按最近收藏时间倒序（收藏量不大，筛选在函数里做） */
   listAll(openid: string): Promise<ExpressionDoc[]>
+  /** 全部表达的合并键、文件夹和标签（计数、标签、已收藏标记用） */
+  listMeta(openid: string): Promise<ExpressionMeta[]>
   update(id: string, openid: string, patch: ExpressionPatch): Promise<boolean>
   remove(id: string, openid: string): Promise<void>
   updateInFolders(openid: string, folderIds: string[], patch: ExpressionPatch): Promise<void>
@@ -411,6 +421,31 @@ export function createWxRepos(db: WxDatabase): Repos {
           )) as SessionDoc[],
       ),
 
+    listStarredMeta: (openid) =>
+      withCollection(
+        db,
+        SESSIONS,
+        async () =>
+          (await fetchAll(
+            () =>
+              sessions()
+                .where({ _openid: openid, starredAt: _.neq(null) })
+                .field({ starredAt: true, folderId: true, tags: true }),
+            1000,
+          )) as SessionMeta[],
+      ),
+
+    listTitles: (openid, ids) =>
+      withCollection(db, SESSIONS, async () => {
+        if (ids.length === 0) return []
+        const { data } = await sessions()
+          .where({ _openid: openid, _id: _.in(ids) })
+          .limit(ids.length)
+          .field({ title: true, input: true })
+          .get()
+        return data as SessionTitle[]
+      }),
+
     updateInFolders: (openid, folderIds, patch) =>
       withCollection(db, SESSIONS, async () => {
         if (folderIds.length === 0) return
@@ -551,6 +586,20 @@ export function createWxRepos(db: WxDatabase): Repos {
             () => expressions().where({ _openid: openid }).orderBy('savedAt', 'desc'),
             1000,
           )) as ExpressionDoc[],
+      ),
+
+    listMeta: (openid) =>
+      withCollection(
+        db,
+        EXPRESSIONS,
+        async () =>
+          (await fetchAll(
+            () =>
+              expressions()
+                .where({ _openid: openid })
+                .field({ key: true, folderId: true, tags: true }),
+            1000,
+          )) as ExpressionMeta[],
       ),
 
     update: (id, openid, patch) =>

@@ -426,7 +426,7 @@ async function reload() {
     loadError.value = asCloudError(err)
     return
   }
-  applyLocate()
+  await applyLocate()
   void loadPractices()
   await ensure()
 }
@@ -443,13 +443,23 @@ onUnmounted(() => {
   if (locateTimer) clearTimeout(locateTimer)
 })
 
-/** 只在本地切到那个版本（不改对话的当前版本），滚到英文并突出那一句 */
-function applyLocate() {
+/**
+ * 切到那个版本，滚到英文并突出那一句。
+ * 和点版本标签一样保存为当前版本，否则之后的任务结果（以云端为准）会把页面切回原来的版本。
+ */
+async function applyLocate() {
   const s = session.value
   const target = locateTarget
   locateTarget = null
   if (!s || !target || !s.versions.some((v) => v.vid === target.vid)) return
   session.value = { ...s, currentVid: target.vid }
+  if (s.currentVid !== target.vid) {
+    try {
+      await setCurrentVersion(sessionId.value, target.vid)
+    } catch {
+      // 保存失败只影响下次打开时的默认版本，这次照常定位
+    }
+  }
   located.value = target.sentence
   scrollTarget.value = ''
   setTimeout(() => {

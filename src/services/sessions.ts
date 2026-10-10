@@ -2,6 +2,7 @@ import type { InputMode, Session, SessionSummary } from '@shared/types'
 import { JOB_STALE_MS } from '@shared/constants'
 import { pollUntil, type PollOptions } from '@/utils/poll'
 import { callCloud, CloudError } from './cloud'
+import { mayStillRun } from './cloud-error'
 
 export async function createSession(mode: InputMode, rawText: string): Promise<string> {
   const { sessionId } = await callCloud('compose', 'create', { mode, rawText })
@@ -19,9 +20,6 @@ export async function listRecentSessions(): Promise<SessionSummary[]> {
 export async function setCurrentVersion(sessionId: string, vid: string): Promise<Session> {
   return (await callCloud('data', 'setCurrentVersion', { sessionId, vid })).session
 }
-
-/** 这两类错误说明请求可能已经到达云端、任务可能仍在运行，值得去查一下结果 */
-const RECOVERABLE = new Set(['TIMEOUT', 'NETWORK'])
 
 export interface JobOptions {
   /** 判断这次任务想要的结果是否已经出现在对话里 */
@@ -46,7 +44,7 @@ export async function runSessionJob(
     const { session } = await start()
     if (!session.job) return finish(session, options, null)
   } catch (err) {
-    if (!(err instanceof CloudError) || !RECOVERABLE.has(err.code)) throw err
+    if (!mayStillRun(err)) throw err
     startError = err
   }
 

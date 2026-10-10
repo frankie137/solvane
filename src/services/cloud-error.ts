@@ -12,6 +12,11 @@ export class CloudError extends Error {
   }
 }
 
+/** 超时或断网：请求可能已经到达云端、任务可能仍在运行，值得去查一下结果 */
+export function mayStillRun(err: unknown): err is CloudError {
+  return err instanceof CloudError && (err.code === 'TIMEOUT' || err.code === 'NETWORK')
+}
+
 /**
  * 把 wx.cloud.callFunction 抛出的原始错误（errMsg 字符串）归类成用户能看懂的提示。
  * 注意顺序：超时也会带着 -404011（云函数执行错误），所以先判断超时；
