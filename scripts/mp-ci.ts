@@ -4,6 +4,7 @@
  *   pnpm preview                 构建并生成预览二维码 .ci/preview.png（管理员和开发者扫码）
  *   pnpm upload [--desc 说明]     构建并上传为开发版，可在公众平台设为体验版
  *   pnpm deploy:cloud [函数名…]   打包并部署云函数（不写函数名则部署全部）
+ *   pnpm deploy:cloud:devtools    同上，但通过开发者工具部署：不需要代码上传密钥，也不受 IP 白名单限制
  *
  * 前置条件：
  *   1. 公众平台「管理 → 开发管理 → 开发设置 → 小程序代码上传」生成代码上传密钥，
@@ -16,6 +17,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import * as ci from 'miniprogram-ci'
+import { runDevtoolsCli } from './devtools'
 
 const root = resolve(__dirname, '..')
 const miniprogramDir = join(root, 'dist/mp-weixin')
@@ -153,7 +155,7 @@ function readCloudEnv(cliEnv?: string): string {
   return env
 }
 
-async function deployCloud(names: string[], cliEnv?: string): Promise<void> {
+async function deployCloud(names: string[], cliEnv?: string, via = 'ci'): Promise<void> {
   ensureBuilt(cloudfunctionsDir, 'pnpm build:cloud')
   const env = readCloudEnv(cliEnv)
   const available = readdirSync(cloudfunctionsDir)
@@ -161,6 +163,17 @@ async function deployCloud(names: string[], cliEnv?: string): Promise<void> {
   const unknown = targets.filter((n) => !available.includes(n))
   if (unknown.length > 0)
     fail(`没有这些云函数：${unknown.join('、')}（可选：${available.join('、')}）`)
+
+  if (via === 'devtools') {
+    // 走开发者工具的登录状态，不需要上传密钥和 IP 白名单
+    const args = ['cloud', 'functions', 'deploy', '--env', env, '--names', ...targets]
+    await runDevtoolsCli(
+      [...args, '--project', root, '--remote-npm-install'],
+      /fail to deploy|│\s*false\s*│/,
+    )
+    console.info(`\n✓ 已通过开发者工具部署：${targets.join('、')} → ${env}`)
+    return
+  }
 
   const project = createProject(root)
   for (const name of targets) {
@@ -182,6 +195,7 @@ async function main(): Promise<void> {
     options: {
       desc: { type: 'string' },
       env: { type: 'string' },
+      via: { type: 'string' },
     },
   })
   const [command, ...rest] = positionals
@@ -192,10 +206,11 @@ async function main(): Promise<void> {
     case 'upload':
       return upload(values.desc)
     case 'deploy-cloud':
-      return deployCloud(rest, values.env)
+      return deployCloud(rest, values.env, values.via)
     default:
       fail('用法：tsx scripts/mp-ci.ts <preview | upload | deploy-cloud> [参数]')
   }
 }
 
-main().catch(explain)
+// miniprogram-ci 完成后会留着网络连接，进程不会自己退出，这里在任务结束后主动退出
+main().then(() => process.exit(0), explain)

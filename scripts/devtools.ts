@@ -8,7 +8,7 @@
  *
  * 隐藏窗口通过 System Events 完成，首次运行 macOS 会询问是否允许，拒绝也不影响测试本身。
  */
-import { execFile, execFileSync } from 'node:child_process'
+import { execFile, execFileSync, spawn } from 'node:child_process'
 import automator from 'miniprogram-automator'
 
 export const CLI_PATH =
@@ -62,11 +62,11 @@ function quitDevtools(): void {
   }
 }
 
-/** 在后台的开发者工具里打开项目并运行 fn，结束后恢复开发者工具原来的运行状态 */
-export async function withQuietDevtools<T>(
-  projectPath: string,
-  fn: (mp: MiniProgram) => Promise<T>,
-): Promise<T> {
+/**
+ * 确保开发者工具在后台运行并保持隐藏，执行 fn 后恢复原来的运行状态：
+ * 由我们启动的就退出，使用者本来开着的只隐藏不关闭。
+ */
+export async function withHiddenDevtools<T>(fn: () => Promise<T>): Promise<T> {
   const startedByUs = devtoolsPid() === null
   if (startedByUs) {
     execFileSync('open', ['-g', '-j', '-a', APP_PATH])
@@ -74,24 +74,55 @@ export async function withQuietDevtools<T>(
   }
 
   const hider = setInterval(() => void hideDevtools(), 400)
-  let mp: MiniProgram
   try {
-    mp = await automator.launch({ cliPath: CLI_PATH, projectPath, trustProject: true })
-  } catch (err) {
-    clearInterval(hider)
-    if (startedByUs) quitDevtools()
-    throw err
-  }
-
-  try {
-    return await fn(mp)
+    return await fn()
   } finally {
     clearInterval(hider)
-    await mp.close().catch(() => {})
     if (startedByUs) {
       quitDevtools()
     } else {
       await hideDevtools()
     }
   }
+}
+
+/** 在后台的开发者工具里打开项目并运行自动化测试 */
+export function withQuietDevtools<T>(
+  projectPath: string,
+  fn: (mp: MiniProgram) => Promise<T>,
+): Promise<T> {
+  return withHiddenDevtools(async () => {
+    const mp = await automator.launch({ cliPath: CLI_PATH, projectPath, trustProject: true })
+    try {
+      return await fn(mp)
+    } finally {
+      await mp.close().catch(() => {})
+    }
+  })
+}
+
+/**
+ * 在后台调用开发者工具命令行，输出同时打印到终端。
+ * 命令行在部分失败时退出码仍是 0，所以由 failIf 按输出内容判断是否失败。
+ */
+export function runDevtoolsCli(args: string[], failIf?: RegExp): Promise<void> {
+  return withHiddenDevtools(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const child = spawn(CLI_PATH, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+        let output = ''
+        const collect = (chunk: Buffer, target: NodeJS.WriteStream) => {
+          output += chunk.toString()
+          target.write(chunk)
+        }
+        child.stdout.on('data', (c: Buffer) => collect(c, process.stdout))
+        child.stderr.on('data', (c: Buffer) => collect(c, process.stderr))
+        child.on('error', reject)
+        child.on('close', (code) => {
+          if (code !== 0) reject(new Error(`开发者工具命令行退出码 ${code}`))
+          else if (failIf?.test(output)) reject(new Error('开发者工具报告执行失败，详见上方输出'))
+          else resolve()
+        })
+      }),
+  )
 }

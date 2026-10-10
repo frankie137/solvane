@@ -25,6 +25,13 @@ const ROUTES: Route[] = [
   { name: '02-library', url: '/pages/index/index?tab=library', path: 'pages/index/index' },
   { name: '03-me', url: '/pages/index/index?tab=me', path: 'pages/index/index' },
   { name: '04-gallery', url: '/pkg-dev/gallery/index', path: 'pkg-dev/gallery/index' },
+  { name: '05-llm-settings', url: '/pkg-settings/llm/index', path: 'pkg-settings/llm/index' },
+  // 不存在的对话：检查加载失败状态的展示
+  {
+    name: '06-session-missing',
+    url: '/pkg-session/session/index?id=smoke-missing',
+    path: 'pkg-session/session/index',
+  },
 ]
 
 /** 等 tab 切换和入场动画结束 */

@@ -1,6 +1,6 @@
 import type { ErrorCode } from '@shared/result'
 
-export type ClientErrorCode = ErrorCode | 'NETWORK'
+export type ClientErrorCode = ErrorCode | 'NETWORK' | 'CANCELLED'
 
 export class CloudError extends Error {
   constructor(

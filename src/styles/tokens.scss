@@ -41,6 +41,10 @@ page {
   --sv-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
   --sv-shadow-float: 0 8px 32px rgba(0, 0, 0, 0.12);
 
+  // 遮罩：底部面板用 scrim，录音浮层用较轻的 scrim-soft
+  --sv-scrim: rgba(0, 0, 0, 0.4);
+  --sv-scrim-soft: rgba(0, 0, 0, 0.3);
+
   // 圆角
   --sv-radius-s: 12px;
   --sv-radius-m: 16px;
@@ -52,6 +56,9 @@ page {
   --sv-dur-1: 200ms;
   --sv-dur-2: 300ms;
   --sv-dur-3: 450ms;
+  // 跟随系统键盘的移动，和 iOS 键盘动画时长一致
+  --sv-dur-keyboard: 250ms;
+  --sv-ease-out: cubic-bezier(0.25, 0.1, 0.25, 1);
   // 循环动画的播放状态；不在前台的 tab 会把它设为 paused，循环动画统一引用它
   --sv-play: running;
 
@@ -96,5 +103,9 @@ page {
 
     --sv-shadow-card: none;
     --sv-shadow-float: 0 8px 32px rgba(0, 0, 0, 0.5);
+
+    // 深色背景上需要更重的遮罩才看得出层次
+    --sv-scrim: rgba(0, 0, 0, 0.6);
+    --sv-scrim-soft: rgba(0, 0, 0, 0.5);
   }
 }

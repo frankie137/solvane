@@ -19,8 +19,8 @@ const root = resolve(__dirname, '..')
 const srcDir = join(root, 'cloud/src/functions')
 const outDir = join(root, 'cloudfunctions')
 
-/** 云函数运行时选择 Node.js 18 及以上 */
-const NODE_TARGET = 'node18'
+/** 与云函数默认运行时 Node.js 16.13 保持一致（部署工具创建函数时用的就是它） */
+const NODE_TARGET = 'node16'
 
 /** 云端安装的 wx-server-sdk 与本地类型检查用的版本保持一致 */
 function wxServerSdkVersion(): string {

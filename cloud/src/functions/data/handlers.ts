@@ -1,7 +1,75 @@
+import { z } from 'zod'
+import { DEFAULT_SETTINGS, LIMITS } from '@shared/constants'
+import type { UserSettings } from '@shared/types'
+import { AppError } from '../../lib/errors'
+import type { Repos } from '../../lib/repos'
 import type { Handlers } from '../../lib/router'
+import { requireSession, toSession, toSummary } from '../../lib/sessions'
+import { parsePayload } from '../../lib/validate'
 
-export const handlers: Handlers<'data'> = {
-  async ping(_payload, ctx) {
-    return { pong: true, openid: ctx.openid, serverTime: Date.now() }
-  },
+export interface DataDeps {
+  repos: Repos
+  now: () => number
+}
+
+const levelSchema = z.enum(['junior', 'senior', 'cet4', 'cet6', 'ielts', 'toefl'])
+const accentSchema = z.enum(['us', 'uk'])
+
+export function createDataHandlers(deps: DataDeps): Handlers<'data'> {
+  const { sessions, settings } = deps.repos
+
+  async function readSettings(openid: string): Promise<UserSettings> {
+    const doc = await settings.get(openid)
+    return {
+      level: doc?.level ?? DEFAULT_SETTINGS.level,
+      accent: doc?.accent ?? DEFAULT_SETTINGS.accent,
+    }
+  }
+
+  return {
+    async ping(_payload, ctx) {
+      return { pong: true, openid: ctx.openid, serverTime: deps.now() }
+    },
+
+    async getSettings(_payload, ctx) {
+      return readSettings(ctx.openid)
+    },
+
+    async updateSettings(payload, ctx) {
+      const patch = parsePayload(
+        z.object({ level: levelSchema.optional(), accent: accentSchema.optional() }),
+        payload,
+      )
+      await settings.upsert(ctx.openid, { ...patch, updatedAt: deps.now() })
+      return readSettings(ctx.openid)
+    },
+
+    async getSession(payload, ctx) {
+      const { sessionId } = parsePayload(z.object({ sessionId: z.string().min(1) }), payload)
+      return { session: toSession(await requireSession(sessions, sessionId, ctx.openid)) }
+    },
+
+    async listSessions(payload, ctx) {
+      const { limit } = parsePayload(
+        z.object({ limit: z.number().int().min(1).max(50).optional() }),
+        payload,
+      )
+      const docs = await sessions.listRecent(ctx.openid, limit ?? LIMITS.recentSessions)
+      return { items: docs.map(toSummary) }
+    },
+
+    async setCurrentVersion(payload, ctx) {
+      const { sessionId, vid } = parsePayload(
+        z.object({ sessionId: z.string().min(1), vid: z.string().min(1) }),
+        payload,
+      )
+      const doc = await requireSession(sessions, sessionId, ctx.openid)
+      if (!doc.versions.some((v) => v.vid === vid)) {
+        throw new AppError('BAD_REQUEST', '找不到这个版本')
+      }
+      // 切换版本不算内容更新，不改 updatedAt，避免打乱"最近对话"的顺序
+      await sessions.update(sessionId, ctx.openid, { currentVid: vid })
+      return { session: toSession({ ...doc, currentVid: vid }) }
+    },
+  }
 }

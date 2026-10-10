@@ -1,4 +1,10 @@
-import { createFunction } from '../../lib/cloud'
-import { handlers } from './handlers'
+import { createFunction, getCloud } from '../../lib/cloud'
+import { createWxRepos, type WxDatabase } from '../../lib/repos'
+import { createDataHandlers } from './handlers'
 
-export const main = createFunction('data', handlers)
+const db = getCloud().database() as unknown as WxDatabase
+
+export const main = createFunction(
+  'data',
+  createDataHandlers({ repos: createWxRepos(db), now: Date.now }),
+)

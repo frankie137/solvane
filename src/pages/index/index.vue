@@ -19,7 +19,8 @@
 
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onShow } from '@dcloudio/uni-app'
+import { useSessionsStore } from '@/stores/sessions'
 import type { TabItem } from '@/components/sv-tab-bar/sv-tab-bar.vue'
 import PracticeTab from './tabs/PracticeTab.vue'
 import LibraryTab from './tabs/LibraryTab.vue'
@@ -38,6 +39,12 @@ const visited = reactive<Record<TabKey, boolean>>({ practice: true, library: fal
 
 watch(active, (key) => {
   visited[key] = true
+})
+
+// 每次回到首页都刷新最近对话（从对话页返回时能看到最新状态）
+const sessionsStore = useSessionsStore()
+onShow(() => {
+  void sessionsStore.refresh()
 })
 
 // 支持 /pages/index/index?tab=me 直接打开某个 tab（冒烟测试和以后的深链接用）
