@@ -103,6 +103,7 @@ const isSaved = (phrase: string) => Boolean(props.savedKeys[expressionKey(phrase
 @import '@/styles/mixins.scss';
 
 .analysis {
+  @include sv-appear;
   display: flex;
   flex-direction: column;
   gap: 12px;

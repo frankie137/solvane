@@ -12,7 +12,7 @@
       <sv-card :padding="18" radius="m"><sv-skeleton :rows="3" /></sv-card>
     </view>
 
-    <template v-else>
+    <view v-else class="browser__content">
       <view v-if="folders.length" class="browser__block">
         <view class="browser__head">
           <text class="browser__label">文件夹</text>
@@ -54,7 +54,7 @@
       <text v-if="hasContent && !keyword && !tag" class="browser__hint"
         >长按收藏可以移动、打标签</text
       >
-    </template>
+    </view>
   </view>
 </template>
 
@@ -244,5 +244,12 @@ defineExpose({ load })
   text-align: center;
   font-size: 13px;
   color: var(--sv-text-3);
+}
+
+.browser__content {
+  @include sv-appear;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 </style>

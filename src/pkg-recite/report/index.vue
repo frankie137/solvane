@@ -9,18 +9,30 @@
     <sv-nav-bar title="背诵报告" back :large="false" />
 
     <view class="report">
-      <!-- 加载失败 / 评测失败 -->
-      <sv-card v-if="error" :padding="24">
+      <!-- 报告取不到：还不知道练习的情况，只能重试 -->
+      <sv-card v-if="error && !practice" :padding="24">
+        <sv-state icon="alert" tone="danger" title="报告加载失败" :description="error.message">
+          <sv-button size="sm" :loading="retrying" @click="retry">重试</sv-button>
+        </sv-state>
+      </sv-card>
+
+      <!-- 评测失败 -->
+      <sv-card v-else-if="error" :padding="24">
         <sv-state icon="alert" tone="danger" title="评测没有完成" :description="error.message">
           <view class="actions">
-            <sv-button v-if="canRetry" size="sm" @click="run">重试</sv-button>
-            <sv-button type="secondary" size="sm" @click="reciteAgain">重新背诵</sv-button>
+            <sv-button v-if="canRetry" size="sm" :loading="retrying" @click="retry">重试</sv-button>
+            <sv-button type="secondary" size="sm" @click="reciteAgain">再背一次</sv-button>
           </view>
         </sv-state>
       </sv-card>
 
+      <!-- 取报告中：还不知道是否已经评完，先显示骨架，不闪「正在评测」 -->
+      <view v-else-if="!practice" class="report__loading">
+        <sv-card :padding="22"><sv-skeleton :rows="4" title /></sv-card>
+      </view>
+
       <!-- 评测中 -->
-      <sv-card v-if="!error && !done" :padding="22">
+      <sv-card v-else-if="!done" :padding="22">
         <text class="report__title">正在评测</text>
         <text class="report__desc"
           >大约需要 20～40 秒，可以先离开，稍后在对话页的练习记录里查看。</text
@@ -31,7 +43,7 @@
       </sv-card>
 
       <!-- 评测结果 -->
-      <template v-if="done && practice && report">
+      <view v-if="done && practice && report" class="report__result">
         <sv-card :padding="22">
           <view class="summary">
             <score-ring :score="report.scores.overall" />
@@ -44,7 +56,11 @@
                 <text class="metric__value sv-en">{{ m.value }}</text>
               </view>
               <view class="metric__track">
-                <view class="metric__bar" :class="`is-${m.tone}`" :style="`width:${m.value}%`" />
+                <view
+                  class="metric__bar"
+                  :class="`is-${m.tone}`"
+                  :style="`width:${barsGrown ? m.value : 0}%`"
+                />
               </view>
             </view>
           </view>
@@ -152,7 +168,7 @@
             <sv-button block haptic @click="reciteAgain">再背一次</sv-button>
           </view>
         </view>
-      </template>
+      </view>
     </view>
 
     <view class="bottom" />
@@ -192,7 +208,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { onHide, onLoad, onUnload } from '@dcloudio/uni-app'
 import { storeToRefs } from 'pinia'
 import type { DiffKind, Practice, ScoredWord, Version } from '@shared/types'
@@ -230,7 +246,34 @@ const version = ref<Version | null>(null)
 const error = ref<CloudError | null>(null)
 
 const done = computed(() => practice.value?.stage === 'done')
+
+const retrying = ref(false)
+async function retry() {
+  if (retrying.value) return
+  retrying.value = true
+  try {
+    await run()
+  } finally {
+    retrying.value = false
+  }
+}
 const report = computed(() => practice.value?.report ?? null)
+
+/** 评分条先从 0 开始，结果出现后再长到分数，和分数环一起动 */
+const barsGrown = ref(false)
+watch(
+  () => Boolean(done.value && report.value),
+  (shown) => {
+    if (!shown) return
+    void nextTick(() =>
+      setTimeout(() => {
+        barsGrown.value = true
+      }, 30),
+    )
+  },
+  { immediate: true },
+)
+
 /** 配置类问题和"没听清"重试没有意义 */
 const canRetry = computed(() => !!practice.value && error.value?.code !== 'BAD_REQUEST')
 
@@ -448,6 +491,8 @@ function backToSession() {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .page-scroll {
   height: 100vh;
 }
@@ -457,6 +502,17 @@ function backToSession() {
   flex-direction: column;
   gap: 24px;
   padding: 16px 16px 0;
+}
+
+.report__loading,
+.report__result {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.report__result {
+  @include sv-appear;
 }
 
 .report__title {

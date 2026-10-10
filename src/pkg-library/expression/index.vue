@@ -19,7 +19,7 @@
         <sv-card :padding="18" radius="m"><sv-skeleton :rows="3" title /></sv-card>
       </view>
 
-      <template v-else>
+      <view v-else class="card-page__content">
         <sv-card :padding="20">
           <view class="hero">
             <view class="hero__row">
@@ -138,7 +138,7 @@
             <text class="danger__text">取消收藏</text>
           </sv-button>
         </view>
-      </template>
+      </view>
     </view>
 
     <view :style="bottomInset" />
@@ -521,5 +521,12 @@ async function unstarCard() {
 
 .danger__text {
   color: var(--sv-danger);
+}
+
+.card-page__content {
+  @include sv-appear;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 </style>

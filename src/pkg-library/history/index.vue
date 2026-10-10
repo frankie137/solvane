@@ -34,10 +34,10 @@
         />
       </sv-card>
 
-      <template v-else>
+      <view v-else class="history__content">
         <session-rows :items="items" show-star @open="openSession" />
         <text class="history__more">{{ footer }}</text>
-      </template>
+      </view>
     </view>
 
     <view :style="bottomInset" />
@@ -149,6 +149,8 @@ function openSession(id: string) {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .page-scroll {
   height: 100vh;
 }
@@ -170,5 +172,12 @@ function openSession(id: string) {
   text-align: center;
   font-size: 13px;
   color: var(--sv-text-3);
+}
+
+.history__content {
+  @include sv-appear;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 </style>

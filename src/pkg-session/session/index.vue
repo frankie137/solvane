@@ -32,7 +32,7 @@
         <sv-card :padding="18" radius="m"><sv-skeleton :rows="4" title /></sv-card>
       </view>
 
-      <template v-else>
+      <view v-else class="session__content">
         <view class="block">
           <text class="block__label">你说的</text>
           <sv-card :padding="16" radius="m">
@@ -207,7 +207,7 @@
             </sv-card>
           </view>
         </template>
-      </template>
+      </view>
     </view>
 
     <view :style="bottomInset" />
@@ -937,5 +937,12 @@ function openLlmSettings() {
   display: flex;
   justify-content: center;
   gap: 12px;
+}
+
+.session__content {
+  @include sv-appear;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 </style>

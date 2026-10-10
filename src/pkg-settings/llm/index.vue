@@ -19,7 +19,7 @@
         <sv-card :padding="18" radius="m"><sv-skeleton :rows="2" /></sv-card>
       </view>
 
-      <template v-else>
+      <view v-else class="llm__content">
         <sv-card :padding="18" radius="m">
           <view class="status">
             <view class="status__dot" :class="`is-${state.effective}`" />
@@ -88,7 +88,7 @@
             <text class="clear__text">清除{{ scope === 'own' ? '我的' : '全局默认' }}配置</text>
           </sv-button>
         </view>
-      </template>
+      </view>
     </view>
 
     <view class="bottom" />
@@ -266,6 +266,8 @@ function clear() {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .page-scroll {
   height: 100vh;
 }
@@ -350,5 +352,12 @@ function clear() {
 
 .bottom {
   height: 60px;
+}
+
+.llm__content {
+  @include sv-appear;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 </style>

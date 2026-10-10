@@ -19,7 +19,7 @@
         <sv-card :padding="18" radius="m"><sv-skeleton :rows="4" title /></sv-card>
       </view>
 
-      <template v-else>
+      <view v-else class="recite__content">
         <view class="intro">
           <text class="intro__title">遮住原文，把这段背出来</text>
           <text class="intro__desc">
@@ -45,7 +45,7 @@
           <sv-chip :disabled="allShown" @click="hintAll">全部提示一级</sv-chip>
           <sv-chip :disabled="allHidden" @click="hideAll">全部遮住</sv-chip>
         </view>
-      </template>
+      </view>
     </view>
 
     <view :style="bottomInset" />
@@ -55,11 +55,14 @@
     v-if="version"
     :recording="recorder.recording.value"
     :submitting="submitting"
+    :failed="!!failedRecording"
     :levels="recorder.levels.value"
     :elapsed-ms="recorder.elapsedMs.value"
     @start="startRecording"
     @finish="recorder.stop(false)"
     @cancel="recorder.stop(true)"
+    @resubmit="resubmit"
+    @discard="failedRecording = null"
   />
 </template>
 
@@ -158,14 +161,24 @@ function startRecording() {
   void recorder.start()
 }
 
+/** 提交失败时保留录音，可以重新提交 */
+const failedRecording = ref<RecordingResult | null>(null)
+
+function resubmit() {
+  const result = failedRecording.value
+  if (result) void submit(result)
+}
+
 async function submit(result: RecordingResult) {
   if (!vid.value || submitting.value) return
   submitting.value = true
+  failedRecording.value = null
   try {
     const practiceId = await startPractice(sessionId.value, vid.value, result)
     // 替换当前页：报告页返回时直接回到对话页
     uni.redirectTo({ url: `/pkg-recite/report/index?practiceId=${encodeURIComponent(practiceId)}` })
   } catch (err) {
+    failedRecording.value = result
     uni.showToast({
       title: err instanceof CloudError ? err.message : '提交失败，请重试',
       icon: 'none',
@@ -177,6 +190,8 @@ async function submit(result: RecordingResult) {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .page-scroll {
   height: 100vh;
 }
@@ -211,5 +226,12 @@ async function submit(result: RecordingResult) {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.recite__content {
+  @include sv-appear;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 </style>

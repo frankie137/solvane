@@ -26,7 +26,7 @@
         />
       </sv-card>
 
-      <template v-else>
+      <view v-else class="mine__content">
         <sv-card :padding="2" radius="m">
           <view
             v-for="(item, i) in items"
@@ -49,7 +49,7 @@
           </view>
         </sv-card>
         <text class="mine__hint">撤回后好友再打开会显示「分享已撤回」</text>
-      </template>
+      </view>
     </view>
   </scroll-view>
 </template>
@@ -114,6 +114,8 @@ async function more(item: ShareSummary) {
 </script>
 
 <style lang="scss">
+@import '@/styles/mixins.scss';
+
 .page-scroll {
   height: 100vh;
 }
@@ -193,5 +195,12 @@ async function more(item: ShareSummary) {
   &.is-pressed {
     background-color: var(--sv-fill);
   }
+}
+
+.mine__content {
+  @include sv-appear;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 </style>

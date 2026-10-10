@@ -28,3 +28,21 @@
     transform: translate(-50%, -50%);
   }
 }
+
+// 一次性的出现动画：骨架换成内容、列表加载出来时淡入并上移一点。
+// 结束后 transform 回到 none，不会影响里面固定定位的元素。
+@mixin sv-appear($name: sv-appear) {
+  animation: $name var(--sv-dur-2) var(--sv-ease) both;
+
+  @keyframes #{$name} {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
