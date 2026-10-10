@@ -212,6 +212,8 @@ onUnload(() => {
 const bottomInset = computed(() => `height:${metrics.value.safeAreaBottom + 24}px`)
 const speakable = computed(() => /^[A-Za-z][A-Za-z' -]{0,59}$/.test(expression.value?.text ?? ''))
 const folderName = computed(() => {
+  // 文件夹数据还没到时不能说成「未归类」
+  if (!store.loaded) return '—'
   const path = folderPath(folders.value, expression.value?.folderId ?? null)
   return path.length ? path.map((f) => f.name).join(' › ') : '未归类'
 })

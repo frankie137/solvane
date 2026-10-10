@@ -11,17 +11,13 @@
 
     <view class="me">
       <sv-card :padding="20">
-        <view
-          class="profile"
-          hover-class="is-pressed"
-          :hover-stay-time="60"
-          @tap="editingProfile = true"
-        >
+        <view class="profile" hover-class="is-pressed" :hover-stay-time="60" @tap="editProfile">
           <image
             v-if="profile?.avatarUrl"
             class="profile__avatar"
             :src="profile.avatarUrl"
             mode="aspectFill"
+            @error="onAvatarError"
           />
           <view v-else class="profile__avatar">
             <sv-icon name="person.fill" :size="30" color="var(--sv-text-on-accent)" />
@@ -163,8 +159,37 @@ const { settings, llm, loaded } = storeToRefs(settingsStore)
 const profileStore = useProfileStore()
 const { profile } = storeToRefs(profileStore)
 const editingProfile = ref(false)
-// 资料只用于显示，取不到时显示默认文案
-void profileStore.load().catch(() => {})
+const profileFailed = ref(false)
+
+async function loadProfile() {
+  try {
+    await profileStore.load()
+    profileFailed.value = false
+  } catch {
+    // 取不到时先显示默认文案，点资料卡时再试
+    profileFailed.value = true
+  }
+}
+void loadProfile()
+
+/** 头像链接过期或坏了：重新取一次 */
+let avatarRetried = false
+function onAvatarError() {
+  if (avatarRetried) return
+  avatarRetried = true
+  void loadProfile()
+}
+
+async function editProfile() {
+  if (profileFailed.value) {
+    await loadProfile()
+    if (profileFailed.value) {
+      uni.showToast({ title: '资料加载失败，请稍后再试', icon: 'none' })
+      return
+    }
+  }
+  editingProfile.value = true
+}
 
 function openShares() {
   uni.navigateTo({ url: '/pkg-share/mine/index' })
@@ -229,6 +254,8 @@ async function checkCloud() {
     cloud.latency = Date.now() - start
     cloud.openid = res.openid
     cloud.state = 'ok'
+    // 云服务恢复了，之前没加载成功的设置补上
+    if (!loaded.value) void loadSettings()
   } catch (err) {
     cloud.state = 'error'
     cloud.message = err instanceof CloudError ? err.message : '连接失败'
@@ -237,16 +264,28 @@ async function checkCloud() {
   }
 }
 
-async function loadSettings() {
+async function loadSettings(): Promise<boolean> {
   try {
     await settingsStore.load()
+    return true
   } catch {
-    // 失败原因会显示在"云服务"那一行，这里保持"—"
+    // 失败原因会显示在"云服务"那一行，这里保持"—"；点设置项时会重新加载
+    return false
   }
 }
 
-function chooseLevel() {
-  if (!loaded.value) return
+/** 设置还没加载成功时点了设置项：先重新加载，成功后再打开 */
+async function ensureSettings(): Promise<boolean> {
+  if (loaded.value) return true
+  uni.showLoading({ title: '加载设置…' })
+  const ok = await loadSettings()
+  uni.hideLoading()
+  if (!ok) uni.showToast({ title: '设置加载失败，请稍后再试', icon: 'none' })
+  return ok
+}
+
+async function chooseLevel() {
+  if (!(await ensureSettings())) return
   uni.showActionSheet({
     itemList: LEVELS.map((l) => `${l.name} · ${l.hint}`),
     success: ({ tapIndex }) => {
@@ -256,8 +295,8 @@ function chooseLevel() {
   })
 }
 
-function chooseAccent() {
-  if (!loaded.value) return
+async function chooseAccent() {
+  if (!(await ensureSettings())) return
   uni.showActionSheet({
     itemList: ACCENTS.map((a) => a.name),
     success: ({ tapIndex }) => {
@@ -271,12 +310,15 @@ async function updateSettings(patch: Partial<UserSettings>) {
   try {
     await settingsStore.update(patch)
   } catch (err) {
-    uni.showToast({ title: err instanceof CloudError ? err.message : '保存失败', icon: 'none' })
+    uni.showToast({
+      title: err instanceof CloudError ? err.message : '保存失败，请重试',
+      icon: 'none',
+    })
   }
 }
 
-function chooseTts() {
-  if (!loaded.value) return
+async function chooseTts() {
+  if (!(await ensureSettings())) return
   uni.showActionSheet({
     itemList: TTS_OPTIONS.map((o) => o.name),
     success: ({ tapIndex }) => {

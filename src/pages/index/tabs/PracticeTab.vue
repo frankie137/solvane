@@ -82,6 +82,7 @@
     :submitting="sheet.submitting"
     @submit="submit"
     @switch-to-text="openTextInput"
+    @retry-voice="retryVoice"
   />
 </template>
 
@@ -142,6 +143,12 @@ async function recognize(result: RecordingResult) {
       error: err instanceof CloudError ? err.message : '识别失败，请重试',
     })
   }
+}
+
+/** 识别失败后重新说：关掉面板，再开始录音 */
+function retryVoice() {
+  sheet.show = false
+  startRecording()
 }
 
 function openTextInput() {

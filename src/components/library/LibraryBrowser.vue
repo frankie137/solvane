@@ -1,18 +1,23 @@
 <template>
   <view class="browser">
-    <view v-if="error && !hasContent" class="browser__state">
+    <view v-if="shownError && !hasContent && ready" class="browser__state">
       <sv-card :padding="24">
-        <sv-state icon="alert" tone="danger" title="收藏加载失败" :description="error">
-          <sv-button type="secondary" size="sm" @click="load">重试</sv-button>
+        <sv-state icon="alert" tone="danger" title="收藏加载失败" :description="shownError">
+          <sv-button type="secondary" size="sm" @click="retry">重试</sv-button>
         </sv-state>
       </sv-card>
     </view>
 
-    <view v-else-if="!loaded" class="browser__state">
+    <view v-else-if="!ready" class="browser__state">
       <sv-card :padding="18" radius="m"><sv-skeleton :rows="3" /></sv-card>
     </view>
 
     <view v-else class="browser__content">
+      <!-- 已经有内容时刷新失败：保留内容，在上方提示 -->
+      <view v-if="shownError" class="browser__stale" hover-class="is-pressed" @tap="retry">
+        <sv-icon name="alert" :size="14" color="var(--sv-danger)" />
+        <text class="browser__stale-text">没能刷新 · 点这里重试</text>
+      </view>
       <view v-if="folders.length" class="browser__block">
         <view class="browser__head">
           <text class="browser__label">文件夹</text>
@@ -84,7 +89,13 @@ const props = withDefaults(
 )
 
 const store = useLibraryStore()
-const { folders: allFolders, counts: allCounts, revision } = storeToRefs(store)
+const {
+  folders: allFolders,
+  counts: allCounts,
+  revision,
+  loaded: foldersLoaded,
+  error: foldersError,
+} = storeToRefs(store)
 const { organizer, folders: folderActions } = useLibraryActions()
 
 const expressions = ref<ExpressionSummary[]>([])
@@ -129,6 +140,18 @@ const empty = computed<{ icon: IconName; title: string; description: string }>((
 })
 
 let requestId = 0
+
+/** 文件夹数据也到了才算加载完，避免文件夹区块后冒出来、页面跳一下 */
+const ready = computed(() => loaded.value && foldersLoaded.value)
+/** 自己的列表或文件夹数据，哪个失败都提示 */
+const shownError = computed(() => error.value || foldersError.value)
+
+/** 重试：先显示加载中，不闪空状态 */
+function retry() {
+  loaded.value = false
+  if (foldersError.value) void store.refresh()
+  void load()
+}
 
 async function load() {
   const id = ++requestId
@@ -238,6 +261,25 @@ defineExpose({ load })
   &.is-pressed {
     opacity: 0.5;
   }
+}
+
+.browser__stale {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: var(--sv-radius-s);
+  background-color: var(--sv-surface);
+
+  &.is-pressed {
+    opacity: 0.6;
+  }
+}
+
+.browser__stale-text {
+  font-size: 14px;
+  color: var(--sv-text-2);
 }
 
 .browser__hint {

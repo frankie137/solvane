@@ -21,6 +21,7 @@
 import { reactive, ref, watch } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { useLibraryStore } from '@/stores/library'
+import { useProfileStore } from '@/stores/profile'
 import { useSessionsStore } from '@/stores/sessions'
 import type { TabItem } from '@/components/sv-tab-bar/sv-tab-bar.vue'
 import PracticeTab from './tabs/PracticeTab.vue'
@@ -45,9 +46,12 @@ watch(active, (key) => {
 // 每次回到首页都刷新最近对话和收藏（从对话页、收藏详情返回时能看到最新状态）
 const sessionsStore = useSessionsStore()
 const libraryStore = useLibraryStore()
+const profileStore = useProfileStore()
 onShow(() => {
   void sessionsStore.refresh()
   if (visited.library) libraryStore.touch()
+  // 「我的」页一直不卸载，头像临时链接快过期时换新的
+  if (visited.me) void profileStore.refreshIfStale()
 })
 
 // 支持 /pages/index/index?tab=me 直接打开某个 tab（冒烟测试和以后的深链接用）

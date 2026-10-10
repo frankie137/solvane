@@ -12,7 +12,7 @@
     <view class="mine">
       <sv-card v-if="error && items.length === 0" :padding="24">
         <sv-state icon="alert" tone="danger" title="加载失败" :description="error">
-          <sv-button type="secondary" size="sm" @click="load">重试</sv-button>
+          <sv-button type="secondary" size="sm" @click="retry">重试</sv-button>
         </sv-state>
       </sv-card>
 
@@ -79,6 +79,12 @@ async function load() {
   } finally {
     loaded.value = true
   }
+}
+
+/** 重试：先显示加载中，不闪空状态 */
+function retry() {
+  loaded.value = false
+  void load()
 }
 
 // 从歌词页回来时也刷新

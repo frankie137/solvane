@@ -254,11 +254,18 @@ function clear() {
     confirmColor: '#ff3b30',
     success: async (res) => {
       if (!res.confirm) return
+      uni.showLoading({ title: '正在清除…', mask: true })
       try {
         applyState(await callCloud('compose', 'clearLlmConfig', { scope: scope.value }))
         fillForm()
+        uni.hideLoading()
+        uni.showToast({ title: '已清除', icon: 'success' })
       } catch (err) {
-        uni.showToast({ title: err instanceof CloudError ? err.message : '清除失败', icon: 'none' })
+        uni.hideLoading()
+        uni.showToast({
+          title: err instanceof CloudError ? err.message : '清除失败，请重试',
+          icon: 'none',
+        })
       }
     },
   })

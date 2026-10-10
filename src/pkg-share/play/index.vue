@@ -16,8 +16,14 @@
       </sv-state>
     </view>
 
-    <view v-else-if="!share" class="stage__state">
-      <text class="stage__loading">加载中…</text>
+    <!-- 加载中：和歌词同样排布的几行占位 -->
+    <view v-else-if="!share" class="stage__skeleton">
+      <view class="ghost is-title" />
+      <view class="ghost is-author" />
+      <view v-for="i in 5" :key="i" class="ghost-line" :class="{ 'is-current': i === 2 }">
+        <view class="ghost is-en" />
+        <view class="ghost is-zh" />
+      </view>
     </view>
 
     <view v-else class="stage__main">
@@ -172,10 +178,13 @@ onUnload(() => player.destroy())
 
 async function load() {
   error.value = null
+  // 录音加载失败后重新加载：换新的临时链接，从原来的位置接着播
+  const resumeAt = share.value ? player.positionMs.value : 0
   try {
     const s = await getShare(shareId.value)
     share.value = s
     player.load(s.audioUrl, s.durationMs)
+    if (resumeAt > 0) player.seek(resumeAt)
     await nextTick()
     // 等列表渲染完再量每一行的位置
     setTimeout(() => {
@@ -439,9 +448,52 @@ function goHome() {
   gap: 12px;
 }
 
-.stage__loading {
-  font-size: 15px;
-  color: var(--sv-text-2);
+.stage__skeleton {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 32px;
+}
+
+.ghost {
+  border-radius: 6px;
+  background-color: var(--sv-fill);
+
+  &.is-title {
+    width: 50%;
+    height: 22px;
+  }
+
+  &.is-author {
+    width: 30%;
+    height: 14px;
+    margin-bottom: 40px;
+  }
+
+  &.is-en {
+    width: 100%;
+    height: 22px;
+  }
+
+  &.is-zh {
+    width: 60%;
+    height: 14px;
+  }
+}
+
+.ghost-line {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  opacity: 0.5;
+
+  &.is-current {
+    opacity: 1;
+  }
 }
 
 .stage__main {
@@ -585,7 +637,13 @@ function goHome() {
   }
 }
 
+// 浮在进度条上方，出现时不把下面的控件顶下去
 .audio-error {
+  @include sv-appear(audio-error-in);
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
