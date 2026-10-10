@@ -7,56 +7,130 @@
     :show-scrollbar="false"
     @scroll="onScroll"
   >
-    <sv-nav-bar title="收藏" :collapsed="collapsed" />
+    <sv-nav-bar title="收藏" :collapsed="collapsed">
+      <template #trailing>
+        <view class="library__new" hover-class="is-pressed" @tap="folderActions.create(null)">
+          <sv-icon name="plus" :size="20" :weight="2.2" color="var(--sv-accent)" />
+        </view>
+      </template>
+    </sv-nav-bar>
 
     <view class="library">
-      <sv-card :padding="32">
-        <view class="library__empty">
-          <view class="library__icon">
-            <sv-icon name="folder" :size="30" />
-          </view>
-          <text class="sv-headline">收藏夹还空着</text>
-          <text class="sv-subhead sv-secondary">
-            在对话页点一下收藏，就会出现在这里。支持最多三级文件夹和标签。
-          </text>
+      <tab-switch v-model="tab" />
+
+      <search-field
+        :placeholder="tab === 'expression' ? '搜索表达、释义、备注' : '搜索收藏的对话'"
+        @search="keyword = $event"
+      />
+
+      <scroll-view
+        v-if="tags.length && !keyword"
+        class="tagbar"
+        scroll-x
+        :enhanced="true"
+        :show-scrollbar="false"
+      >
+        <view class="tagbar__inner">
+          <sv-chip
+            v-for="t in tags"
+            :key="t.name"
+            :active="tag === t.name"
+            @click="toggleTag(t.name)"
+          >
+            #{{ t.name }}
+          </sv-chip>
         </view>
-      </sv-card>
+      </scroll-view>
+
+      <library-browser :tab="tab" :folder-id="null" :tag="tag" :keyword="keyword" />
     </view>
 
     <view :style="bottomInset" />
   </scroll-view>
+
+  <library-sheets />
 </template>
 
 <script setup lang="ts">
+import { ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import type { LibraryTab, TagCount } from '@shared/types'
+import LibraryBrowser from '@/components/library/LibraryBrowser.vue'
+import LibrarySheets from '@/components/library/LibrarySheets.vue'
+import SearchField from '@/components/library/SearchField.vue'
+import TabSwitch from '@/components/library/TabSwitch.vue'
 import { useCollapsingTitle } from '@/composables/useCollapsingTitle'
+import { provideLibraryActions } from '@/composables/useLibraryActions'
 import { useTabBarInset } from '@/composables/useTabBarInset'
+import { listTags } from '@/services/library'
+import { useLibraryStore } from '@/stores/library'
 
 const { collapsed, onScroll } = useCollapsingTitle()
 const bottomInset = useTabBarInset()
+const store = useLibraryStore()
+const { revision } = storeToRefs(store)
+const { folders: folderActions } = provideLibraryActions()
+
+const tab = ref<LibraryTab>('expression')
+const tag = ref('')
+const tags = ref<TagCount[]>([])
+
+const keyword = ref('')
+
+// --- 标签 -------------------------------------------------------------------
+
+async function loadTags() {
+  try {
+    tags.value = await listTags(tab.value)
+    // 选中的标签已经没有了（被删掉或改名）就取消筛选
+    if (tag.value && !tags.value.some((t) => t.name === tag.value)) tag.value = ''
+  } catch {
+    // 标签栏只是筛选入口，加载失败时不显示
+  }
+}
+
+function toggleTag(name: string) {
+  tag.value = tag.value === name ? '' : name
+}
+
+watch(tab, () => {
+  tag.value = ''
+})
+watch([tab, revision], () => void loadTags(), { immediate: true })
+
+void store.refresh()
 </script>
 
 <style lang="scss">
 .library {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   padding: 0 16px;
 }
 
-.library__empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  text-align: center;
-}
-
-.library__icon {
-  width: 60px;
-  height: 60px;
-  margin-bottom: 8px;
-  border-radius: 50%;
+.library__new {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--sv-accent);
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
   background-color: var(--sv-accent-soft);
+
+  &.is-pressed {
+    opacity: 0.6;
+  }
+}
+
+.tagbar {
+  white-space: nowrap;
+  margin: 0 -16px;
+}
+
+.tagbar__inner {
+  display: inline-flex;
+  gap: 8px;
+  padding: 0 16px;
 }
 </style>

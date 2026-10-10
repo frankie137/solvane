@@ -8,7 +8,17 @@
     :scroll-into-view="scrollTarget"
     :scroll-with-animation="true"
   >
-    <sv-nav-bar :title="navTitle" back :large="false" />
+    <sv-nav-bar :title="navTitle" back :large="false">
+      <template #leading>
+        <view v-if="session" class="star" hover-class="is-pressed" @tap="toggleStar">
+          <sv-icon
+            :name="session.starredAt ? 'bookmark.fill' : 'bookmark'"
+            :size="21"
+            color="var(--sv-accent)"
+          />
+        </view>
+      </template>
+    </sv-nav-bar>
 
     <view class="session">
       <sv-card v-if="loadError" :padding="24">
@@ -106,8 +116,10 @@
                   :sentences="current.sentences"
                   :active-sentence="activeSentence"
                   :active-token="activeToken"
+                  :located="located"
                   interactive
                   @select="playSentence"
+                  @hold="openWordPicker"
                 />
               </sv-card>
               <view v-if="revising" class="english__busy">
@@ -129,7 +141,7 @@
                 </sv-button>
               </view>
             </view>
-            <text class="block__hint">点某一句可以单独重听</text>
+            <text class="block__hint">点某一句可以单独重听，长按挑词收藏</text>
           </view>
 
           <view v-if="practices.length" class="block">
@@ -173,7 +185,12 @@
 
           <view class="block">
             <text class="block__label">解析</text>
-            <analysis-view v-if="current.analysis" :analysis="current.analysis" />
+            <analysis-view
+              v-if="current.analysis"
+              :analysis="current.analysis"
+              :saved-keys="savedKeys"
+              @save="saveFromAnalysis"
+            />
             <sv-card v-else-if="analyzeError" :padding="24" radius="m">
               <sv-state
                 icon="alert"
@@ -203,24 +220,51 @@
     :hint="busyHint"
     @submit="revise"
   />
+
+  <word-picker
+    v-model:show="wordPick.show"
+    :sentence="wordPick.sentence"
+    :saved-keys="savedKeys"
+    :saving="wordPick.saving"
+    @save="saveFromSentence"
+  />
+  <folder-picker
+    v-model:show="organizer.picker.show"
+    :current="organizer.picker.current"
+    @pick="organizer.onPick"
+  />
+  <saved-toast
+    :show="organizer.saved.show"
+    :text="organizer.saved.text"
+    :action="organizer.saved.action"
+    :bottom="toastBottom"
+    @action="organizer.onSavedAction"
+  />
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, reactive, ref, watch } from 'vue'
 import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import { storeToRefs } from 'pinia'
 import type { PracticeSummary, Session, Version } from '@shared/types'
+import FolderPicker from '@/components/library/FolderPicker.vue'
+import SavedToast from '@/components/library/SavedToast.vue'
 import { useDemoPlayer } from '@/composables/useDemoPlayer'
+import { useOrganizer, type OrganizeTarget } from '@/composables/useOrganizer'
 import { callCloud, CloudError } from '@/services/cloud'
+import { starSession } from '@/services/library'
 import { listPractices } from '@/services/practice'
 import { getSession, runSessionJob, setCurrentVersion } from '@/services/sessions'
+import { useLibraryStore } from '@/stores/library'
 import { useSessionsStore } from '@/stores/sessions'
 import { useSystemStore } from '@/stores/system'
+import { toast } from '@/utils/dialog'
 import { scoreTone } from '@/utils/recite'
 import { formatRelative } from '@/utils/time'
 import AnalysisView from '../components/AnalysisView.vue'
 import ReviseBar from '../components/ReviseBar.vue'
 import SentenceList from '../components/SentenceList.vue'
+import WordPicker from '../components/WordPicker.vue'
 import { REVISE_BAR_HEIGHT } from '../constants'
 
 const PROGRESS_HINTS = ['正在理解你的意思…', '正在组织地道的说法…', '快好了，再等一下…']
@@ -297,7 +341,12 @@ function versionLabel(v: Version, index: number): string {
 
 onLoad((query) => {
   sessionId.value = String(query?.id ?? '')
+  // 从收藏溯源过来：打开那个版本，并突出那一句
+  if (query?.vid) {
+    locateTarget = { vid: String(query.vid), sentence: Number(query.s ?? -1) }
+  }
   void reload()
+  if (!libraryStore.loaded) void libraryStore.refresh()
 })
 
 // 从"大模型配置"回来时自动重试；从背诵 / 报告页回来时刷新练习记录
@@ -377,8 +426,144 @@ async function reload() {
     loadError.value = asCloudError(err)
     return
   }
+  await applyLocate()
   void loadPractices()
   await ensure()
+}
+
+// --- 收藏 -------------------------------------------------------------------
+
+const libraryStore = useLibraryStore()
+const { keys: savedKeys } = storeToRefs(libraryStore)
+const organizer = useOrganizer()
+const located = ref(-1)
+let locateTarget: { vid: string; sentence: number } | null = null
+let locateTimer: ReturnType<typeof setTimeout> | null = null
+onUnmounted(() => {
+  if (locateTimer) clearTimeout(locateTimer)
+})
+
+/**
+ * 切到那个版本，滚到英文并突出那一句。
+ * 和点版本标签一样保存为当前版本，否则之后的任务结果（以云端为准）会把页面切回原来的版本。
+ */
+async function applyLocate() {
+  const s = session.value
+  const target = locateTarget
+  locateTarget = null
+  if (!s || !target || !s.versions.some((v) => v.vid === target.vid)) return
+  session.value = { ...s, currentVid: target.vid }
+  if (s.currentVid !== target.vid) {
+    try {
+      await setCurrentVersion(sessionId.value, target.vid)
+    } catch {
+      // 保存失败只影响下次打开时的默认版本，这次照常定位
+    }
+  }
+  located.value = target.sentence
+  scrollTarget.value = ''
+  setTimeout(() => {
+    scrollTarget.value = 'english'
+  }, 50)
+  locateTimer = setTimeout(() => {
+    located.value = -1
+  }, 2_600)
+}
+
+/** 收藏提示离开底部的修改栏 */
+const toastBottom = computed(() => REVISE_BAR_HEIGHT + metrics.value.safeAreaBottom + 12)
+
+async function toggleStar() {
+  const s = session.value
+  if (!s) return
+  const star = !s.starredAt
+  try {
+    const fields = await starSession(s.id, star)
+    if (session.value) session.value = { ...session.value, ...fields }
+    libraryStore.touch()
+    void sessionsStore.refresh()
+    if (star) {
+      organizer.notifySaved({
+        tab: 'session',
+        id: s.id,
+        folderId: fields.folderId,
+        tags: fields.tags,
+      })
+    } else {
+      toast('已取消收藏')
+    }
+  } catch (err) {
+    toast(asCloudError(err).message)
+  }
+}
+
+function expressionTarget(id: string, folderId: string | null, tags: string[]): OrganizeTarget {
+  return { tab: 'expression', id, folderId, tags }
+}
+
+function openExpression(id: string) {
+  stopDemo()
+  uni.navigateTo({ url: `/pkg-library/expression/index?id=${encodeURIComponent(id)}` })
+}
+
+async function saveFromAnalysis(kind: 'phrase' | 'slang', index: number) {
+  const version = current.value
+  const item =
+    kind === 'phrase' ? version?.analysis?.keyPhrases[index] : version?.analysis?.slang[index]
+  if (!version || !item) return
+  // 已经收藏过的直接打开卡片
+  const existing = libraryStore.savedId(item.phrase)
+  if (existing) return openExpression(existing)
+  try {
+    const { expression } = await libraryStore.save({
+      text: item.phrase,
+      kind,
+      meaning: item.meaning,
+      ...('usage' in item ? { usage: item.usage, example: item.example } : {}),
+      source: { sessionId: sessionId.value, vid: version.vid, sentenceIndex: -1, from: 'analysis' },
+    })
+    organizer.notifySaved(expressionTarget(expression.id, expression.folderId, expression.tags))
+  } catch (err) {
+    toast(asCloudError(err).message)
+  }
+}
+
+const wordPick = reactive({ show: false, sentence: '', index: -1, saving: false })
+
+function openWordPicker(index: number) {
+  const sentence = current.value?.sentences[index]
+  if (!sentence) return
+  stopDemo()
+  wordPick.sentence = sentence.en
+  wordPick.index = index
+  wordPick.show = true
+}
+
+async function saveFromSentence(text: string) {
+  const version = current.value
+  if (!version || wordPick.saving) return
+  wordPick.saving = true
+  try {
+    const { expression, created } = await libraryStore.save({
+      text,
+      kind: 'word',
+      source: {
+        sessionId: sessionId.value,
+        vid: version.vid,
+        sentenceIndex: wordPick.index,
+        from: 'sentence',
+      },
+    })
+    wordPick.show = false
+    organizer.notifySaved(
+      expressionTarget(expression.id, expression.folderId, expression.tags),
+      created ? '已收藏' : '已收藏，记下了新来源',
+    )
+  } catch (err) {
+    toast(asCloudError(err).message)
+  } finally {
+    wordPick.saving = false
+  }
 }
 
 /** 打开页面时补齐缺的内容：先等正在运行的任务，再生成第一版，最后生成解析 */
@@ -579,6 +764,20 @@ function openLlmSettings() {
 .polished {
   font-size: 16px;
   line-height: 25px;
+}
+
+.star {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  transition: opacity var(--sv-dur-1) var(--sv-ease);
+
+  &.is-pressed {
+    opacity: 0.5;
+  }
 }
 
 .copy {

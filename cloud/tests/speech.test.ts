@@ -157,7 +157,13 @@ describe('speech.ttsWord', () => {
     expect(deps.synthesize).toHaveBeenCalledWith(expect.objectContaining({ speed: 0 }))
   })
 
-  it.each(['two words', '', '123', 'a'.repeat(41), '<script>'])('拒绝 %j', async (word) => {
+  it('也能读收藏的短语，多余空白合并', async () => {
+    const { handlers } = setup()
+    const { audio } = await handlers.ttsWord({ word: '  catch   up ' }, ME)
+    expect(Buffer.from(audio, 'base64').toString()).toBe('mp3:catch up')
+  })
+
+  it.each(['', '123', 'a'.repeat(61), '<script>', 'hi!'])('拒绝 %j', async (word) => {
     const { handlers } = setup()
     await expect(handlers.ttsWord({ word }, ME)).rejects.toThrow()
   })

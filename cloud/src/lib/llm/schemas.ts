@@ -45,6 +45,13 @@ export const analysisSchema = z.object({
   chinglish: list(z.object({ literal: field, natural: field, why: field }), 4),
 })
 
+/** 收藏的单词或短语的讲解 */
+export const explainSchema = z.object({
+  meaning: text(60),
+  usage: text(120),
+  example: text(200),
+})
+
 export type Draft = z.infer<typeof draftSchema>
 export type Revision = z.infer<typeof revisionSchema>
 

@@ -6,6 +6,7 @@ import type { Handlers } from '../../lib/router'
 import { requireSession, toSession, toSummary } from '../../lib/sessions'
 import { toUserSettings } from '../../lib/settings'
 import { parsePayload } from '../../lib/validate'
+import { createLibraryHandlers } from './library'
 
 export interface DataDeps {
   repos: Repos
@@ -23,6 +24,8 @@ export function createDataHandlers(deps: DataDeps): Handlers<'data'> {
   const readSettings = async (openid: string) => toUserSettings(await settings.get(openid))
 
   return {
+    ...createLibraryHandlers(deps),
+
     async ping(_payload, ctx) {
       return { pong: true, openid: ctx.openid, serverTime: deps.now() }
     },

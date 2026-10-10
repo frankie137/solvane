@@ -40,6 +40,11 @@
           </sv-button>
         </view>
       </view>
+
+      <sv-button type="plain" block :loading="saving" @click="emit('save')">
+        <sv-icon :name="saved ? 'bookmark.fill' : 'bookmark'" :size="16" color="var(--sv-accent)" />
+        <text>{{ saved ? '已收藏，查看卡片' : '收藏这个词' }}</text>
+      </sv-button>
     </view>
   </sv-sheet>
 </template>
@@ -55,12 +60,16 @@ const props = defineProps<{
   tip: PronunciationTip | null
   canPlayMine: boolean
   loadingStandard: boolean
+  /** 这个词已经收藏过 */
+  saved: boolean
+  saving: boolean
 }>()
 
 const emit = defineEmits<{
   'update:show': [value: boolean]
   'play-standard': []
   'play-mine': []
+  save: []
 }>()
 
 const tone = computed(() => (props.word ? scoreTone(props.word.accuracy) : 'none'))

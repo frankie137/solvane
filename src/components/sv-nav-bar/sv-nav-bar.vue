@@ -13,6 +13,10 @@
         >
           <sv-icon name="chevron.left" :size="26" :weight="2.2" />
         </view>
+        <!-- 返回按钮后面的操作位（右侧是微信胶囊按钮，放不了） -->
+        <view class="sv-nav__leading" :class="{ 'has-back': back }" :style="backStyle">
+          <slot name="leading" />
+        </view>
         <text class="sv-nav__title sv-headline" :class="{ 'is-visible': solid }">{{ title }}</text>
       </view>
     </view>
@@ -119,6 +123,18 @@ function goBack() {
 
   &.is-pressed {
     opacity: 0.5;
+  }
+}
+
+.sv-nav__leading {
+  position: absolute;
+  left: 8px;
+  top: 0;
+  display: flex;
+  align-items: center;
+
+  &.has-back {
+    left: 48px;
   }
 }
 

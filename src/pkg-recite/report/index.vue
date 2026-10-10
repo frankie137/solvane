@@ -155,19 +155,41 @@
     :tip="sheetTip"
     :can-play-mine="!!practice?.audioUrl && !!sheet.word && sheet.word.endMs > sheet.word.startMs"
     :loading-standard="sheet.loadingStandard"
+    :saved="!!sheetSavedId"
+    :saving="sheet.saving"
     @play-standard="sheet.word && playStandard(sheet.word.word)"
     @play-mine="playMine"
+    @save="saveWord"
+  />
+  <folder-picker
+    v-model:show="organizer.picker.show"
+    :current="organizer.picker.current"
+    @pick="organizer.onPick"
+  />
+  <saved-toast
+    :show="organizer.saved.show"
+    :text="organizer.saved.text"
+    :action="organizer.saved.action"
+    :bottom="toastBottom"
+    @action="organizer.onSavedAction"
   />
 </template>
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import { onHide, onLoad, onUnload } from '@dcloudio/uni-app'
+import { storeToRefs } from 'pinia'
 import type { DiffKind, Practice, ScoredWord, Version } from '@shared/types'
+import FolderPicker from '@/components/library/FolderPicker.vue'
+import SavedToast from '@/components/library/SavedToast.vue'
 import { useAudio } from '@/composables/useAudio'
+import { useOrganizer } from '@/composables/useOrganizer'
 import { CloudError } from '@/services/cloud'
 import { getPractice, runPractice, wordAudioPath } from '@/services/practice'
 import { getSession } from '@/services/sessions'
+import { useLibraryStore } from '@/stores/library'
+import { useSystemStore } from '@/stores/system'
+import { toast } from '@/utils/dialog'
 import { scoreTone } from '@/utils/recite'
 import ScoreRing from '../components/ScoreRing.vue'
 import StageProgress from '../components/StageProgress.vue'
@@ -282,11 +304,63 @@ function toggleRecording() {
   audio.play(practice.value.audioUrl, { onEnded: () => (playingAll.value = false) })
 }
 
-const sheet = reactive<{ show: boolean; word: ScoredWord | null; loadingStandard: boolean }>({
+const sheet = reactive<{
+  show: boolean
+  word: ScoredWord | null
+  loadingStandard: boolean
+  saving: boolean
+}>({
   show: false,
   word: null,
   loadingStandard: false,
+  saving: false,
 })
+
+// --- 收藏单词 ---------------------------------------------------------------
+
+const libraryStore = useLibraryStore()
+const organizer = useOrganizer()
+const { metrics: system } = storeToRefs(useSystemStore())
+const toastBottom = computed(() => system.value.safeAreaBottom + 24)
+if (!libraryStore.loaded) void libraryStore.refresh()
+
+const sheetSavedId = computed(() => (sheet.word ? libraryStore.savedId(sheet.word.word) : null))
+
+async function saveWord() {
+  const p = practice.value
+  const w = sheet.word
+  if (!p || !w || sheet.saving) return
+  const existing = sheetSavedId.value
+  if (existing) {
+    sheet.show = false
+    uni.navigateTo({ url: `/pkg-library/expression/index?id=${encodeURIComponent(existing)}` })
+    return
+  }
+  sheet.saving = true
+  try {
+    const { expression } = await libraryStore.save({
+      text: w.word,
+      kind: 'word',
+      source: {
+        sessionId: p.sessionId,
+        vid: p.vid,
+        sentenceIndex: w.sentenceIndex,
+        from: 'report',
+      },
+    })
+    sheet.show = false
+    organizer.notifySaved({
+      tab: 'expression',
+      id: expression.id,
+      folderId: expression.folderId,
+      tags: expression.tags,
+    })
+  } catch (err) {
+    toast(err instanceof CloudError ? err.message : '收藏失败，请重试')
+  } finally {
+    sheet.saving = false
+  }
+}
 
 const sheetTip = computed(() => {
   const w = sheet.word?.word.toLowerCase().replace(/[^a-z'-]/g, '')

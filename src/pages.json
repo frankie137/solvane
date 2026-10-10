@@ -44,6 +44,23 @@
       ]
     },
     {
+      "root": "pkg-library",
+      "pages": [
+        {
+          "path": "folder/index",
+          "style": {}
+        },
+        {
+          "path": "expression/index",
+          "style": {}
+        },
+        {
+          "path": "history/index",
+          "style": {}
+        }
+      ]
+    },
+    {
       "root": "pkg-settings",
       "pages": [
         {
@@ -65,7 +82,7 @@
   "preloadRule": {
     "pages/index/index": {
       "network": "all",
-      "packages": ["pkg-session"]
+      "packages": ["pkg-session", "pkg-library"]
     },
     "pkg-session/session/index": {
       "network": "all",

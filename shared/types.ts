@@ -103,6 +103,10 @@ export interface Session {
   currentVid: string | null
   job: Job | null
   lastError: JobError | null
+  /** 收藏状态：收藏时间（没收藏为 null）、所在文件夹（未归类为 null）、标签 */
+  starredAt: number | null
+  folderId: string | null
+  tags: string[]
   createdAt: number
   updatedAt: number
 }
@@ -115,6 +119,9 @@ export interface SessionSummary {
   versionCount: number
   /** pending：已新建，还没开始生成 */
   state: 'ready' | 'running' | 'pending' | 'failed'
+  starredAt: number | null
+  folderId: string | null
+  tags: string[]
   updatedAt: number
 }
 
@@ -282,4 +289,94 @@ export interface PracticeSummary {
   overall: number | null
   durationMs: number
   createdAt: number
+}
+
+// ---------------------------------------------------------------------------
+// 收藏（M3）
+
+/** 收藏页的两栏 */
+export type LibraryTab = 'expression' | 'session'
+
+export interface Folder {
+  id: string
+  name: string
+  parentId: string | null
+  /** 1～3 级 */
+  depth: number
+  /** 同级之间的顺序，小的在前 */
+  order: number
+  createdAt: number
+}
+
+/** 每个文件夹里直接放着的收藏数；键为文件夹 id，未归类的键为空字符串 */
+export type FolderCounts = Record<LibraryTab, Record<string, number>>
+
+/** phrase：解析里的关键表达；slang：俚语与习语；word：从句子或报告里收藏的词和短语 */
+export type ExpressionKind = 'phrase' | 'slang' | 'word'
+
+/** 从哪里收藏的：解析、英文句子、评分报告 */
+export type ExpressionOrigin = 'analysis' | 'sentence' | 'report'
+
+export interface ExpressionSource {
+  sessionId: string
+  vid: string
+  /** 在那个版本里是第几句；解析里的表达找不到所在句子时为 -1 */
+  sentenceIndex: number
+  /** 收藏时那句英文的原文（对话之后修改也不影响） */
+  sentence: string
+  from: ExpressionOrigin
+  savedAt: number
+}
+
+/** 释义的补全状态：从解析收藏的直接就绪，从句子或报告收藏的由大模型补全 */
+export type ExpressionFill = 'ready' | 'pending' | 'failed'
+
+export interface Expression {
+  id: string
+  text: string
+  kind: ExpressionKind
+  meaning: string
+  usage: string
+  example: string
+  /** 自己写的备注 */
+  note: string
+  fill: ExpressionFill
+  folderId: string | null
+  tags: string[]
+  sources: ExpressionSource[]
+  createdAt: number
+  /** 最近一次收藏的时间，列表按它倒序 */
+  savedAt: number
+}
+
+export interface ExpressionSummary {
+  id: string
+  text: string
+  kind: ExpressionKind
+  meaning: string
+  fill: ExpressionFill
+  folderId: string | null
+  tags: string[]
+  sourceCount: number
+  savedAt: number
+}
+
+/** 来源或用处所在对话的标题；对话不存在时为 null */
+export interface SourceView extends ExpressionSource {
+  sessionTitle: string | null
+}
+
+/** 「也出现在」：其他对话里用到这个表达的句子 */
+export interface Usage {
+  sessionId: string
+  sessionTitle: string
+  vid: string
+  sentenceIndex: number
+  sentence: string
+  updatedAt: number
+}
+
+export interface TagCount {
+  name: string
+  count: number
 }

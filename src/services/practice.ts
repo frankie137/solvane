@@ -3,9 +3,7 @@ import { JOB_STALE_MS } from '@shared/constants'
 import type { RecordingResult } from '@/composables/useRecorder'
 import { pollUntil } from '@/utils/poll'
 import { callCloud, CloudError, uploadFile } from './cloud'
-
-/** 这两类错误说明请求可能已经到达云端、操作可能仍在进行 */
-const RECOVERABLE = new Set(['TIMEOUT', 'NETWORK'])
+import { mayStillRun } from './cloud-error'
 
 export async function startPractice(
   sessionId: string,
@@ -24,7 +22,7 @@ export async function startPractice(
     return practiceId
   } catch (err) {
     // 明确被拒绝时练习没有创建，录音没人引用了，顺手删掉；超时或断网时练习可能已经建好，不能删
-    if (!(err instanceof CloudError) || !RECOVERABLE.has(err.code)) {
+    if (!mayStillRun(err)) {
       wx.cloud.deleteFile({ fileList: [fileID], fail: () => {} })
     }
     throw err
@@ -74,7 +72,7 @@ export async function runPractice(practiceId: string, options: RunOptions = {}):
     try {
       practice = (await callCloud('assess', 'advance', { practiceId })).practice
     } catch (err) {
-      if (!(err instanceof CloudError) || !RECOVERABLE.has(err.code)) throw err
+      if (!mayStillRun(err)) throw err
       practice = await waitIdle()
     }
     if (practice.job) practice = await waitIdle()

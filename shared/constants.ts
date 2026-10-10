@@ -99,6 +99,19 @@ export const LIMITS = {
   reciteMaxMs: 60_000,
   /** 每个对话保留的练习记录数 */
   practicesPerSession: 3,
+  /** 文件夹最多几级、名字多长 */
+  folderDepth: 3,
+  folderNameMax: 20,
+  /** 每个收藏最多几个标签、每个标签多长 */
+  tagsPerItem: 10,
+  tagMax: 12,
+  /** 收藏的表达最长多少字符、备注多长 */
+  expressionMax: 80,
+  noteMax: 300,
+  /** 「也出现在」最多列几条 */
+  usagesMax: 20,
+  /** 历史页每页几条 */
+  historyPage: 20,
 } as const
 
 /** 评分权重：发音 40%、流利度 20%、内容还原 25%、表达正确 15% */

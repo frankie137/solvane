@@ -1,6 +1,9 @@
 import type {
   Accent,
   EnglishLevel,
+  ExpressionFill,
+  ExpressionKind,
+  ExpressionSource,
   InputMode,
   Job,
   JobError,
@@ -26,7 +29,8 @@ export interface SessionDoc {
   currentVid: string | null
   job: Job | null
   lastError: JobError | null
-  /** M3 收藏用 */
+  /** 收藏：收藏时间（没收藏为 null，旧数据没有这个字段）、文件夹、标签 */
+  starredAt?: number | null
   folderId: string | null
   tags: string[]
   /** 示范朗读缓存（只在服务端使用，不发给前端）：版本号 → 音色语速 → 每句 */
@@ -56,6 +60,45 @@ export interface PracticeDoc {
   createdAt: number
   updatedAt: number
 }
+
+export interface FolderDoc {
+  _id: string
+  _openid: string
+  name: string
+  parentId: string | null
+  depth: number
+  order: number
+  createdAt: number
+}
+
+export interface ExpressionDoc {
+  _id: string
+  _openid: string
+  text: string
+  /** 合并键，见 shared/expression.ts 的 expressionKey */
+  key: string
+  kind: ExpressionKind
+  meaning: string
+  usage: string
+  example: string
+  note: string
+  fill: ExpressionFill
+  /** 补全任务的开始时间，用作锁；没有任务时为 null */
+  fillStartedAt: number | null
+  folderId: string | null
+  tags: string[]
+  sources: ExpressionSource[]
+  createdAt: number
+  savedAt: number
+  updatedAt: number
+}
+
+export type SessionMeta = Pick<SessionDoc, '_id' | 'starredAt' | 'folderId' | 'tags'>
+export type SessionTitle = Pick<SessionDoc, '_id' | 'title' | 'input'>
+export type ExpressionMeta = Pick<ExpressionDoc, '_id' | 'key' | 'folderId' | 'tags'>
+
+export type FolderPatch = Partial<Omit<FolderDoc, '_id' | '_openid' | 'createdAt'>>
+export type ExpressionPatch = Partial<Omit<ExpressionDoc, '_id' | '_openid' | 'createdAt'>>
 
 export type PracticePatch = Partial<
   Omit<PracticeDoc, '_id' | '_openid' | 'sessionId' | 'createdAt'>
@@ -104,6 +147,49 @@ export interface SessionRepo {
   updateIfJob(id: string, openid: string, startedAt: number, patch: SessionPatch): Promise<boolean>
   update(id: string, openid: string, patch: SessionPatch): Promise<boolean>
   listRecent(openid: string, limit: number): Promise<SessionDoc[]>
+  /** 按更新时间倒序分页；有关键词时在标题、原文、润色中文和所有版本的英文里查找 */
+  listPage(
+    openid: string,
+    options: { offset: number; limit: number; keyword?: string },
+  ): Promise<SessionDoc[]>
+  /** 已收藏的对话 */
+  listStarred(openid: string): Promise<SessionDoc[]>
+  /** 已收藏对话的收藏字段（计数、标签用，不取内容） */
+  listStarredMeta(openid: string): Promise<SessionMeta[]>
+  /** 这些对话的标题（溯源显示用，不取内容） */
+  listTitles(openid: string, ids: string[]): Promise<SessionTitle[]>
+  /** 把这些文件夹里的已收藏对话一起改掉（删除文件夹时用） */
+  updateInFolders(openid: string, folderIds: string[], patch: SessionPatch): Promise<void>
+}
+
+export interface FolderRepo {
+  list(openid: string): Promise<FolderDoc[]>
+  create(doc: Omit<FolderDoc, '_id'>): Promise<string>
+  update(id: string, openid: string, patch: FolderPatch): Promise<boolean>
+  remove(ids: string[], openid: string): Promise<void>
+}
+
+export interface ExpressionRepo {
+  create(doc: Omit<ExpressionDoc, '_id'>): Promise<string>
+  get(id: string, openid: string): Promise<ExpressionDoc | null>
+  findByKey(openid: string, key: string): Promise<ExpressionDoc | null>
+  /** 全部表达，按最近收藏时间倒序（收藏量不大，筛选在函数里做） */
+  listAll(openid: string): Promise<ExpressionDoc[]>
+  /** 全部表达的合并键、文件夹和标签（计数、标签、已收藏标记用） */
+  listMeta(openid: string): Promise<ExpressionMeta[]>
+  update(id: string, openid: string, patch: ExpressionPatch): Promise<boolean>
+  remove(id: string, openid: string): Promise<void>
+  updateInFolders(openid: string, folderIds: string[], patch: ExpressionPatch): Promise<void>
+  removeInFolders(openid: string, folderIds: string[]): Promise<void>
+  /** 补全锁：还没就绪、且没有任务或任务早于 staleBefore 开始时加锁成功 */
+  acquireFill(id: string, openid: string, startedAt: number, staleBefore: number): Promise<boolean>
+  /** 只有锁仍属于 startedAt 这次任务时才写入 */
+  updateIfFill(
+    id: string,
+    openid: string,
+    startedAt: number,
+    patch: ExpressionPatch,
+  ): Promise<boolean>
 }
 
 export interface SettingsRepo {
@@ -126,6 +212,8 @@ export interface Repos {
   sessions: SessionRepo
   settings: SettingsRepo
   practices: PracticeRepo
+  folders: FolderRepo
+  expressions: ExpressionRepo
 }
 
 // ---------------------------------------------------------------------------
@@ -138,9 +226,12 @@ interface WxUpdateResult {
 interface WxQuery {
   where(condition: object): WxQuery
   orderBy(field: string, order: 'asc' | 'desc'): WxQuery
+  skip(n: number): WxQuery
   limit(n: number): WxQuery
+  field(projection: Record<string, boolean>): WxQuery
   get(): Promise<{ data: unknown[] }>
   update(options: { data: object }): Promise<WxUpdateResult>
+  remove(): Promise<unknown>
 }
 
 interface WxCollection extends WxQuery {
@@ -158,7 +249,9 @@ interface WxRemovable {
 interface WxCommand {
   set(value: unknown): unknown
   eq(value: unknown): unknown
+  neq(value: unknown): unknown
   lt(value: number): unknown
+  in(values: unknown[]): unknown
   and(conditions: object[]): object
   or(conditions: object[]): object
 }
@@ -167,11 +260,37 @@ export interface WxDatabase {
   command: WxCommand
   collection(name: string): WxCollection
   createCollection(name: string): Promise<unknown>
+  RegExp(options: { regexp: string; options: string }): unknown
 }
 
 const SESSIONS = 'sessions'
 const SETTINGS = 'settings'
 const PRACTICES = 'practices'
+const FOLDERS = 'folders'
+const EXPRESSIONS = 'expressions'
+
+/** 云函数端一次最多取 100 条，更多的分页取 */
+const PAGE = 100
+/** 示范朗读缓存只在服务端用，读列表时不取 */
+const WITHOUT_TTS = { tts: false }
+
+async function fetchAll(query: () => WxQuery, cap: number): Promise<unknown[]> {
+  const out: unknown[] = []
+  while (out.length < cap) {
+    const { data } = await query()
+      .skip(out.length)
+      .limit(Math.min(PAGE, cap - out.length))
+      .get()
+    out.push(...data)
+    if (data.length < PAGE) break
+  }
+  return out
+}
+
+/** 关键词按字面查找：正则里的特殊字符转义 */
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
 
 function isCollectionMissing(err: unknown): boolean {
   const e = err as { errCode?: number; errMsg?: string; message?: string }
@@ -257,8 +376,82 @@ export function createWxRepos(db: WxDatabase): Repos {
           .where({ _openid: openid })
           .orderBy('updatedAt', 'desc')
           .limit(limit)
+          .field(WITHOUT_TTS)
           .get()
         return data as SessionDoc[]
+      }),
+
+    listPage: (openid, { offset, limit, keyword }) =>
+      withCollection(db, SESSIONS, async () => {
+        let condition: object = { _openid: openid }
+        if (keyword) {
+          const re = db.RegExp({ regexp: escapeRegExp(keyword), options: 'i' })
+          condition = _.and([
+            { _openid: openid },
+            _.or([
+              { title: re },
+              { 'input.rawText': re },
+              { polishedZh: re },
+              { 'versions.en': re },
+            ]),
+          ])
+        }
+        const { data } = await sessions()
+          .where(condition)
+          .orderBy('updatedAt', 'desc')
+          .skip(offset)
+          .limit(limit)
+          .field(WITHOUT_TTS)
+          .get()
+        return data as SessionDoc[]
+      }),
+
+    listStarred: (openid) =>
+      withCollection(
+        db,
+        SESSIONS,
+        async () =>
+          (await fetchAll(
+            () =>
+              sessions()
+                .where({ _openid: openid, starredAt: _.neq(null) })
+                .orderBy('starredAt', 'desc')
+                .field(WITHOUT_TTS),
+            500,
+          )) as SessionDoc[],
+      ),
+
+    listStarredMeta: (openid) =>
+      withCollection(
+        db,
+        SESSIONS,
+        async () =>
+          (await fetchAll(
+            () =>
+              sessions()
+                .where({ _openid: openid, starredAt: _.neq(null) })
+                .field({ starredAt: true, folderId: true, tags: true }),
+            1000,
+          )) as SessionMeta[],
+      ),
+
+    listTitles: (openid, ids) =>
+      withCollection(db, SESSIONS, async () => {
+        if (ids.length === 0) return []
+        const { data } = await sessions()
+          .where({ _openid: openid, _id: _.in(ids) })
+          .limit(ids.length)
+          .field({ title: true, input: true })
+          .get()
+        return data as SessionTitle[]
+      }),
+
+    updateInFolders: (openid, folderIds, patch) =>
+      withCollection(db, SESSIONS, async () => {
+        if (folderIds.length === 0) return
+        await sessions()
+          .where({ _openid: openid, folderId: _.in(folderIds) })
+          .update({ data: toUpdateData(_, patch) })
       }),
   }
 
@@ -334,5 +527,137 @@ export function createWxRepos(db: WxDatabase): Repos {
       }),
   }
 
-  return { sessions: sessionRepo, settings: settingsRepo, practices: practiceRepo }
+  const folders = () => db.collection(FOLDERS)
+  const folderRepo: FolderRepo = {
+    list: (openid) =>
+      withCollection(
+        db,
+        FOLDERS,
+        async () =>
+          (await fetchAll(
+            () => folders().where({ _openid: openid }).orderBy('order', 'asc'),
+            500,
+          )) as FolderDoc[],
+      ),
+
+    create: (doc) =>
+      withCollection(db, FOLDERS, async () => (await folders().add({ data: doc }))._id),
+
+    update: (id, openid, patch) =>
+      withCollection(db, FOLDERS, async () => {
+        const res = await folders()
+          .where({ _id: id, _openid: openid })
+          .update({ data: toUpdateData(_, patch) })
+        return res.stats.updated === 1
+      }),
+
+    remove: (ids, openid) =>
+      withCollection(db, FOLDERS, async () => {
+        if (ids.length === 0) return
+        await folders()
+          .where({ _openid: openid, _id: _.in(ids) })
+          .remove()
+      }),
+  }
+
+  const expressions = () => db.collection(EXPRESSIONS)
+  const expressionRepo: ExpressionRepo = {
+    create: (doc) =>
+      withCollection(db, EXPRESSIONS, async () => (await expressions().add({ data: doc }))._id),
+
+    get: (id, openid) =>
+      withCollection(db, EXPRESSIONS, async () => {
+        const { data } = await expressions().where({ _id: id, _openid: openid }).limit(1).get()
+        return (data[0] as ExpressionDoc | undefined) ?? null
+      }),
+
+    findByKey: (openid, key) =>
+      withCollection(db, EXPRESSIONS, async () => {
+        const { data } = await expressions().where({ _openid: openid, key }).limit(1).get()
+        return (data[0] as ExpressionDoc | undefined) ?? null
+      }),
+
+    listAll: (openid) =>
+      withCollection(
+        db,
+        EXPRESSIONS,
+        async () =>
+          (await fetchAll(
+            () => expressions().where({ _openid: openid }).orderBy('savedAt', 'desc'),
+            1000,
+          )) as ExpressionDoc[],
+      ),
+
+    listMeta: (openid) =>
+      withCollection(
+        db,
+        EXPRESSIONS,
+        async () =>
+          (await fetchAll(
+            () =>
+              expressions()
+                .where({ _openid: openid })
+                .field({ key: true, folderId: true, tags: true }),
+            1000,
+          )) as ExpressionMeta[],
+      ),
+
+    update: (id, openid, patch) =>
+      withCollection(db, EXPRESSIONS, async () => {
+        const res = await expressions()
+          .where({ _id: id, _openid: openid })
+          .update({ data: toUpdateData(_, patch) })
+        return res.stats.updated === 1
+      }),
+
+    remove: (id, openid) =>
+      withCollection(db, EXPRESSIONS, async () => {
+        await expressions().where({ _id: id, _openid: openid }).remove()
+      }),
+
+    updateInFolders: (openid, folderIds, patch) =>
+      withCollection(db, EXPRESSIONS, async () => {
+        if (folderIds.length === 0) return
+        await expressions()
+          .where({ _openid: openid, folderId: _.in(folderIds) })
+          .update({ data: toUpdateData(_, patch) })
+      }),
+
+    removeInFolders: (openid, folderIds) =>
+      withCollection(db, EXPRESSIONS, async () => {
+        if (folderIds.length === 0) return
+        await expressions()
+          .where({ _openid: openid, folderId: _.in(folderIds) })
+          .remove()
+      }),
+
+    acquireFill: (id, openid, startedAt, staleBefore) =>
+      withCollection(db, EXPRESSIONS, async () => {
+        const res = await expressions()
+          .where(
+            _.and([
+              { _id: id, _openid: openid, fill: _.neq('ready') },
+              _.or([{ fillStartedAt: _.eq(null) }, { fillStartedAt: _.lt(staleBefore) }]),
+            ]),
+          )
+          .update({ data: { fillStartedAt: startedAt } })
+        return res.stats.updated === 1
+      }),
+
+    updateIfFill: (id, openid, startedAt, patch) =>
+      withCollection(db, EXPRESSIONS, async () => {
+        const res = await expressions()
+          .where({ _id: id, _openid: openid, fillStartedAt: startedAt })
+          .update({ data: toUpdateData(_, patch) })
+        return res.stats.updated === 1
+      }),
+  }
+
+  return {
+    sessions: sessionRepo,
+    settings: settingsRepo,
+    practices: practiceRepo,
+    folders: folderRepo,
+    expressions: expressionRepo,
+  }
 }

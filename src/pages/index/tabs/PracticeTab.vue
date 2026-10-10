@@ -40,7 +40,18 @@
       </sv-card>
 
       <view class="section">
-        <text class="section__title sv-title-3">最近对话</text>
+        <view class="section__head">
+          <text class="sv-title-3">最近对话</text>
+          <view
+            v-if="sessionsStore.recent.length"
+            class="section__more"
+            hover-class="is-pressed"
+            @tap="openHistory"
+          >
+            <text>全部</text>
+            <sv-icon name="chevron.right" :size="14" :weight="2.4" color="var(--sv-accent)" />
+          </view>
+        </view>
         <recent-list
           :items="sessionsStore.recent"
           :loaded="sessionsStore.loaded"
@@ -156,6 +167,10 @@ async function submit() {
   }
 }
 
+function openHistory() {
+  uni.navigateTo({ url: '/pkg-library/history/index' })
+}
+
 function openSession(id: string) {
   uni.navigateTo({ url: `/pkg-session/session/index?id=${encodeURIComponent(id)}` })
 }
@@ -240,9 +255,24 @@ function openSession(id: string) {
   margin-top: 28px;
 }
 
-.section__title {
-  display: block;
+.section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin: 0 4px 12px;
+}
+
+.section__more {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 0 4px 8px;
+  font-size: 15px;
+  color: var(--sv-accent);
+
+  &.is-pressed {
+    opacity: 0.5;
+  }
 }
 
 @keyframes sv-breathe {

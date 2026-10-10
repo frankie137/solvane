@@ -6,7 +6,7 @@ Solvane 把"想说但不会说"的零碎中文，变成一段流畅的中文、�
 
 - **形态**：微信小程序（体验版，仅供小圈子使用）
 - **技术栈**：uni-app（Vue 3 + Vite + TypeScript + Pinia）+ 微信云开发
-- **状态**：M0、M1、M2 已完成，M3 设计中（见 [开发进度](#开发进度)）
+- **状态**：M0～M3 已完成，M4 设计中（见 [开发进度](#开发进度)）
 
 ---
 
@@ -75,7 +75,7 @@ flowchart TD
 | 功能            | 说明                                                                                                                                                             |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 收藏对话        | 整个对话：中文原文、润色中文、所有英文版本和修改要求、解析、练习记录                                                                                             |
-| 收藏表达 / 单词 | 解析里的关键表达、俚语旁一键收藏；英文句子、评分报告里点单词也能收藏。同一个表达多次收藏合并为一张卡片，来源累加                                                 |
+| 收藏表达 / 单词 | 解析里的关键表达、俚语旁一键收藏；对话页长按英文句子挑词、评分报告里点单词也能收藏，释义由大模型按原句补全。同一个表达多次收藏合并为一张卡片，来源累加           |
 | 溯源            | 打开表达卡片，能看到「收藏自」：当时所在的那句英文（高亮）、对话和日期，点进去定位到那个版本的那一句；以及「也出现在」：在你所有对话的英文里自动查找到的其他用处 |
 | 收藏页          | 分「表达」和「对话」两栏，共用同一套文件夹和标签                                                                                                                 |
 | 文件夹          | 最多 3 级，可新建、重命名、移动、删除，支持排序                                                                                                                  |
@@ -142,12 +142,12 @@ flowchart LR
 
 ### 云函数划分
 
-| 云函数    | 职责                                                                     | 超时 | 状态  |
-| --------- | ------------------------------------------------------------------------ | ---- | ----- |
-| `compose` | 新建对话、生成、修改、解析；大模型配置（读取 / 保存 / 清除 / 测试连接）  | 60s  | ✅ M1 |
-| `speech`  | 中文语音识别（识别后删除录音）；示范朗读按句合成并缓存；单词标准发音     | 20s  | ✅ M2 |
-| `data`    | 学习偏好、对话读取、最近对话、切换版本；M3 起加文件夹、标签、收藏、分享  | 10s  | ✅ M1 |
-| `assess`  | 背诵评测四步流程（识别 → 对照 → 评测 → 报告）、每个对话保留最近 3 次练习 | 60s  | ✅ M2 |
+| 云函数    | 职责                                                                                        | 超时 | 状态  |
+| --------- | ------------------------------------------------------------------------------------------- | ---- | ----- |
+| `compose` | 新建对话、生成、修改、解析、补全收藏表达的释义；大模型配置（读取 / 保存 / 清除 / 测试连接） | 60s  | ✅ M3 |
+| `speech`  | 中文语音识别（识别后删除录音）；示范朗读按句合成并缓存；单词和短语的标准发音                | 20s  | ✅ M3 |
+| `data`    | 学习偏好、对话读取、最近对话、切换版本；文件夹、收藏、标签、溯源、历史与搜索；M4 起加分享   | 10s  | ✅ M3 |
+| `assess`  | 背诵评测四步流程（识别 → 对照 → 评测 → 报告）、每个对话保留最近 3 次练习                    | 60s  | ✅ M2 |
 
 函数内部按 `action` 字段分发，所有 action 的入参和出参登记在 `shared/api.ts`。
 
@@ -167,8 +167,10 @@ solvane/
 │   ├── pkg-session/              # 分包：对话详情（逐句对照、解析、版本切换、修改栏）
 │   ├── pkg-settings/             # 分包：大模型配置（含管理员的全局默认）
 │   ├── pkg-recite/               # 分包：背诵（遮挡与逐级提示、示范朗读、录音）、评分报告
+│   ├── pkg-library/              # 分包：文件夹、表达卡片与溯源、全部对话（历史与搜索）
 │   ├── pkg-share/                # 分包（规划 M4）：歌词播放页
 │   ├── components/sv-*/          # 基础组件：导航栏、tab 栏、按钮、卡片、列表、骨架屏、图标
+│   ├── components/library/       # 收藏公共组件：文件夹选择、标签编辑、收藏列表、收藏提示（多个分包共用，放主包）
 │   ├── components.d.ts           # sv-* 组件的全局类型登记
 │   ├── composables/              # 组合式函数
 │   ├── services/                 # 云函数调用封装（callCloud）
@@ -181,7 +183,7 @@ solvane/
 │   ├── src/lib/                  #   路由、数据访问、大模型、加密、音频、腾讯云（识别 / 合成 / 口语评测）
 │   ├── src/prompts/              #   提示词模板
 │   └── tests/                    #   单元测试（内存数据库 + 假大模型）
-├── shared/                       # 前后端共用：接口约定、业务类型、常量、统一返回结构
+├── shared/                       # 前后端共用：接口约定、业务类型、常量、统一返回结构、表达匹配
 ├── scripts/
 │   ├── build-cloud.ts            #   用 esbuild 把云函数打包到 cloudfunctions/
 │   ├── mp-ci.ts                  #   预览二维码、上传体验版、部署云函数（miniprogram-ci）
@@ -281,13 +283,14 @@ solvane/
 
 所有集合的权限均为"仅云函数可读写"。`_openid` 为数据所属用户。
 
-| 集合        | 主要字段                                                                                                                                                                           | 状态  |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| `settings`  | `_id`(openid 或 `__global__`)、`level`、`accent`、`ttsVoice`、`ttsSpeed`、`llm{preset, baseUrl, model, apiKeyCipher, apiKeyMask, updatedAt}`                                       | ✅ M2 |
-| `sessions`  | `_openid`、`title`、`input{mode, rawText}`、`polishedZh`、`versions[]`、`currentVid`、`job`、`lastError`、`folderId`、`tags[]`、`createdAt`、`updatedAt`                           | ✅ M1 |
-| `practices` | `_openid`、`sessionId`、`vid`、`stage`、`job`、`lastError`、`pcmFileID`、`wavFileID`、`durationMs`、`transcript`、`alignment`、`pronunciation`、`report`、`createdAt`、`updatedAt` | ✅ M2 |
-| `folders`   | `_openid`、`name`、`parentId`、`depth`(1–3)、`order`                                                                                                                               | M3    |
-| `shares`    | `_id`(shareId)、`_openid`、`sessionId`、`practiceId`、`snapshot{sentences, timings, audioFileID, author}`、`createdAt`                                                             | M4    |
+| 集合          | 主要字段                                                                                                                                                                                                | 状态  |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `settings`    | `_id`(openid 或 `__global__`)、`level`、`accent`、`ttsVoice`、`ttsSpeed`、`llm{preset, baseUrl, model, apiKeyCipher, apiKeyMask, updatedAt}`                                                            | ✅ M2 |
+| `sessions`    | `_openid`、`title`、`input{mode, rawText}`、`polishedZh`、`versions[]`、`currentVid`、`job`、`lastError`、`starredAt`、`folderId`、`tags[]`、`createdAt`、`updatedAt`                                   | ✅ M3 |
+| `practices`   | `_openid`、`sessionId`、`vid`、`stage`、`job`、`lastError`、`pcmFileID`、`wavFileID`、`durationMs`、`transcript`、`alignment`、`pronunciation`、`report`、`createdAt`、`updatedAt`                      | ✅ M2 |
+| `folders`     | `_openid`、`name`、`parentId`、`depth`(1–3)、`order`、`createdAt`                                                                                                                                       | ✅ M3 |
+| `expressions` | `_openid`、`text`、`key`(合并键)、`kind`(phrase / slang / word)、`meaning`、`usage`、`example`、`note`、`fill`、`fillStartedAt`、`folderId`、`tags[]`、`sources[]`、`createdAt`、`savedAt`、`updatedAt` | ✅ M3 |
+| `shares`      | `_id`(shareId)、`_openid`、`sessionId`、`practiceId`、`snapshot{sentences, timings, audioFileID, author}`、`createdAt`                                                                                  | M4    |
 
 集合在第一次写入时由云函数自动创建。建议在云开发控制台把集合权限设为"所有用户不可读写"，所有访问都经云函数。
 
@@ -388,8 +391,8 @@ pnpm cloud:config
 | M0   | 环境、脚手架、代码检查与测试、云函数构建、设计变量与基础组件、审查流程文档 | 开发者工具中跑起空白首页，所有检查通过         | ✅ 完成   |
 | M1   | 语音 / 打字输入 → 润色 → 英文 + 解析 → 多轮修改；设置页与大模型配置        | 说一段中文，得到英文和解析，并能继续修改       | ✅ 完成   |
 | M2   | 示范朗读、背诵录音、四步评测、评分报告、练习记录                           | 背一遍后看到分项分数和发音建议                 | ✅ 完成   |
-| M3   | 收藏对话、收藏表达 / 单词与溯源、文件夹、标签、历史与搜索                  | 能收藏表达并溯源到原句，能建文件夹、移动、查找 | 🚧 设计中 |
-| M4   | 分享卡片、歌词播放页                                                       | 体验成员打开卡片能听录音，歌词同步滚动         | ⏳        |
+| M3   | 收藏对话、收藏表达 / 单词与溯源、文件夹、标签、历史与搜索                  | 能收藏表达并溯源到原句，能建文件夹、移动、查找 | ✅ 完成   |
+| M4   | 分享卡片、歌词播放页                                                       | 体验成员打开卡片能听录音，歌词同步滚动         | 🚧 设计中 |
 | M5   | 动效打磨、空状态与错误状态、性能与包体积、真机验收                         | 真机全流程顺畅                                 | ⏳        |
 | V2   | 复习：基于收藏的表达和单词做闪卡、按遗忘规律安排复习                       | —                                              | 📋 规划中 |
 
