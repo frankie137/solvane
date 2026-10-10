@@ -10,7 +10,7 @@
 
     <view class="card-page">
       <sv-card v-if="loadError" :padding="24">
-        <sv-state icon="alert" tone="danger" title="加载失败" :description="loadError">
+        <sv-state icon="alert" tone="danger" title="卡片加载失败" :description="loadError">
           <sv-button type="secondary" size="sm" @click="load">重试</sv-button>
         </sv-state>
       </sv-card>
@@ -175,6 +175,7 @@ import { useSystemStore } from '@/stores/system'
 import { promptText, toast } from '@/utils/dialog'
 import { folderPath } from '@/utils/folders'
 import { highlightPieces } from '@/utils/highlight'
+import { navigateTo } from '@/utils/nav'
 import { formatRelative } from '@/utils/time'
 
 const KIND_TEXT: Record<ExpressionKind, string> = {
@@ -237,7 +238,7 @@ async function load() {
     expression.value = res.expression
     sources.value = res.sources
   } catch (err) {
-    loadError.value = err instanceof CloudError ? err.message : '加载失败'
+    loadError.value = err instanceof CloudError ? err.message : '请检查网络后重试'
     return
   }
   void loadUsages()
@@ -291,9 +292,9 @@ function openSource(s: SourceView) {
 
 function openSession(sessionId: string, vid: string, sentenceIndex: number) {
   audio.stop()
-  uni.navigateTo({
-    url: `/pkg-session/session/index?id=${encodeURIComponent(sessionId)}&vid=${encodeURIComponent(vid)}&s=${sentenceIndex}`,
-  })
+  navigateTo(
+    `/pkg-session/session/index?id=${encodeURIComponent(sessionId)}&vid=${encodeURIComponent(vid)}&s=${sentenceIndex}`,
+  )
 }
 
 async function speak() {
@@ -391,7 +392,6 @@ async function unstarCard() {
 }
 
 .hero__speak {
-  @include sv-hit-area;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -399,6 +399,7 @@ async function unstarCard() {
   height: 36px;
   border-radius: 18px;
   background-color: var(--sv-accent-soft);
+  @include sv-hit-area;
 
   &.is-pressed {
     opacity: 0.6;
@@ -526,9 +527,9 @@ async function unstarCard() {
 }
 
 .card-page__content {
-  @include sv-appear;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  @include sv-appear;
 }
 </style>

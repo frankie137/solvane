@@ -11,7 +11,7 @@
 
     <view class="mine">
       <sv-card v-if="error && items.length === 0" :padding="24">
-        <sv-state icon="alert" tone="danger" title="加载失败" :description="error">
+        <sv-state icon="alert" tone="danger" title="分享列表加载失败" :description="error">
           <sv-button type="secondary" size="sm" @click="retry">重试</sv-button>
         </sv-state>
       </sv-card>
@@ -51,11 +51,14 @@
         <text class="mine__hint">撤回后好友再打开会显示「分享已撤回」</text>
       </view>
     </view>
+
+    <view :style="bottomInset" />
   </scroll-view>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { onShow } from '@dcloudio/uni-app'
 import type { ShareSummary } from '@shared/types'
 import { useCollapsingTitle } from '@/composables/useCollapsingTitle'
@@ -63,7 +66,13 @@ import { CloudError } from '@/services/cloud'
 import { listShares, revokeShare, sharePath } from '@/services/share'
 import { chooseAction, confirmAction, toast } from '@/utils/dialog'
 import { formatClock } from '@/utils/lyrics'
+import { useSystemStore } from '@/stores/system'
+import { navigateTo } from '@/utils/nav'
 import { formatRelative } from '@/utils/time'
+
+const { metrics: systemMetrics } = storeToRefs(useSystemStore())
+// 底部留出安全区，最后的内容不贴着手势条
+const bottomInset = computed(() => `height:${systemMetrics.value.safeAreaBottom + 24}px`)
 
 const { collapsed, onScroll } = useCollapsingTitle()
 const items = ref<ShareSummary[]>([])
@@ -75,7 +84,7 @@ async function load() {
   try {
     items.value = await listShares()
   } catch (err) {
-    error.value = err instanceof CloudError ? err.message : '加载失败'
+    error.value = err instanceof CloudError ? err.message : '请检查网络后重试'
   } finally {
     loaded.value = true
   }
@@ -95,7 +104,7 @@ function meta(item: ShareSummary): string {
 }
 
 function open(id: string) {
-  uni.navigateTo({ url: sharePath(id) })
+  navigateTo(sharePath(id))
 }
 
 async function more(item: ShareSummary) {
@@ -130,7 +139,7 @@ async function more(item: ShareSummary) {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 0 16px 40px;
+  padding: 0 16px;
 }
 
 .mine__hint {
@@ -204,9 +213,9 @@ async function more(item: ShareSummary) {
 }
 
 .mine__content {
-  @include sv-appear;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  @include sv-appear;
 }
 </style>

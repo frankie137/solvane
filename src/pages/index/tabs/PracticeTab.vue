@@ -30,7 +30,9 @@
               <sv-icon name="mic.fill" :size="34" color="var(--sv-text-on-accent)" :weight="2" />
             </view>
           </view>
-          <text class="hero__hint sv-footnote sv-secondary">点一下开始说话 · 最长 60 秒</text>
+          <text class="hero__hint sv-footnote sv-secondary"
+            >点一下开始说话 · 最长 {{ maxSeconds }} 秒</text
+          >
 
           <sv-button type="secondary" size="sm" @click="openTextInput">
             <sv-icon name="keyboard" :size="18" />
@@ -88,6 +90,7 @@
 
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
+import { LIMITS } from '@shared/constants'
 import type { InputMode } from '@shared/types'
 import { useCollapsingTitle } from '@/composables/useCollapsingTitle'
 import { useRecorder, type RecordingResult } from '@/composables/useRecorder'
@@ -95,6 +98,7 @@ import { useTabBarInset } from '@/composables/useTabBarInset'
 import { callCloud, CloudError, uploadFile } from '@/services/cloud'
 import { createSession } from '@/services/sessions'
 import { useSessionsStore } from '@/stores/sessions'
+import { navigateTo } from '@/utils/nav'
 import ComposeSheet, { type ComposePhase } from '../components/ComposeSheet.vue'
 import RecentList from '../components/RecentList.vue'
 import RecordingOverlay from '../components/RecordingOverlay.vue'
@@ -102,6 +106,7 @@ import RecordingOverlay from '../components/RecordingOverlay.vue'
 const { collapsed, onScroll } = useCollapsingTitle()
 const bottomInset = useTabBarInset()
 const sessionsStore = useSessionsStore()
+const maxSeconds = Math.round(LIMITS.recordMaxMs / 1000)
 
 const sheet = reactive<{
   show: boolean
@@ -175,11 +180,11 @@ async function submit() {
 }
 
 function openHistory() {
-  uni.navigateTo({ url: '/pkg-library/history/index' })
+  navigateTo('/pkg-library/history/index')
 }
 
 function openSession(id: string) {
-  uni.navigateTo({ url: `/pkg-session/session/index?id=${encodeURIComponent(id)}` })
+  navigateTo(`/pkg-session/session/index?id=${encodeURIComponent(id)}`)
 }
 </script>
 
@@ -272,13 +277,13 @@ function openSession(id: string) {
 }
 
 .section__more {
-  @include sv-hit-area;
   display: flex;
   align-items: center;
   gap: 2px;
   padding: 4px 0 4px 8px;
   font-size: 15px;
   color: var(--sv-accent);
+  @include sv-hit-area;
 
   &.is-pressed {
     opacity: 0.5;

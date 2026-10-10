@@ -197,11 +197,11 @@ function remove(tag: string) {
 }
 
 .tags__add {
-  @include sv-hit-area;
   padding: 8px 12px;
   font-size: 15px;
   font-weight: 600;
   color: var(--sv-accent);
+  @include sv-hit-area;
 
   &.is-disabled {
     color: var(--sv-text-3);

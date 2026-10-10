@@ -92,17 +92,25 @@
     </view>
 
     <view class="bottom" />
+
+    <view :style="bottomInset" />
   </scroll-view>
 </template>
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { onLoad } from '@dcloudio/uni-app'
 import type { LlmConfigInput } from '@shared/api'
 import { LLM_PRESETS, type LlmPreset } from '@shared/constants'
 import type { LlmConfigState, LlmPresetId, LlmScope } from '@shared/types'
 import { callCloud, CloudError } from '@/services/cloud'
 import { useSettingsStore } from '@/stores/settings'
+import { useSystemStore } from '@/stores/system'
+
+const { metrics: systemMetrics } = storeToRefs(useSystemStore())
+// 底部留出安全区，最后的内容不贴着手势条
+const bottomInset = computed(() => `height:${systemMetrics.value.safeAreaBottom + 24}px`)
 
 const EFFECTIVE_TEXT: Record<LlmConfigState['effective'], string> = {
   own: '正在使用我的配置',
@@ -171,7 +179,7 @@ async function load() {
     applyState(await callCloud('compose', 'getLlmConfig', {}))
     fillForm()
   } catch (err) {
-    loadError.value = err instanceof CloudError ? err.message : '加载失败'
+    loadError.value = err instanceof CloudError ? err.message : '请检查网络后重试'
   }
 }
 
@@ -236,7 +244,10 @@ async function save() {
     form.apiKey = ''
     uni.showToast({ title: '已保存', icon: 'success' })
   } catch (err) {
-    uni.showToast({ title: err instanceof CloudError ? err.message : '保存失败', icon: 'none' })
+    uni.showToast({
+      title: err instanceof CloudError ? err.message : '保存失败，请重试',
+      icon: 'none',
+    })
   } finally {
     saving.value = false
   }
@@ -362,9 +373,9 @@ function clear() {
 }
 
 .llm__content {
-  @include sv-appear;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  @include sv-appear;
 }
 </style>

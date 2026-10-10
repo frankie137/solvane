@@ -20,6 +20,8 @@ interface RecorderListener {
   onFrame(frame: ArrayBuffer): void
   onStop(res: { tempFilePath: string; duration: number }): void
   onError(errMsg: string): void
+  /** 来电等系统打断、切到后台导致录音暂停 */
+  onInterrupt(): void
 }
 
 // 录音管理器是全局唯一的，事件只注册一次，再转发给当前的录音会话
@@ -41,8 +43,9 @@ function getManager(): WechatMiniprogram.RecorderManager {
       listener = null
       current?.onError(res.errMsg)
     })
-    // 来电等系统打断：直接停止
-    manager.onInterruptionBegin(() => manager?.stop())
+    // 来电等系统打断、切到后台：录音会暂停而计时还在走，这次录音直接取消
+    manager.onInterruptionBegin(() => listener?.onInterrupt())
+    manager.onPause(() => listener?.onInterrupt())
   }
   return manager
 }
@@ -152,6 +155,11 @@ export function useRecorder(
           return
         }
         onFinish({ tempFilePath: res.tempFilePath, durationMs })
+      },
+      onInterrupt() {
+        cancelled = true
+        getManager().stop()
+        uni.showToast({ title: '录音被打断了，请重新开始', icon: 'none' })
       },
       onError(errMsg) {
         reset()

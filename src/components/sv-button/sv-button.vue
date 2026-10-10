@@ -97,10 +97,10 @@ function onTap() {
 
 .sv-btn--sm {
   // 原生 button 的 ::after 已被全局样式隐藏，点击区用 ::before
-  @include sv-hit-area(before);
   height: 34px;
   padding: 0 16px;
   font-size: 15px;
+  @include sv-hit-area(before);
 }
 
 .sv-btn--md {

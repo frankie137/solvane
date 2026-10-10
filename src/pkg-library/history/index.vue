@@ -15,7 +15,7 @@
       <search-field placeholder="搜索标题、中文或英文" @search="search" />
 
       <sv-card v-if="error && items.length === 0" :padding="24">
-        <sv-state icon="alert" tone="danger" title="加载失败" :description="error">
+        <sv-state icon="alert" tone="danger" title="对话列表加载失败" :description="error">
           <sv-button type="secondary" size="sm" @click="retry">重试</sv-button>
         </sv-state>
       </sv-card>
@@ -62,6 +62,7 @@ import SessionRows from '@/components/library/SessionRows.vue'
 import { useCollapsingTitle } from '@/composables/useCollapsingTitle'
 import { callCloud, CloudError } from '@/services/cloud'
 import { useSystemStore } from '@/stores/system'
+import { navigateTo } from '@/utils/nav'
 
 const { collapsed, onScroll } = useCollapsingTitle()
 const { metrics } = storeToRefs(useSystemStore())
@@ -108,7 +109,8 @@ async function reload(keep = false) {
     items.value = [...res.items, ...rest]
     if (!keep || rest.length === 0) hasMore.value = res.hasMore
   } catch (err) {
-    if (gen === generation) error.value = err instanceof CloudError ? err.message : '加载失败'
+    if (gen === generation)
+      error.value = err instanceof CloudError ? err.message : '请检查网络后重试'
   } finally {
     if (gen === generation) {
       reloading = false
@@ -165,7 +167,7 @@ onShow(() => {
 })
 
 function openSession(id: string) {
-  uni.navigateTo({ url: `/pkg-session/session/index?id=${encodeURIComponent(id)}` })
+  navigateTo(`/pkg-session/session/index?id=${encodeURIComponent(id)}`)
 }
 </script>
 
@@ -208,9 +210,9 @@ function openSession(id: string) {
 }
 
 .history__content {
-  @include sv-appear;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  @include sv-appear;
 }
 </style>

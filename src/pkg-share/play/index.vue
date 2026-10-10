@@ -11,7 +11,7 @@
           <sv-button v-if="error.code !== 'NOT_FOUND'" type="secondary" size="sm" @click="load">
             重试
           </sv-button>
-          <sv-button size="sm" @click="goHome">去练习</sv-button>
+          <sv-button size="sm" @click="goHome">我也来练</sv-button>
         </view>
       </sv-state>
     </view>
@@ -100,7 +100,7 @@
         <view v-if="player.failed.value" class="audio-error">
           <text>录音没能加载</text>
           <view class="audio-error__retry" hover-class="is-pressed" @tap="load">
-            <text>重新加载</text>
+            <text>重试</text>
           </view>
         </view>
         <view class="times">
@@ -174,7 +174,13 @@ onLoad((query) => {
 })
 
 onHide(() => player.pause())
-onUnload(() => player.destroy())
+onUnload(() => {
+  player.destroy()
+  if (followTimer) clearTimeout(followTimer)
+  if (measureTimer) clearTimeout(measureTimer)
+})
+
+let measureTimer: ReturnType<typeof setTimeout> | null = null
 
 async function load() {
   error.value = null
@@ -187,12 +193,13 @@ async function load() {
     if (resumeAt > 0) player.seek(resumeAt)
     await nextTick()
     // 等列表渲染完再量每一行的位置
-    setTimeout(() => {
+    if (measureTimer) clearTimeout(measureTimer)
+    measureTimer = setTimeout(() => {
       measure()
       void makeCover(s)
     }, 80)
   } catch (err) {
-    error.value = err instanceof CloudError ? err : new CloudError('INTERNAL', '加载失败，请重试')
+    error.value = err instanceof CloudError ? err : new CloudError('INTERNAL', '请检查网络后重试')
   }
 }
 
@@ -639,7 +646,6 @@ function goHome() {
 
 // 浮在进度条上方，出现时不把下面的控件顶下去
 .audio-error {
-  @include sv-appear(audio-error-in);
   position: absolute;
   left: 0;
   right: 0;
@@ -651,14 +657,15 @@ function goHome() {
   padding: 4px 0;
   font-size: 13px;
   color: var(--sv-text-2);
+  @include sv-appear(audio-error-in);
 }
 
 .audio-error__retry {
-  @include sv-hit-area;
   padding: 4px 10px;
   border-radius: 12px;
   color: var(--sv-accent);
   background-color: var(--sv-accent-soft);
+  @include sv-hit-area;
 
   &.is-pressed {
     opacity: 0.6;

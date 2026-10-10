@@ -172,6 +172,8 @@
     </view>
 
     <view class="bottom" />
+
+    <view :style="bottomInset" />
   </scroll-view>
 
   <word-sheet
@@ -224,6 +226,7 @@ import { getSession } from '@/services/sessions'
 import { useLibraryStore } from '@/stores/library'
 import { useSystemStore } from '@/stores/system'
 import { toast } from '@/utils/dialog'
+import { navigateTo } from '@/utils/nav'
 import { scoreTone } from '@/utils/recite'
 import ScoreRing from '../components/ScoreRing.vue'
 import StageProgress from '../components/StageProgress.vue'
@@ -351,18 +354,38 @@ function toneOf(w: ScoredWord) {
 
 // --- 播放 -------------------------------------------------------------------
 
-const audio = useAudio()
+/** 回放链接是临时链接（2 小时过期）：超过 90 分钟或播放出错后，播放前重新取一次 */
+const AUDIO_TTL_MS = 90 * 60_000
+let audioFetchedAt = Date.now()
+const audio = useAudio(60, {
+  onError: () => {
+    audioFetchedAt = 0
+  },
+})
 const playingAll = ref(false)
 
-function toggleRecording() {
+async function freshAudioUrl(): Promise<string | null> {
+  if (practice.value && Date.now() - audioFetchedAt > AUDIO_TTL_MS) {
+    try {
+      practice.value = await getPractice(practiceId.value)
+      audioFetchedAt = Date.now()
+    } catch {
+      // 取不到就用原来的链接试一下
+    }
+  }
+  return practice.value?.audioUrl ?? null
+}
+
+async function toggleRecording() {
   if (playingAll.value) {
     audio.stop()
     playingAll.value = false
     return
   }
-  if (!practice.value?.audioUrl) return
+  const url = await freshAudioUrl()
+  if (!url) return
   playingAll.value = true
-  audio.play(practice.value.audioUrl, { onEnded: () => (playingAll.value = false) })
+  audio.play(url, { onEnded: () => (playingAll.value = false) })
 }
 
 const sheet = reactive<{
@@ -393,6 +416,9 @@ const libraryStore = useLibraryStore()
 const organizer = useOrganizer()
 const { metrics: system } = storeToRefs(useSystemStore())
 const toastBottom = computed(() => system.value.safeAreaBottom + 24)
+
+// 底部留出安全区，最后的内容不贴着手势条
+const bottomInset = computed(() => `height:${system.value.safeAreaBottom + 24}px`)
 if (!libraryStore.loaded) void libraryStore.refresh()
 
 const sheetSavedId = computed(() => (sheet.word ? libraryStore.savedId(sheet.word.word) : null))
@@ -404,7 +430,7 @@ async function saveWord() {
   const existing = sheetSavedId.value
   if (existing) {
     sheet.show = false
-    uni.navigateTo({ url: `/pkg-library/expression/index?id=${encodeURIComponent(existing)}` })
+    navigateTo(`/pkg-library/expression/index?id=${encodeURIComponent(existing)}`)
     return
   }
   sheet.saving = true
@@ -459,9 +485,9 @@ async function playStandard(word: string) {
   }
 }
 
-function playMine() {
+async function playMine() {
   const w = sheet.word
-  const url = practice.value?.audioUrl
+  const url = await freshAudioUrl()
   if (!w || !url) return
   playingAll.value = false
   audio.play(url, {

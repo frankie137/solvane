@@ -259,13 +259,14 @@ import { useLibraryStore } from '@/stores/library'
 import { useSessionsStore } from '@/stores/sessions'
 import { useSystemStore } from '@/stores/system'
 import { toast } from '@/utils/dialog'
+import { navigateTo } from '@/utils/nav'
 import { scoreTone } from '@/utils/recite'
 import { formatRelative } from '@/utils/time'
 import AnalysisView from '../components/AnalysisView.vue'
 import ReviseBar from '../components/ReviseBar.vue'
 import SentenceList from '../components/SentenceList.vue'
 import WordPicker from '../components/WordPicker.vue'
-import { REVISE_BAR_HEIGHT } from '../constants'
+import { LOCATE_HIGHLIGHT_MS, REVISE_BAR_HEIGHT } from '../constants'
 
 const PROGRESS_HINTS = ['正在理解你的意思…', '正在组织地道的说法…', '快好了，再等一下…']
 
@@ -408,14 +409,14 @@ function practiceMeta(p: PracticeSummary) {
 function openRecite() {
   if (!current.value) return
   stopDemo()
-  uni.navigateTo({
-    url: `/pkg-recite/recite/index?sessionId=${encodeURIComponent(sessionId.value)}&vid=${current.value.vid}`,
-  })
+  navigateTo(
+    `/pkg-recite/recite/index?sessionId=${encodeURIComponent(sessionId.value)}&vid=${current.value.vid}`,
+  )
 }
 
 function openReport(practiceId: string) {
   stopDemo()
-  uni.navigateTo({ url: `/pkg-recite/report/index?practiceId=${encodeURIComponent(practiceId)}` })
+  navigateTo(`/pkg-recite/report/index?practiceId=${encodeURIComponent(practiceId)}`)
 }
 
 async function reload() {
@@ -439,8 +440,10 @@ const organizer = useOrganizer()
 const located = ref(-1)
 let locateTarget: { vid: string; sentence: number } | null = null
 let locateTimer: ReturnType<typeof setTimeout> | null = null
+let scrollTimer: ReturnType<typeof setTimeout> | null = null
 onUnmounted(() => {
   if (locateTimer) clearTimeout(locateTimer)
+  if (scrollTimer) clearTimeout(scrollTimer)
 })
 
 /**
@@ -462,20 +465,26 @@ async function applyLocate() {
   }
   located.value = target.sentence
   scrollTarget.value = ''
-  setTimeout(() => {
+  scrollTimer = setTimeout(() => {
     scrollTarget.value = 'english'
   }, 50)
+  // 比 SentenceList 里突出的动画稍长，动画放完再去掉
   locateTimer = setTimeout(() => {
     located.value = -1
-  }, 2_600)
+  }, LOCATE_HIGHLIGHT_MS + 200)
 }
 
 /** 收藏提示离开底部的修改栏 */
 const toastBottom = computed(() => REVISE_BAR_HEIGHT + metrics.value.safeAreaBottom + 12)
 
+/** 收藏请求进行中：连点只发一次 */
+let starring = false
+const savingPhrases = new Set<string>()
+
 async function toggleStar() {
   const s = session.value
-  if (!s) return
+  if (!s || starring) return
+  starring = true
   const star = !s.starredAt
   try {
     const fields = await starSession(s.id, star)
@@ -494,6 +503,8 @@ async function toggleStar() {
     }
   } catch (err) {
     toast(asCloudError(err).message)
+  } finally {
+    starring = false
   }
 }
 
@@ -503,7 +514,7 @@ function expressionTarget(id: string, folderId: string | null, tags: string[]): 
 
 function openExpression(id: string) {
   stopDemo()
-  uni.navigateTo({ url: `/pkg-library/expression/index?id=${encodeURIComponent(id)}` })
+  navigateTo(`/pkg-library/expression/index?id=${encodeURIComponent(id)}`)
 }
 
 async function saveFromAnalysis(kind: 'phrase' | 'slang', index: number) {
@@ -514,6 +525,8 @@ async function saveFromAnalysis(kind: 'phrase' | 'slang', index: number) {
   // 已经收藏过的直接打开卡片
   const existing = libraryStore.savedId(item.phrase)
   if (existing) return openExpression(existing)
+  if (savingPhrases.has(item.phrase)) return
+  savingPhrases.add(item.phrase)
   try {
     const { expression } = await libraryStore.save({
       text: item.phrase,
@@ -525,6 +538,8 @@ async function saveFromAnalysis(kind: 'phrase' | 'slang', index: number) {
     organizer.notifySaved(expressionTarget(expression.id, expression.folderId, expression.tags))
   } catch (err) {
     toast(asCloudError(err).message)
+  } finally {
+    savingPhrases.delete(item.phrase)
   }
 }
 
@@ -700,7 +715,7 @@ function copyEnglish() {
 }
 
 function openLlmSettings() {
-  uni.navigateTo({ url: '/pkg-settings/llm/index' })
+  navigateTo('/pkg-settings/llm/index')
 }
 </script>
 
@@ -769,7 +784,6 @@ function openLlmSettings() {
 }
 
 .star {
-  @include sv-hit-area;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -777,6 +791,7 @@ function openLlmSettings() {
   height: 40px;
   border-radius: 20px;
   transition: opacity var(--sv-dur-1) var(--sv-ease);
+  @include sv-hit-area;
 
   &.is-pressed {
     opacity: 0.5;
@@ -784,7 +799,6 @@ function openLlmSettings() {
 }
 
 .copy {
-  @include sv-hit-area;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -792,6 +806,7 @@ function openLlmSettings() {
   font-size: 14px;
   color: var(--sv-accent);
   transition: opacity var(--sv-dur-1) var(--sv-ease);
+  @include sv-hit-area;
 
   &.is-pressed {
     opacity: 0.5;
@@ -940,9 +955,9 @@ function openLlmSettings() {
 }
 
 .session__content {
-  @include sv-appear;
   display: flex;
   flex-direction: column;
   gap: 24px;
+  @include sv-appear;
 }
 </style>

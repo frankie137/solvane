@@ -103,10 +103,10 @@ const isSaved = (phrase: string) => Boolean(props.savedKeys[expressionKey(phrase
 @import '@/styles/mixins.scss';
 
 .analysis {
-  @include sv-appear;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  @include sv-appear;
 }
 
 .item {
@@ -143,7 +143,6 @@ const isSaved = (phrase: string) => Boolean(props.savedKeys[expressionKey(phrase
 }
 
 .save {
-  @include sv-hit-area;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -152,6 +151,7 @@ const isSaved = (phrase: string) => Boolean(props.savedKeys[expressionKey(phrase
   margin: -8px -8px -8px 0;
   border-radius: 18px;
   flex-shrink: 0;
+  @include sv-hit-area;
 
   &.is-pressed {
     background-color: var(--sv-fill);

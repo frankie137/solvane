@@ -17,7 +17,7 @@
 
     <view class="folder">
       <sv-card v-if="storeError && !folder" :padding="24">
-        <sv-state icon="alert" tone="danger" title="加载失败" :description="storeError">
+        <sv-state icon="alert" tone="danger" title="文件夹加载失败" :description="storeError">
           <sv-button type="secondary" size="sm" @click="store.refresh()">重试</sv-button>
         </sv-state>
       </sv-card>
@@ -129,7 +129,6 @@ function goBack() {
 }
 
 .folder__more {
-  @include sv-hit-area;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -137,6 +136,7 @@ function goBack() {
   height: 36px;
   border-radius: 18px;
   background-color: var(--sv-accent-soft);
+  @include sv-hit-area;
 
   &.is-pressed {
     opacity: 0.6;

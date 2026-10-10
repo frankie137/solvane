@@ -1,5 +1,5 @@
 <template>
-  <view class="sentences">
+  <view class="sentences" :style="`--locate-ms:${LOCATE_HIGHLIGHT_MS}ms`">
     <view
       v-for="(s, i) in sentences"
       :key="i"
@@ -34,6 +34,7 @@
 import { computed } from 'vue'
 import type { SentencePair } from '@shared/types'
 import { tokenize } from '@/utils/recite'
+import { LOCATE_HIGHLIGHT_MS } from '../constants'
 
 const props = withDefaults(
   defineProps<{
@@ -90,7 +91,7 @@ function onHold(i: number) {
   }
 
   &.is-located {
-    animation: sentence-located 2.4s var(--sv-ease) 1;
+    animation: sentence-located var(--locate-ms) var(--sv-ease) 1;
   }
 }
 

@@ -73,6 +73,7 @@ import { CloudError } from '@/services/cloud'
 import { listFavorites } from '@/services/library'
 import { useLibraryStore } from '@/stores/library'
 import { childrenOf } from '@/utils/folders'
+import { navigateTo } from '@/utils/nav'
 import ExpressionRows from './ExpressionRows.vue'
 import FolderRows from './FolderRows.vue'
 import SessionRows from './SessionRows.vue'
@@ -168,7 +169,7 @@ async function load() {
     sessions.value = res.sessions
   } catch (err) {
     if (id !== requestId) return
-    error.value = err instanceof CloudError ? err.message : '加载失败'
+    error.value = err instanceof CloudError ? err.message : '请检查网络后重试'
   } finally {
     if (id === requestId) loaded.value = true
   }
@@ -197,15 +198,15 @@ function onReorder(id: string, step: -1 | 1) {
 }
 
 function openFolder(id: string) {
-  uni.navigateTo({ url: `/pkg-library/folder/index?id=${encodeURIComponent(id)}&tab=${props.tab}` })
+  navigateTo(`/pkg-library/folder/index?id=${encodeURIComponent(id)}&tab=${props.tab}`)
 }
 
 function openExpression(id: string) {
-  uni.navigateTo({ url: `/pkg-library/expression/index?id=${encodeURIComponent(id)}` })
+  navigateTo(`/pkg-library/expression/index?id=${encodeURIComponent(id)}`)
 }
 
 function openSession(id: string) {
-  uni.navigateTo({ url: `/pkg-session/session/index?id=${encodeURIComponent(id)}` })
+  navigateTo(`/pkg-session/session/index?id=${encodeURIComponent(id)}`)
 }
 
 function moreExpression(item: ExpressionSummary) {
@@ -253,10 +254,10 @@ defineExpose({ load })
 }
 
 .browser__link {
-  @include sv-hit-area;
   padding: 2px 6px;
   font-size: 14px;
   color: var(--sv-accent);
+  @include sv-hit-area;
 
   &.is-pressed {
     opacity: 0.5;
@@ -289,9 +290,9 @@ defineExpose({ load })
 }
 
 .browser__content {
-  @include sv-appear;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  @include sv-appear;
 }
 </style>

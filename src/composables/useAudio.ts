@@ -24,7 +24,7 @@ export function ensureAudioOption() {
  * 单个音频播放器：支持片段播放，播放进度按 tickMs 读取，只在变化时更新。
  * 播放新的音频会打断正在播放的。
  */
-export function useAudio(tickMs = 60) {
+export function useAudio(tickMs = 60, options: { onError?: () => void } = {}) {
   const playing = ref(false)
   const positionMs = ref(0)
 
@@ -67,6 +67,8 @@ export function useAudio(tickMs = 60) {
       settleUntil = 0
     })
     ctx.onError(() => {
+      // 多半是临时链接过期：让调用方作废缓存，下次换新链接
+      options.onError?.()
       if (!playing.value) return
       finish(false)
       uni.showToast({ title: '播放失败，请重试', icon: 'none' })

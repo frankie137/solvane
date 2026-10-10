@@ -81,7 +81,6 @@ onUnmounted(() => {
 }
 
 .search__clear {
-  @include sv-hit-area;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -89,6 +88,7 @@ onUnmounted(() => {
   height: 18px;
   border-radius: 9px;
   background-color: var(--sv-text-3);
+  @include sv-hit-area;
 
   &.is-pressed {
     opacity: 0.6;

@@ -144,7 +144,6 @@ function send() {
 }
 
 .revise__send {
-  @include sv-hit-area;
   width: 36px;
   height: 36px;
   flex-shrink: 0;
@@ -156,6 +155,7 @@ function send() {
   transition:
     background-color var(--sv-dur-1) var(--sv-ease),
     transform var(--sv-dur-1) var(--sv-ease-spring);
+  @include sv-hit-area;
 
   &.is-ready {
     background-image: var(--sv-accent-gradient);

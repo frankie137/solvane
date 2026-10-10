@@ -120,7 +120,6 @@ const timeText = computed(() =>
 }
 
 .panel__body {
-  @include sv-appear(panel-body-in);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -131,6 +130,7 @@ const timeText = computed(() =>
   min-height: 124px;
   box-sizing: border-box;
   padding: 0 20px;
+  @include sv-appear(panel-body-in);
 }
 
 .panel__mic {

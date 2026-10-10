@@ -35,7 +35,7 @@ export const useLibraryStore = defineStore('library', () => {
         keys.value = saved.keys
         error.value = ''
       } catch (err) {
-        error.value = err instanceof CloudError ? err.message : '加载失败'
+        error.value = err instanceof CloudError ? err.message : '请检查网络后重试'
       } finally {
         loaded.value = true
         inFlight = null

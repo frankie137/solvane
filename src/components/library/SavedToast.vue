@@ -60,7 +60,6 @@ const emit = defineEmits<{ action: [] }>()
 }
 
 .saved__action {
-  @include sv-hit-area;
   display: flex;
   align-items: center;
   gap: 2px;
@@ -70,6 +69,7 @@ const emit = defineEmits<{ action: [] }>()
   font-size: 14px;
   color: var(--sv-accent);
   background-color: var(--sv-accent-soft);
+  @include sv-hit-area;
 
   &.is-pressed {
     opacity: 0.6;

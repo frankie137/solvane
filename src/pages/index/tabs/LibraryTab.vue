@@ -112,7 +112,6 @@ void store.refresh()
 }
 
 .library__new {
-  @include sv-hit-area;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -120,6 +119,7 @@ void store.refresh()
   height: 36px;
   border-radius: 18px;
   background-color: var(--sv-accent-soft);
+  @include sv-hit-area;
 
   &.is-pressed {
     opacity: 0.6;

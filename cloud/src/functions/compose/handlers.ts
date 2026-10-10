@@ -166,7 +166,7 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
       })
     } catch (err) {
       const appErr =
-        err instanceof AppError ? err : new AppError('INTERNAL', '生成失败，请稍后重试')
+        err instanceof AppError ? err : new AppError('INTERNAL', '生成失败，请稍后再试')
       if (!(err instanceof AppError)) {
         console.error(`[compose.${kind}]`, err instanceof Error ? err.stack : String(err))
       }
@@ -338,7 +338,7 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
         })
       } catch (err) {
         const appErr =
-          err instanceof AppError ? err : new AppError('INTERNAL', '释义生成失败，请稍后重试')
+          err instanceof AppError ? err : new AppError('INTERNAL', '释义生成失败，请稍后再试')
         if (!(err instanceof AppError)) {
           console.error(
             '[compose.explainExpression]',

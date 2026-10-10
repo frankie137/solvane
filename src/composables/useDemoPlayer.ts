@@ -17,7 +17,12 @@ export function useDemoPlayer(
   vid: Ref<string | null>,
   sentences: Ref<SentencePair[]>,
 ) {
-  const audio = useAudio()
+  // 播放出错时作废缓存，下次重新获取链接
+  const audio = useAudio(60, {
+    onError: () => {
+      loadedAt = 0
+    },
+  })
   const settings = useSettingsStore()
   const tracks = shallowRef<TtsSentence[]>([])
   const loadedFor = ref('')

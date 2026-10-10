@@ -10,7 +10,7 @@
 
     <view class="recite">
       <sv-card v-if="loadError" :padding="24">
-        <sv-state icon="alert" tone="danger" title="加载失败" :description="loadError">
+        <sv-state icon="alert" tone="danger" title="背诵内容加载失败" :description="loadError">
           <sv-button type="secondary" size="sm" @click="load">重试</sv-button>
         </sv-state>
       </sv-card>
@@ -114,7 +114,7 @@ async function load() {
     version.value = v
     levels.value = v.sentences.map(() => 0)
   } catch (err) {
-    loadError.value = err instanceof CloudError ? err.message : '加载失败'
+    loadError.value = err instanceof CloudError ? err.message : '请检查网络后重试'
   }
 }
 
@@ -229,9 +229,9 @@ async function submit(result: RecordingResult) {
 }
 
 .recite__content {
-  @include sv-appear;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  @include sv-appear;
 }
 </style>

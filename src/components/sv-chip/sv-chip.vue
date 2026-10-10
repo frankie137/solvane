@@ -29,7 +29,6 @@ function onTap() {
 @import '@/styles/mixins.scss';
 
 .sv-chip {
-  @include sv-hit-area;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -45,6 +44,7 @@ function onTap() {
     background-color var(--sv-dur-1) var(--sv-ease),
     color var(--sv-dur-1) var(--sv-ease),
     transform var(--sv-dur-1) var(--sv-ease-spring);
+  @include sv-hit-area;
 
   &.is-active {
     color: var(--sv-text-on-accent);

@@ -150,6 +150,7 @@ import ProfileSheet from '@/components/profile/ProfileSheet.vue'
 import { useProfileStore } from '@/stores/profile'
 import { useSettingsStore } from '@/stores/settings'
 import { getEnvVersion } from '@/utils/env'
+import { navigateTo } from '@/utils/nav'
 
 const { collapsed, onScroll } = useCollapsingTitle()
 const bottomInset = useTabBarInset()
@@ -192,7 +193,7 @@ async function editProfile() {
 }
 
 function openShares() {
-  uni.navigateTo({ url: '/pkg-share/mine/index' })
+  navigateTo('/pkg-share/mine/index')
 }
 
 const version = __APP_VERSION__
@@ -333,11 +334,11 @@ function copyOpenid() {
 }
 
 function openLlm() {
-  uni.navigateTo({ url: '/pkg-settings/llm/index' })
+  navigateTo('/pkg-settings/llm/index')
 }
 
 function openGallery() {
-  uni.navigateTo({ url: '/pkg-dev/gallery/index' })
+  navigateTo('/pkg-dev/gallery/index')
 }
 
 onMounted(() => {
