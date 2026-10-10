@@ -5,7 +5,12 @@ import {
   buildReviseMessages,
 } from '../src/prompts/compose'
 
-const settings = { level: 'cet4' as const, accent: 'uk' as const }
+const settings = {
+  level: 'cet4' as const,
+  accent: 'uk' as const,
+  ttsVoice: 'female' as const,
+  ttsSpeed: 'normal' as const,
+}
 
 describe('提示词', () => {
   it('生成：带上水平和口音，原文放在用户消息的引号里', () => {

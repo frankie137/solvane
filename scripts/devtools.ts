@@ -1,14 +1,14 @@
 /**
- * 尽量不打扰使用者地驱动微信开发者工具做自动化测试。
+ * 驱动微信开发者工具做自动化测试、部署。
  *
- * 开发者工具没有无界面模式，这里的做法是：
- * - 没在运行时用 `open -g -j` 隐藏启动，不抢前台
- * - 自动化连接期间反复隐藏窗口，结束后再隐藏一次
- * - 由我们启动的，测完自动退出；使用者本来就开着的，只隐藏不关闭
- *
- * 隐藏窗口通过 System Events 完成，首次运行 macOS 会询问是否允许，拒绝也不影响测试本身。
+ * 使用者同意后才能调用（见 CLAUDE.md）。开发者工具没在运行时在后台启动（`open -g`，不抢前台），
+ * 用完不关闭、也不隐藏窗口，留着给下一次用。
  */
-import { execFile, execFileSync, spawn } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
+import { readdirSync, readFileSync } from 'node:fs'
+import { connect } from 'node:net'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import automator from 'miniprogram-automator'
 
 export const CLI_PATH =
@@ -29,22 +29,6 @@ function devtoolsPid(): number | null {
   }
 }
 
-let hiding = false
-
-/** 异步隐藏开发者工具；上一次还没结束时跳过，避免堆积 osascript 进程 */
-function hideDevtools(): Promise<void> {
-  const pid = devtoolsPid()
-  if (!pid || hiding) return Promise.resolve()
-  hiding = true
-  const script = `tell application "System Events" to set visible of (first process whose unix id is ${pid}) to false`
-  return new Promise((resolve) => {
-    execFile('osascript', ['-e', script], { timeout: 3000 }, () => {
-      hiding = false
-      resolve()
-    })
-  })
-}
-
 async function waitFor(check: () => boolean, timeoutMs: number): Promise<boolean> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
@@ -54,59 +38,82 @@ async function waitFor(check: () => boolean, timeoutMs: number): Promise<boolean
   return check()
 }
 
-function quitDevtools(): void {
+/** 开发者工具把服务端口写在 Default/.ide 里；退出后文件还在，所以只能用来知道端口号 */
+function idePort(): number | null {
+  const base = join(homedir(), 'Library/Application Support/微信开发者工具')
   try {
-    execFileSync(CLI_PATH, ['quit'], { stdio: 'ignore', timeout: 30_000 })
+    for (const dir of readdirSync(base)) {
+      try {
+        const port = Number(readFileSync(join(base, dir, 'Default/.ide'), 'utf8').trim())
+        if (Number.isInteger(port) && port > 0) return port
+      } catch {
+        // 不是用户数据目录
+      }
+    }
   } catch {
-    // 退出失败不影响测试结果
+    // 没找到目录时按默认流程走
+  }
+  return null
+}
+
+function portOpen(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect({ host: '127.0.0.1', port })
+    socket.setTimeout(1000)
+    socket.once('connect', () => {
+      socket.destroy()
+      resolve(true)
+    })
+    socket.once('error', () => resolve(false))
+    socket.once('timeout', () => {
+      socket.destroy()
+      resolve(false)
+    })
+  })
+}
+
+/** 刚启动时进程已在但服务端口还没就绪，这时命令行会读到旧的端口文件、连不上就放弃 */
+async function waitForPort(timeoutMs: number): Promise<void> {
+  const port = idePort()
+  if (!port) return
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (await portOpen(port)) return
+    await new Promise((r) => setTimeout(r, 500))
   }
 }
 
-/**
- * 确保开发者工具在后台运行并保持隐藏，执行 fn 后恢复原来的运行状态：
- * 由我们启动的就退出，使用者本来开着的只隐藏不关闭。
- */
-export async function withHiddenDevtools<T>(fn: () => Promise<T>): Promise<T> {
-  const startedByUs = devtoolsPid() === null
-  if (startedByUs) {
-    execFileSync('open', ['-g', '-j', '-a', APP_PATH])
+/** 确保开发者工具在运行、服务端口可以连接，再执行 fn；用完保持开着 */
+export async function withDevtools<T>(fn: () => Promise<T>): Promise<T> {
+  if (devtoolsPid() === null) {
+    execFileSync('open', ['-g', '-a', APP_PATH])
     await waitFor(() => devtoolsPid() !== null, 20_000)
   }
-
-  const hider = setInterval(() => void hideDevtools(), 400)
-  try {
-    return await fn()
-  } finally {
-    clearInterval(hider)
-    if (startedByUs) {
-      quitDevtools()
-    } else {
-      await hideDevtools()
-    }
-  }
+  await waitForPort(40_000)
+  return fn()
 }
 
-/** 在后台的开发者工具里打开项目并运行自动化测试 */
-export function withQuietDevtools<T>(
+/** 在开发者工具里打开项目并运行自动化测试；结束时只断开连接，不关闭项目 */
+export function withAutomator<T>(
   projectPath: string,
   fn: (mp: MiniProgram) => Promise<T>,
 ): Promise<T> {
-  return withHiddenDevtools(async () => {
+  return withDevtools(async () => {
     const mp = await automator.launch({ cliPath: CLI_PATH, projectPath, trustProject: true })
     try {
       return await fn(mp)
     } finally {
-      await mp.close().catch(() => {})
+      mp.disconnect()
     }
   })
 }
 
 /**
- * 在后台调用开发者工具命令行，输出同时打印到终端。
+ * 调用开发者工具命令行，输出同时打印到终端。
  * 命令行在部分失败时退出码仍是 0，所以由 failIf 按输出内容判断是否失败。
  */
 export function runDevtoolsCli(args: string[], failIf?: RegExp): Promise<void> {
-  return withHiddenDevtools(
+  return withDevtools(
     () =>
       new Promise<void>((resolve, reject) => {
         const child = spawn(CLI_PATH, args, { stdio: ['ignore', 'pipe', 'pipe'] })

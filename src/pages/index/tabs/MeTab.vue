@@ -41,7 +41,15 @@
           clickable
           @click="chooseAccent"
         />
-        <sv-cell title="示范朗读" icon="speaker" icon-bg="var(--sv-tint-orange)" value="M2 开放" />
+        <sv-cell
+          title="示范朗读"
+          icon="speaker"
+          icon-bg="var(--sv-tint-orange)"
+          :value="ttsName"
+          arrow
+          clickable
+          @click="chooseTts"
+        />
         <sv-cell
           title="大模型配置"
           icon="sliders"
@@ -109,7 +117,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive } from 'vue'
 import { storeToRefs } from 'pinia'
-import { ACCENTS, LEVELS } from '@shared/constants'
+import { ACCENTS, LEVELS, TTS_SPEEDS, TTS_VOICES } from '@shared/constants'
 import type { UserSettings } from '@shared/types'
 import { useCollapsingTitle } from '@/composables/useCollapsingTitle'
 import { useTabBarInset } from '@/composables/useTabBarInset'
@@ -133,6 +141,20 @@ const levelName = computed(() =>
 const accentName = computed(() =>
   loaded.value ? (ACCENTS.find((a) => a.id === settings.value.accent)?.name ?? '') : '—',
 )
+const TTS_OPTIONS = TTS_VOICES.flatMap((v) =>
+  TTS_SPEEDS.map((sp) => ({
+    ttsVoice: v.id,
+    ttsSpeed: sp.id,
+    name: `${v.name.split(' ')[0]} · ${sp.name}`,
+  })),
+)
+
+const ttsName = computed(() => {
+  if (!loaded.value) return '—'
+  const s = settings.value
+  return TTS_OPTIONS.find((o) => o.ttsVoice === s.ttsVoice && o.ttsSpeed === s.ttsSpeed)?.name ?? ''
+})
+
 const llmLabel = computed(() => {
   if (!llm.value) return '—'
   return { own: '我的配置', global: '管理员默认', none: '未配置' }[llm.value.effective]
@@ -211,6 +233,17 @@ async function updateSettings(patch: Partial<UserSettings>) {
   } catch (err) {
     uni.showToast({ title: err instanceof CloudError ? err.message : '保存失败', icon: 'none' })
   }
+}
+
+function chooseTts() {
+  if (!loaded.value) return
+  uni.showActionSheet({
+    itemList: TTS_OPTIONS.map((o) => o.name),
+    success: ({ tapIndex }) => {
+      const o = TTS_OPTIONS[tapIndex]
+      if (o) void updateSettings({ ttsVoice: o.ttsVoice, ttsSpeed: o.ttsSpeed })
+    },
+  })
 }
 
 function copyOpenid() {

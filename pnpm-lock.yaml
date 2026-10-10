@@ -203,6 +203,9 @@ importers:
       '@types/node-fetch':
         specifier: ^2.6.13
         version: 2.6.13
+      '@types/ws':
+        specifier: ^8.18.2
+        version: 8.18.2
       '@uni-helper/uni-app-types':
         specifier: 1.4.0
         version: 1.4.0(typescript@5.9.3)(vue@3.4.21(typescript@5.9.3))
@@ -242,6 +245,9 @@ importers:
       tencentcloud-sdk-nodejs-asr:
         specifier: ^4.1.315
         version: 4.1.315(supports-color@7.2.0)
+      tencentcloud-sdk-nodejs-tts:
+        specifier: ^4.1.237
+        version: 4.1.237(supports-color@7.2.0)
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
@@ -263,6 +269,9 @@ importers:
       vue-tsc:
         specifier: ^2.2.12
         version: 2.2.12(typescript@5.9.3)
+      ws:
+        specifier: ^8.18.0
+        version: 8.18.0
       wx-server-sdk:
         specifier: 4.0.2
         version: 4.0.2(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)(ws@8.18.0)
@@ -2814,6 +2823,9 @@ packages:
 
   '@types/responselike@1.0.3':
     resolution: {integrity: sha512-H/+L+UkTV33uf49PH5pCAUBVPNj2nDBXTN+qS1dOwyyg24l3CcicicCA7ca+HMvJBZcFgl5r8e+RR6elsb4Lyw==}
+
+  '@types/ws@8.18.2':
+    resolution: {integrity: sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==}
 
   '@typescript-eslint/eslint-plugin@8.71.1':
     resolution: {integrity: sha512-nNlBf6HuotqMgZvSkWD5hNdemiBIxQ2NmrlgfcUIeZRs+BbakjscCQRq/Hb74EFVnFiSWWdL12JruqwBy3ERDw==}
@@ -6448,6 +6460,10 @@ packages:
 
   tencentcloud-sdk-nodejs-common@4.1.220:
     resolution: {integrity: sha512-FlRJzgFYqSz1blKyN39Jhy/WdK3VuyFkn2+naKJfpwWcSpLF0F9AqSzPAtgorb5/Ezs8sLmFSCuaqFcCw+uIWw==}
+    engines: {node: '>=10'}
+
+  tencentcloud-sdk-nodejs-tts@4.1.237:
+    resolution: {integrity: sha512-fpZQesY+hdnwubkb7I+dIYYfHxEWEh11lG9v4u3zrYSUdwiSS08ylg9KXBZziSIcTYmNpx8IUXM53jellosAOA==}
     engines: {node: '>=10'}
 
   terminal-kit@2.11.7:
@@ -10504,6 +10520,10 @@ snapshots:
       undici-types: 7.24.6
 
   '@types/responselike@1.0.3':
+    dependencies:
+      '@types/node': 24.19.1
+
+  '@types/ws@8.18.2':
     dependencies:
       '@types/node': 24.19.1
 
@@ -14924,6 +14944,14 @@ snapshots:
       node-fetch: 2.7.0
       tslib: 1.13.0
       uuid: 9.0.1
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
+
+  tencentcloud-sdk-nodejs-tts@4.1.237(supports-color@7.2.0):
+    dependencies:
+      tencentcloud-sdk-nodejs-common: 4.1.220(supports-color@7.2.0)
+      tslib: 1.13.0
     transitivePeerDependencies:
       - encoding
       - supports-color

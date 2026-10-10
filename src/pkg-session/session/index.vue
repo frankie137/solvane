@@ -102,12 +102,58 @@
 
             <view class="english" :class="{ 'is-busy': revising }">
               <sv-card :padding="2" radius="m">
-                <sentence-list :sentences="current.sentences" />
+                <sentence-list
+                  :sentences="current.sentences"
+                  :active-sentence="activeSentence"
+                  :active-token="activeToken"
+                  interactive
+                  @select="playSentence"
+                />
               </sv-card>
               <view v-if="revising" class="english__busy">
                 <text>正在按「{{ pendingInstruction }}」修改…</text>
               </view>
             </view>
+
+            <view class="english__actions">
+              <view class="english__action">
+                <sv-button type="secondary" block :loading="demoLoading" @click="toggleDemo">
+                  <sv-icon :name="demoPlaying ? 'stop.fill' : 'play.fill'" :size="16" />
+                  <text>{{ demoPlaying ? '停止' : '听示范' }}</text>
+                </sv-button>
+              </view>
+              <view class="english__action">
+                <sv-button block haptic :disabled="generating || revising" @click="openRecite">
+                  <sv-icon name="mic.fill" :size="16" color="var(--sv-text-on-accent)" />
+                  <text>开始背诵</text>
+                </sv-button>
+              </view>
+            </view>
+            <text class="block__hint">点某一句可以单独重听</text>
+          </view>
+
+          <view v-if="practices.length" class="block">
+            <text class="block__label">背诵练习</text>
+            <sv-card :padding="2" radius="m">
+              <view
+                v-for="(p, i) in practices"
+                :key="p.id"
+                class="practice"
+                :class="{ 'has-divider': i > 0 }"
+                hover-class="is-pressed"
+                :hover-stay-time="60"
+                @tap="openReport(p.id)"
+              >
+                <text class="practice__score" :class="`is-${practiceTone(p)}`">{{
+                  p.overall ?? '—'
+                }}</text>
+                <view class="practice__info">
+                  <text class="practice__title">{{ practiceTitle(p) }}</text>
+                  <text class="practice__meta">{{ practiceMeta(p) }}</text>
+                </view>
+                <sv-icon name="chevron.right" :size="16" :weight="2.2" color="var(--sv-text-3)" />
+              </view>
+            </sv-card>
           </view>
 
           <view v-if="current.alternatives.length" class="block">
@@ -161,13 +207,17 @@
 
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
-import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
+import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import { storeToRefs } from 'pinia'
-import type { Session, Version } from '@shared/types'
+import type { PracticeSummary, Session, Version } from '@shared/types'
+import { useDemoPlayer } from '@/composables/useDemoPlayer'
 import { callCloud, CloudError } from '@/services/cloud'
+import { listPractices } from '@/services/practice'
 import { getSession, runSessionJob, setCurrentVersion } from '@/services/sessions'
 import { useSessionsStore } from '@/stores/sessions'
 import { useSystemStore } from '@/stores/system'
+import { scoreTone } from '@/utils/recite'
+import { formatRelative } from '@/utils/time'
 import AnalysisView from '../components/AnalysisView.vue'
 import ReviseBar from '../components/ReviseBar.vue'
 import SentenceList from '../components/SentenceList.vue'
@@ -250,10 +300,74 @@ onLoad((query) => {
   void reload()
 })
 
-// 从"大模型配置"回来时自动重试
+// 从"大模型配置"回来时自动重试；从背诵 / 报告页回来时刷新练习记录
 onShow(() => {
   if (genError.value?.code === 'NOT_CONFIGURED') void generate()
+  if (session.value) void loadPractices()
 })
+
+onHide(() => {
+  stopDemo()
+})
+
+// --- 示范朗读 ---------------------------------------------------------------
+
+const currentVid = computed(() => current.value?.vid ?? null)
+const currentSentences = computed(() => current.value?.sentences ?? [])
+const {
+  playing: demoPlaying,
+  loading: demoLoading,
+  activeSentence,
+  activeToken,
+  playAll,
+  playSentence,
+  stop: stopDemo,
+} = useDemoPlayer(sessionId, currentVid, currentSentences)
+
+function toggleDemo() {
+  if (demoPlaying.value) stopDemo()
+  else void playAll()
+}
+
+// --- 背诵练习 ---------------------------------------------------------------
+
+const practices = ref<PracticeSummary[]>([])
+
+async function loadPractices() {
+  try {
+    practices.value = await listPractices(sessionId.value)
+  } catch {
+    // 练习记录不影响对话本身，加载失败时不打扰
+  }
+}
+
+function practiceTone(p: PracticeSummary) {
+  return p.overall === null ? 'none' : scoreTone(p.overall)
+}
+
+function practiceTitle(p: PracticeSummary) {
+  const index = session.value?.versions.findIndex((v) => v.vid === p.vid) ?? -1
+  const v = session.value?.versions[index]
+  return v ? `背诵「${versionLabel(v, index)}」` : '背诵'
+}
+
+function practiceMeta(p: PracticeSummary) {
+  const status = p.stage === 'done' ? '' : p.failed ? ' · 评测失败' : ' · 评测中'
+  return `${formatRelative(p.createdAt)}${status}`
+}
+
+function openRecite() {
+  if (!current.value) return
+  stopDemo()
+  uni.navigateTo({
+    url: `/pkg-recite/recite/index?sessionId=${encodeURIComponent(sessionId.value)}&vid=${current.value.vid}`,
+  })
+}
+
+function openReport(practiceId: string) {
+  stopDemo()
+  uni.navigateTo({ url: `/pkg-recite/report/index?practiceId=${encodeURIComponent(practiceId)}` })
+}
 
 async function reload() {
   loadError.value = null
@@ -263,6 +377,7 @@ async function reload() {
     loadError.value = asCloudError(err)
     return
   }
+  void loadPractices()
   await ensure()
 }
 
@@ -340,6 +455,7 @@ async function revise(instruction: string) {
   const base = current.value
   if (!s || !base || busy.value) return
   const before = s.versions.length
+  stopDemo()
   revising.value = true
   pendingInstruction.value = instruction
   scrollTarget.value = ''
@@ -506,6 +622,79 @@ function openLlmSettings() {
   text-align: center;
   font-size: 13px;
   color: var(--sv-accent);
+}
+
+.english__actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.english__action {
+  flex: 1;
+}
+
+.practice {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  transition: background-color var(--sv-dur-1) var(--sv-ease);
+
+  &.has-divider::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 16px;
+    right: 16px;
+    height: 0.5px;
+    background-color: var(--sv-separator);
+  }
+
+  &.is-pressed {
+    background-color: var(--sv-fill);
+  }
+}
+
+.practice__score {
+  width: 44px;
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--sv-text-3);
+
+  &.is-good {
+    color: var(--sv-success);
+  }
+
+  &.is-fair {
+    color: var(--sv-warning);
+  }
+
+  &.is-poor {
+    color: var(--sv-danger);
+  }
+}
+
+.practice__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.practice__title {
+  font-size: 16px;
+  line-height: 21px;
+}
+
+.practice__meta {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--sv-text-2);
 }
 
 .alt {

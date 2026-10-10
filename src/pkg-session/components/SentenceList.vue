@@ -1,22 +1,62 @@
 <template>
   <view class="sentences">
-    <view v-for="(s, i) in sentences" :key="i" class="sentence" :class="{ 'has-divider': i > 0 }">
-      <text class="sentence__en sv-en">{{ s.en }}</text>
+    <view
+      v-for="(s, i) in sentences"
+      :key="i"
+      class="sentence"
+      :class="{ 'has-divider': i > 0, 'is-active': i === activeSentence }"
+      :hover-class="interactive ? 'is-pressed' : 'none'"
+      :hover-stay-time="60"
+      @tap="onTap(i)"
+    >
+      <!-- 正在朗读的句子逐词渲染以便高亮，其余句子整句渲染，减少节点 -->
+      <view v-if="i === activeSentence" class="sentence__en sv-en">
+        <text
+          v-for="(t, j) in tokensOf(i)"
+          :key="j"
+          class="sentence__token"
+          :class="{ 'is-current': j === activeToken }"
+          >{{ t.text + ' ' }}</text
+        >
+      </view>
+      <text v-else class="sentence__en sv-en">{{ s.en }}</text>
       <text class="sentence__zh">{{ s.zh }}</text>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { SentencePair } from '@shared/types'
+import { tokenize } from '@/utils/recite'
 
-defineProps<{ sentences: SentencePair[] }>()
+const props = withDefaults(
+  defineProps<{
+    sentences: SentencePair[]
+    /** 正在朗读的句子和词，-1 表示没有 */
+    activeSentence?: number
+    activeToken?: number
+    /** 点句子可以单独重听 */
+    interactive?: boolean
+  }>(),
+  { activeSentence: -1, activeToken: -1, interactive: false },
+)
+
+const emit = defineEmits<{ select: [index: number] }>()
+
+const tokens = computed(() => props.sentences.map((s) => tokenize(s.en)))
+const tokensOf = (i: number) => tokens.value[i] ?? []
+
+function onTap(i: number) {
+  if (props.interactive) emit('select', i)
+}
 </script>
 
 <style lang="scss">
 .sentence {
   position: relative;
   padding: 14px 16px;
+  transition: background-color var(--sv-dur-1) var(--sv-ease);
 
   &.has-divider::before {
     content: '';
@@ -27,6 +67,14 @@ defineProps<{ sentences: SentencePair[] }>()
     height: 0.5px;
     background-color: var(--sv-separator);
   }
+
+  &.is-pressed {
+    background-color: var(--sv-fill);
+  }
+
+  &.is-active {
+    background-color: var(--sv-accent-soft);
+  }
 }
 
 .sentence__en {
@@ -35,6 +83,17 @@ defineProps<{ sentences: SentencePair[] }>()
   line-height: 26px;
   font-weight: 600;
   color: var(--sv-text);
+}
+
+.sentence__token {
+  border-radius: 4px;
+  transition:
+    color var(--sv-dur-1) var(--sv-ease),
+    background-color var(--sv-dur-1) var(--sv-ease);
+
+  &.is-current {
+    color: var(--sv-accent);
+  }
 }
 
 .sentence__zh {

@@ -5,6 +5,13 @@ import type {
   Job,
   JobError,
   LlmPresetId,
+  Practice,
+  PracticeError,
+  PracticeJob,
+  PracticeStage,
+  TimedText,
+  TtsSpeed,
+  TtsVoice,
   Version,
 } from '@shared/types'
 
@@ -22,9 +29,37 @@ export interface SessionDoc {
   /** M3 收藏用 */
   folderId: string | null
   tags: string[]
+  /** 示范朗读缓存（只在服务端使用，不发给前端）：版本号 → 音色语速 → 每句 */
+  tts?: Record<string, TtsCache>
   createdAt: number
   updatedAt: number
 }
+
+/** 数据库里的练习记录 */
+export interface PracticeDoc {
+  _id: string
+  _openid: string
+  sessionId: string
+  vid: string
+  stage: PracticeStage
+  job: PracticeJob | null
+  lastError: PracticeError | null
+  /** 原始 PCM 录音，评测完成后删除 */
+  pcmFileID: string | null
+  /** 转换后的 WAV，用于回放 */
+  wavFileID: string | null
+  durationMs: number
+  transcript: Practice['transcript']
+  alignment: Practice['alignment']
+  pronunciation: Practice['pronunciation']
+  report: Practice['report']
+  createdAt: number
+  updatedAt: number
+}
+
+export type PracticePatch = Partial<
+  Omit<PracticeDoc, '_id' | '_openid' | 'sessionId' | 'createdAt'>
+>
 
 export type SessionPatch = Partial<Omit<SessionDoc, '_id' | '_openid' | 'createdAt'>>
 
@@ -43,9 +78,20 @@ export interface SettingsDoc {
   _id: string
   level?: EnglishLevel
   accent?: Accent
+  ttsVoice?: TtsVoice
+  ttsSpeed?: TtsSpeed
   llm?: LlmStored | null
   updatedAt: number
 }
+
+/** 一句示范朗读的缓存：云存储文件 + 逐词时间 */
+export interface TtsCachedSentence {
+  fileID: string
+  words: TimedText[]
+}
+
+/** 版本上的示范朗读缓存，键为「音色-语速」 */
+export type TtsCache = Record<string, TtsCachedSentence[]>
 
 export const GLOBAL_SETTINGS_ID = '__global__'
 
@@ -66,9 +112,20 @@ export interface SettingsRepo {
   upsert(id: string, patch: Partial<Omit<SettingsDoc, '_id'>>): Promise<void>
 }
 
+export interface PracticeRepo {
+  create(doc: Omit<PracticeDoc, '_id'>): Promise<string>
+  get(id: string, openid: string): Promise<PracticeDoc | null>
+  acquireJob(id: string, openid: string, job: PracticeJob, staleBefore: number): Promise<boolean>
+  updateIfJob(id: string, openid: string, startedAt: number, patch: PracticePatch): Promise<boolean>
+  /** 某个对话的练习，按创建时间倒序 */
+  listBySession(openid: string, sessionId: string, limit: number): Promise<PracticeDoc[]>
+  remove(id: string, openid: string): Promise<void>
+}
+
 export interface Repos {
   sessions: SessionRepo
   settings: SettingsRepo
+  practices: PracticeRepo
 }
 
 // ---------------------------------------------------------------------------
@@ -94,6 +151,10 @@ interface WxCollection extends WxQuery {
   }
 }
 
+interface WxRemovable {
+  remove(): Promise<unknown>
+}
+
 interface WxCommand {
   set(value: unknown): unknown
   eq(value: unknown): unknown
@@ -110,6 +171,7 @@ export interface WxDatabase {
 
 const SESSIONS = 'sessions'
 const SETTINGS = 'settings'
+const PRACTICES = 'practices'
 
 function isCollectionMissing(err: unknown): boolean {
   const e = err as { errCode?: number; errMsg?: string; message?: string }
@@ -224,5 +286,53 @@ export function createWxRepos(db: WxDatabase): Repos {
       }),
   }
 
-  return { sessions: sessionRepo, settings: settingsRepo }
+  const practices = () => db.collection(PRACTICES)
+  const practiceRepo: PracticeRepo = {
+    create: (doc) =>
+      withCollection(db, PRACTICES, async () => (await practices().add({ data: doc }))._id),
+
+    get: (id, openid) =>
+      withCollection(db, PRACTICES, async () => {
+        const { data } = await practices().where({ _id: id, _openid: openid }).limit(1).get()
+        return (data[0] as PracticeDoc | undefined) ?? null
+      }),
+
+    acquireJob: (id, openid, job, staleBefore) =>
+      withCollection(db, PRACTICES, async () => {
+        const res = await practices()
+          .where(
+            _.and([
+              { _id: id, _openid: openid },
+              _.or([{ job: _.eq(null) }, { 'job.startedAt': _.lt(staleBefore) }]),
+            ]),
+          )
+          .update({ data: { job: _.set(job) } })
+        return res.stats.updated === 1
+      }),
+
+    updateIfJob: (id, openid, startedAt, patch) =>
+      withCollection(db, PRACTICES, async () => {
+        const res = await practices()
+          .where({ _id: id, _openid: openid, 'job.startedAt': startedAt })
+          .update({ data: toUpdateData(_, patch) })
+        return res.stats.updated === 1
+      }),
+
+    listBySession: (openid, sessionId, limit) =>
+      withCollection(db, PRACTICES, async () => {
+        const { data } = await practices()
+          .where({ _openid: openid, sessionId })
+          .orderBy('createdAt', 'desc')
+          .limit(limit)
+          .get()
+        return data as PracticeDoc[]
+      }),
+
+    remove: (id, openid) =>
+      withCollection(db, PRACTICES, async () => {
+        await (practices().where({ _id: id, _openid: openid }) as unknown as WxRemovable).remove()
+      }),
+  }
+
+  return { sessions: sessionRepo, settings: settingsRepo, practices: practiceRepo }
 }

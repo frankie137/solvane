@@ -52,8 +52,19 @@ describe('设置', () => {
     const { handlers } = setup()
     await handlers.updateSettings({ level: 'ielts' }, ME)
     await expect(handlers.updateSettings({ accent: 'uk' }, ME)).resolves.toEqual({
+      ...DEFAULT_SETTINGS,
       level: 'ielts',
       accent: 'uk',
+    })
+  })
+
+  it('保存示范朗读的音色和语速', async () => {
+    const { handlers } = setup()
+    await expect(
+      handlers.updateSettings({ ttsVoice: 'male', ttsSpeed: 'slow' }, ME),
+    ).resolves.toMatchObject({
+      ttsVoice: 'male',
+      ttsSpeed: 'slow',
     })
   })
 

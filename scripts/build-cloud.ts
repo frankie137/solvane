@@ -53,7 +53,8 @@ async function buildFunction(name: string, sdkVersion: string): Promise<void> {
     target: NODE_TARGET,
     format: 'cjs',
     tsconfig: join(root, 'cloud/tsconfig.json'),
-    external: ['wx-server-sdk'],
+    // wx-server-sdk 在云端安装；bufferutil / utf-8-validate 是 ws 的可选原生加速，不打包
+    external: ['wx-server-sdk', 'bufferutil', 'utf-8-validate'],
     legalComments: 'none',
     logLevel: 'warning',
   })

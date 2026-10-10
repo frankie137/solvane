@@ -4,7 +4,7 @@
 
 ## 工作方式
 
-- 自动化测试不要打扰使用者：**启动开发者工具（冒烟测试、截图）前必须先得到使用者确认**，先做完静态检查；获准后只通过 `scripts/devtools.ts` 的 `withQuietDevtools()` 驱动。`pnpm preview` 不需要开发者工具，可以直接用来给使用者真机验收
+- **启动开发者工具（冒烟测试、截图、经开发者工具部署）前必须先得到使用者确认**，先做完静态检查；获准后通过 `scripts/devtools.ts`（`withAutomator()` / `runDevtoolsCli()`）驱动。不需要隐藏窗口，用完也不用关，开着留给下次用。`pnpm preview` 不需要开发者工具，可以直接用来给使用者真机验收
 
 - 和使用者用中文沟通；界面文案、文档、代码注释也用中文
 - 新需求先讨论、敲定细节，再动手开发
@@ -18,7 +18,7 @@ pnpm dev          # 开发构建（监听），输出到 dist/mp-weixin
 pnpm build        # 生产构建
 pnpm build:cloud  # 打包云函数到 cloudfunctions/
 pnpm check        # 提交前必跑：格式、规范、类型、测试、构建（git push 前也会自动跑）
-pnpm smoke        # 冒烟测试：后台驱动开发者工具并自动隐藏窗口（需已登录、开启服务端口）
+pnpm smoke        # 冒烟测试：驱动开发者工具逐页截图（需已登录、开启服务端口；先征得使用者同意）
 pnpm preview      # 生成预览二维码 .ci/preview.png
 pnpm upload       # 上传开发版 / 更新体验版
 pnpm deploy:cloud # 部署云函数（可跟函数名）；IP 被白名单拦时用 pnpm deploy:cloud:devtools

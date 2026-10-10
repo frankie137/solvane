@@ -6,6 +6,7 @@ const VALID = new Map([
   ['ADMIN_OPENIDS', 'o13Rf1abcdefghijklmnopqTSX8'],
   ['TENCENT_SECRET_ID', 'AKIDabcdefghijklmnop'],
   ['TENCENT_SECRET_KEY', 'k'.repeat(32)],
+  ['SOE_APP_ID', '1300000000'],
 ])
 
 describe('parseEnvFile', () => {
@@ -59,6 +60,9 @@ describe('validateSecrets', () => {
     ['ADMIN_OPENIDS', 'x13Rf1abcdefghijklmnopqTSX8', '第一个字符是小写字母'],
     ['ADMIN_OPENIDS', '“o13Rf1abcdefghijklmnopqTSX8”', '第一个字符是引号'],
     ['KEY_ENCRYPTION_SECRET', '“', '第一个字符是引号'],
+    ['SOE_APP_ID', '', 'SOE_APP_ID 不能为空'],
+    ['SOE_APP_ID', 'wx46ecc9293eb0f276', '不是 wx 开头的微信 AppID'],
+    ['SOE_APP_ID', '100012345678', '看起来是账号 ID'],
     ['TENCENT_SECRET_ID', 'abc', 'TENCENT_SECRET_ID'],
     ['TENCENT_SECRET_KEY', '', 'TENCENT_SECRET_KEY'],
   ])('%s=%j 报错', (key, value, text) => {

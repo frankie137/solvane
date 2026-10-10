@@ -31,6 +31,19 @@
       ]
     },
     {
+      "root": "pkg-recite",
+      "pages": [
+        {
+          "path": "recite/index",
+          "style": {}
+        },
+        {
+          "path": "report/index",
+          "style": {}
+        }
+      ]
+    },
+    {
       "root": "pkg-settings",
       "pages": [
         {
@@ -53,6 +66,10 @@
     "pages/index/index": {
       "network": "all",
       "packages": ["pkg-session"]
+    },
+    "pkg-session/session/index": {
+      "network": "all",
+      "packages": ["pkg-recite"]
     }
   }
 }

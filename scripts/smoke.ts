@@ -3,12 +3,12 @@
  * 页面抛出未捕获异常时失败。截图保存在 .smoke/ 目录。
  *
  * 前置条件：开发者工具已登录，并在「设置 → 安全设置」中开启服务端口。
- * 开发者工具在后台运行、窗口自动隐藏，测完恢复原状（见 scripts/devtools.ts）。
+ * 开发者工具没在运行时在后台启动，测完保持开着（见 scripts/devtools.ts）。
  * 运行：pnpm smoke（会先构建小程序）
  */
 import { mkdirSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { withQuietDevtools } from './devtools'
+import { withAutomator } from './devtools'
 
 const root = resolve(__dirname, '..')
 const outDir = join(root, '.smoke')
@@ -32,6 +32,16 @@ const ROUTES: Route[] = [
     url: '/pkg-session/session/index?id=smoke-missing',
     path: 'pkg-session/session/index',
   },
+  {
+    name: '07-recite-missing',
+    url: '/pkg-recite/recite/index?sessionId=smoke-missing&vid=v1',
+    path: 'pkg-recite/recite/index',
+  },
+  {
+    name: '08-report-missing',
+    url: '/pkg-recite/report/index?practiceId=smoke-missing',
+    path: 'pkg-recite/report/index',
+  },
 ]
 
 /** 等 tab 切换和入场动画结束 */
@@ -45,7 +55,7 @@ async function main(): Promise<void> {
   const consoleErrors: string[] = []
 
   const failures: string[] = []
-  await withQuietDevtools(root, async (mp) => {
+  await withAutomator(root, async (mp) => {
     mp.on('exception', (e: { message?: string }) => exceptions.push(e.message ?? String(e)))
     mp.on('console', (msg: { type?: string; args?: unknown[] }) => {
       if (msg.type === 'error') consoleErrors.push(JSON.stringify(msg.args))
@@ -73,7 +83,10 @@ async function main(): Promise<void> {
   console.info(`\n全部通过，截图在 ${outDir}`)
 }
 
-main().catch((err: unknown) => {
-  console.error(err)
-  process.exit(1)
-})
+// 自动化连接断开后可能还留着句柄，结束时主动退出
+main()
+  .then(() => process.exit(0))
+  .catch((err: unknown) => {
+    console.error(err)
+    process.exit(1)
+  })

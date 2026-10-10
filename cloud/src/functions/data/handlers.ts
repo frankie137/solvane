@@ -1,10 +1,10 @@
 import { z } from 'zod'
-import { DEFAULT_SETTINGS, LIMITS } from '@shared/constants'
-import type { UserSettings } from '@shared/types'
+import { LIMITS } from '@shared/constants'
 import { AppError } from '../../lib/errors'
 import type { Repos } from '../../lib/repos'
 import type { Handlers } from '../../lib/router'
 import { requireSession, toSession, toSummary } from '../../lib/sessions'
+import { toUserSettings } from '../../lib/settings'
 import { parsePayload } from '../../lib/validate'
 
 export interface DataDeps {
@@ -14,17 +14,13 @@ export interface DataDeps {
 
 const levelSchema = z.enum(['junior', 'senior', 'cet4', 'cet6', 'ielts', 'toefl'])
 const accentSchema = z.enum(['us', 'uk'])
+const ttsVoiceSchema = z.enum(['female', 'male'])
+const ttsSpeedSchema = z.enum(['normal', 'slow'])
 
 export function createDataHandlers(deps: DataDeps): Handlers<'data'> {
   const { sessions, settings } = deps.repos
 
-  async function readSettings(openid: string): Promise<UserSettings> {
-    const doc = await settings.get(openid)
-    return {
-      level: doc?.level ?? DEFAULT_SETTINGS.level,
-      accent: doc?.accent ?? DEFAULT_SETTINGS.accent,
-    }
-  }
+  const readSettings = async (openid: string) => toUserSettings(await settings.get(openid))
 
   return {
     async ping(_payload, ctx) {
@@ -37,7 +33,12 @@ export function createDataHandlers(deps: DataDeps): Handlers<'data'> {
 
     async updateSettings(payload, ctx) {
       const patch = parsePayload(
-        z.object({ level: levelSchema.optional(), accent: accentSchema.optional() }),
+        z.object({
+          level: levelSchema.optional(),
+          accent: accentSchema.optional(),
+          ttsVoice: ttsVoiceSchema.optional(),
+          ttsSpeed: ttsSpeedSchema.optional(),
+        }),
         payload,
       )
       await settings.upsert(ctx.openid, { ...patch, updatedAt: deps.now() })

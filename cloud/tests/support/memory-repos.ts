@@ -1,12 +1,21 @@
-import type { Repos, SessionDoc, SessionPatch, SettingsDoc } from '../../src/lib/repos'
+import type {
+  PracticeDoc,
+  PracticePatch,
+  Repos,
+  SessionDoc,
+  SessionPatch,
+  SettingsDoc,
+} from '../../src/lib/repos'
 
 /** 和云数据库实现语义一致的内存版本，供 handler 测试使用 */
 export function createMemoryRepos(): Repos & {
   sessionDocs: Map<string, SessionDoc>
   settingsDocs: Map<string, SettingsDoc>
+  practiceDocs: Map<string, PracticeDoc>
 } {
   const sessionDocs = new Map<string, SessionDoc>()
   const settingsDocs = new Map<string, SettingsDoc>()
+  const practiceDocs = new Map<string, PracticeDoc>()
   let seq = 0
 
   const clone = <T>(v: T): T => structuredClone(v)
@@ -20,9 +29,54 @@ export function createMemoryRepos(): Repos & {
     }
   }
 
+  const ownPractice = (id: string, openid: string) => {
+    const doc = practiceDocs.get(id)
+    return doc && doc._openid === openid ? doc : null
+  }
+  const applyPractice = (doc: PracticeDoc, patch: PracticePatch) => {
+    for (const [k, v] of Object.entries(patch)) {
+      if (v !== undefined) (doc as unknown as Record<string, unknown>)[k] = clone(v)
+    }
+  }
+
   return {
     sessionDocs,
     settingsDocs,
+    practiceDocs,
+    practices: {
+      async create(doc) {
+        const _id = `p${++seq}`
+        practiceDocs.set(_id, clone({ ...doc, _id }))
+        return _id
+      },
+      async get(id, openid) {
+        const doc = ownPractice(id, openid)
+        return doc ? clone(doc) : null
+      },
+      async acquireJob(id, openid, job, staleBefore) {
+        const doc = ownPractice(id, openid)
+        if (!doc) return false
+        if (doc.job && doc.job.startedAt >= staleBefore) return false
+        doc.job = clone(job)
+        return true
+      },
+      async updateIfJob(id, openid, startedAt, patch) {
+        const doc = ownPractice(id, openid)
+        if (!doc || doc.job?.startedAt !== startedAt) return false
+        applyPractice(doc, patch)
+        return true
+      },
+      async listBySession(openid, sessionId, limit) {
+        return [...practiceDocs.values()]
+          .filter((d) => d._openid === openid && d.sessionId === sessionId)
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .slice(0, limit)
+          .map(clone)
+      },
+      async remove(id, openid) {
+        if (ownPractice(id, openid)) practiceDocs.delete(id)
+      },
+    },
     sessions: {
       async create(doc) {
         const _id = `s${++seq}`
