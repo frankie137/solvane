@@ -1,6 +1,6 @@
 {
   "name": "solvane",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "用母语说出想法，学会地道英文表达的微信小程序",
   "packageManager": "pnpm@12.10.1",
