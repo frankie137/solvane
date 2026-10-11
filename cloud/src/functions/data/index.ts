@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { createFunction, getCloud } from '../../lib/cloud'
+import { env } from '../../lib/env'
 import { createWxRepos, type WxDatabase } from '../../lib/repos'
 import { createWxStorage } from '../../lib/storage'
 import { createDataHandlers } from './handlers'
@@ -14,5 +15,6 @@ export const main = createFunction(
     storage: createWxStorage(cloud),
     now: Date.now,
     newFileName: () => randomUUID(),
+    adminOpenids: env.adminOpenids,
   }),
 )

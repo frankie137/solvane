@@ -7,10 +7,31 @@ import type {
   AlignedSentence,
   Practice,
   PracticeScores,
+  PracticeStage,
   ScoredWord,
   SpokenWord,
 } from '@shared/types'
 import type { SoeMode, SoeResult } from './tencent/soe'
+
+const STAGE_ORDER: PracticeStage[] = ['transcribe', 'align', 'score', 'report', 'done']
+
+/**
+ * 一条练习要推进到哪一步为止：要评分的做完全部；只为分享准备歌词时间的做完对照、停在 score 之前；
+ * 只录了音的什么都不做。M6 之前的练习没有标记，都是要评分的。
+ */
+export function practiceGoal(flags: {
+  scoreRequested?: boolean
+  timingRequested?: boolean
+}): PracticeStage {
+  if (flags.scoreRequested ?? true) return 'done'
+  if (flags.timingRequested) return 'score'
+  return 'transcribe'
+}
+
+/** 当前停在的步骤是否已经到了目标（目标之前的步骤都做完了） */
+export function reachedStage(stage: PracticeStage, goal: PracticeStage): boolean {
+  return STAGE_ORDER.indexOf(stage) >= STAGE_ORDER.indexOf(goal)
+}
 
 export interface SentenceMatch {
   index: number

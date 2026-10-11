@@ -20,6 +20,7 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
+import { useAccountStore } from '@/stores/account'
 import { useLibraryStore } from '@/stores/library'
 import { useProfileStore } from '@/stores/profile'
 import { useSessionsStore } from '@/stores/sessions'
@@ -47,8 +48,11 @@ watch(active, (key) => {
 const sessionsStore = useSessionsStore()
 const libraryStore = useLibraryStore()
 const profileStore = useProfileStore()
+const accountStore = useAccountStore()
 onShow(() => {
   void sessionsStore.refresh()
+  // 会员状态：剩余次数可能刚用掉，也可能刚被管理员开通了 Pro；第一次打开时建档
+  accountStore.refresh()
   if (visited.library) libraryStore.touch()
   // 「我的」页一直不卸载，头像临时链接快过期时换新的
   if (visited.me) void profileStore.refreshIfStale()

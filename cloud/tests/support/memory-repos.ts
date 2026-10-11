@@ -1,17 +1,20 @@
-import type {
-  ExpressionDoc,
-  FolderDoc,
-  PracticeDoc,
-  PracticePatch,
-  ShareDoc,
-  Repos,
-  SessionDoc,
-  SessionPatch,
-  SettingsDoc,
+import {
+  GLOBAL_SETTINGS_ID,
+  type AccountDoc,
+  type ExpressionDoc,
+  type FolderDoc,
+  type PracticeDoc,
+  type PracticePatch,
+  type ShareDoc,
+  type Repos,
+  type SessionDoc,
+  type SessionPatch,
+  type SettingsDoc,
 } from '../../src/lib/repos'
 
 /** 和云数据库实现语义一致的内存版本，供 handler 测试使用 */
 export function createMemoryRepos(): Repos & {
+  accountDocs: Map<string, AccountDoc>
   sessionDocs: Map<string, SessionDoc>
   settingsDocs: Map<string, SettingsDoc>
   practiceDocs: Map<string, PracticeDoc>
@@ -19,6 +22,7 @@ export function createMemoryRepos(): Repos & {
   expressionDocs: Map<string, ExpressionDoc>
   shareDocs: Map<string, ShareDoc>
 } {
+  const accountDocs = new Map<string, AccountDoc>()
   const sessionDocs = new Map<string, SessionDoc>()
   const settingsDocs = new Map<string, SettingsDoc>()
   const practiceDocs = new Map<string, PracticeDoc>()
@@ -62,6 +66,43 @@ export function createMemoryRepos(): Repos & {
   }
 
   return {
+    accountDocs,
+    accounts: {
+      async get(id) {
+        const doc = accountDocs.get(id)
+        return doc ? clone(doc) : null
+      },
+      async create(doc) {
+        if (!accountDocs.has(doc._id)) accountDocs.set(doc._id, clone(doc))
+      },
+      async consume(id, limit, now) {
+        const doc = accountDocs.get(id)
+        if (!doc || doc.freeUsed >= limit) return false
+        doc.freeUsed += 1
+        doc.updatedAt = now
+        return true
+      },
+      async refund(id, now) {
+        const doc = accountDocs.get(id)
+        if (!doc || doc.freeUsed <= 0) return
+        doc.freeUsed -= 1
+        doc.updatedAt = now
+      },
+      async setProUntil(id, expected, grant) {
+        const doc = accountDocs.get(id)
+        if (!doc || doc.proUntil !== expected) return false
+        doc.proUntil = grant.until
+        doc.grants.push(clone(grant))
+        doc.updatedAt = grant.at
+        return true
+      },
+      async list(limit) {
+        return [...accountDocs.values()]
+          .sort((a, b) => a.createdAt - b.createdAt)
+          .slice(0, limit)
+          .map(clone)
+      },
+    },
     sessionDocs,
     settingsDocs,
     practiceDocs,
@@ -183,6 +224,25 @@ export function createMemoryRepos(): Repos & {
         const doc = ownPractice(id, openid)
         return doc ? clone(doc) : null
       },
+      async update(id, openid, patch) {
+        const doc = ownPractice(id, openid)
+        if (!doc) return false
+        applyPractice(doc, patch)
+        return true
+      },
+      async findBySource(openid, fileID) {
+        const doc = [...practiceDocs.values()].find(
+          (d) => d._openid === openid && d.sourceFileID === fileID,
+        )
+        return doc ? clone(doc) : null
+      },
+      async requestScore(id, openid, freeCharged) {
+        const doc = ownPractice(id, openid)
+        if (!doc || doc.scoreRequested !== false) return false
+        doc.scoreRequested = true
+        doc.freeCharged = freeCharged
+        return true
+      },
       async acquireJob(id, openid, job, staleBefore) {
         const doc = ownPractice(id, openid)
         if (!doc) return false
@@ -293,6 +353,17 @@ export function createMemoryRepos(): Repos & {
           if (v !== undefined) (doc as unknown as Record<string, unknown>)[k] = clone(v)
         }
         settingsDocs.set(id, doc)
+      },
+      async listProfiles(ids) {
+        return ids
+          .map((id) => settingsDocs.get(id))
+          .filter((d): d is SettingsDoc => !!d)
+          .map((d) => ({ _id: d._id, profile: clone(d.profile) }))
+      },
+      async clearMemberLlm() {
+        for (const doc of settingsDocs.values()) {
+          if (doc._id !== GLOBAL_SETTINGS_ID && doc.llm) doc.llm = null
+        }
       },
     },
   }

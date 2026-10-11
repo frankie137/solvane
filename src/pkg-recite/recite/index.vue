@@ -32,7 +32,6 @@
             :sentences="version.sentences"
             :levels="levels"
             :active-sentence="activeSentence"
-            :active-token="activeToken"
             @tap-sentence="cycleHint"
           />
         </sv-card>
@@ -62,7 +61,7 @@
     @finish="recorder.stop(false)"
     @cancel="recorder.stop(true)"
     @resubmit="resubmit"
-    @discard="failedRecording = null"
+    @discard="discardFailed"
   />
 </template>
 
@@ -75,7 +74,8 @@ import { LIMITS } from '@shared/constants'
 import { useDemoPlayer } from '@/composables/useDemoPlayer'
 import { useRecorder, type RecordingResult } from '@/composables/useRecorder'
 import { CloudError } from '@/services/cloud'
-import { startPractice } from '@/services/practice'
+import { mayStillRun } from '@/services/cloud-error'
+import { startPractice, uploadRecitation } from '@/services/practice'
 import { getSession } from '@/services/sessions'
 import { useSystemStore } from '@/stores/system'
 import { nextHint, type HintLevel } from '@/utils/recite'
@@ -95,7 +95,6 @@ const submitting = ref(false)
 const { metrics } = storeToRefs(useSystemStore())
 const bottomInset = computed(() => `height:${PANEL_HEIGHT + metrics.value.safeAreaBottom + 24}px`)
 
-const sentences = computed(() => version.value?.sentences ?? [])
 const allHidden = computed(() => levels.value.every((l) => l === 0))
 const allShown = computed(() => levels.value.every((l) => l === 2))
 
@@ -138,10 +137,9 @@ const {
   playing: demoPlaying,
   loading: demoLoading,
   activeSentence,
-  activeToken,
   playAll,
   stop: stopDemo,
-} = useDemoPlayer(sessionId, vid, sentences)
+} = useDemoPlayer(sessionId, vid)
 
 function toggleDemo() {
   if (demoPlaying.value) stopDemo()
@@ -161,24 +159,33 @@ function startRecording() {
   void recorder.start()
 }
 
-/** 提交失败时保留录音，可以重新提交 */
-const failedRecording = ref<RecordingResult | null>(null)
+/** 提交失败时保留录音，可以重新提交；结果不确定时连同已上传的文件一起保留，重新提交不会重复建 */
+const failedRecording = ref<{ result: RecordingResult; fileID: string | null } | null>(null)
 
-function resubmit() {
-  const result = failedRecording.value
-  if (result) void submit(result)
+/** 放弃重新提交：留着的上传文件也删掉 */
+function discardFailed() {
+  const fileID = failedRecording.value?.fileID
+  if (fileID) wx.cloud.deleteFile({ fileList: [fileID], fail: () => {} })
+  failedRecording.value = null
 }
 
-async function submit(result: RecordingResult) {
+function resubmit() {
+  const failed = failedRecording.value
+  if (failed) void submit(failed.result, failed.fileID)
+}
+
+async function submit(result: RecordingResult, uploaded: string | null = null) {
   if (!vid.value || submitting.value) return
   submitting.value = true
   failedRecording.value = null
+  let fileID = uploaded
   try {
-    const practiceId = await startPractice(sessionId.value, vid.value, result)
+    fileID ??= await uploadRecitation(result)
+    const practiceId = await startPractice(sessionId.value, vid.value, fileID, result)
     // 替换当前页：报告页返回时直接回到对话页
     uni.redirectTo({ url: `/pkg-recite/report/index?practiceId=${encodeURIComponent(practiceId)}` })
   } catch (err) {
-    failedRecording.value = result
+    failedRecording.value = { result, fileID: fileID && mayStillRun(err) ? fileID : null }
     uni.showToast({
       title: err instanceof CloudError ? err.message : '提交失败，请重试',
       icon: 'none',

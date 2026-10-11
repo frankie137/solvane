@@ -3,6 +3,7 @@
  * 前端 services/cloud.ts 与云端 cloud/src/lib/router.ts 都以此为准。
  */
 import type {
+  Account,
   Expression,
   ExpressionKind,
   ExpressionOrigin,
@@ -11,9 +12,9 @@ import type {
   FolderCounts,
   InputMode,
   LibraryTab,
-  LlmConfigState,
+  LlmConfigView,
   LlmPresetId,
-  LlmScope,
+  Member,
   Practice,
   PracticeSummary,
   Profile,
@@ -41,8 +42,8 @@ export interface SaveSourceInput {
 /** 删除文件夹：内容移到上一级，或连同里面的收藏一起删除 */
 export type FolderDeleteMode = 'moveUp' | 'deleteAll'
 
+/** 大模型配置只有一份，由管理员设置，所有人共用 */
 export interface LlmConfigInput {
-  scope: LlmScope
   preset: LlmPresetId
   baseUrl: string
   model: string
@@ -130,19 +131,30 @@ export interface CloudApi {
       req: { nickname: string; avatarFileID?: string }
       res: { profile: Profile }
     }
-    /** 为一次已完成的练习生成分享；同一次练习只生成一个，已有时直接返回 */
+    /** 为一次练习生成分享（要先对齐好时间：评过分，或经 assess.prepareShare）；同一次练习只生成一个，已有时直接返回 */
     createShare: { req: { practiceId: string }; res: { shareId: string; created: boolean } }
     /** 任何人凭分享 id 都能读，只返回快照内容 */
     getShare: { req: { shareId: string }; res: { share: Share } }
     listShares: { req: Empty; res: { items: ShareSummary[] } }
     /** 撤回：删除分享和录音副本 */
     revokeShare: { req: { shareId: string }; res: Empty }
+
+    // --- 会员 ---
+    /** 自己的会员状态；第一次调用时建档 */
+    getAccount: { req: Empty; res: { account: Account } }
+    /** 以下三个只有管理员能调用 */
+    listMembers: { req: Empty; res: { members: Member[] } }
+    /** 开通 Pro：没开通或已过期的从现在起算，没到期的往后加 */
+    grantPro: { req: { openid: string }; res: { member: Member } }
+    /** 立即结束 Pro */
+    revokePro: { req: { openid: string }; res: { member: Member } }
   }
 
   compose: {
-    /** 新建对话，只保存原文，立即返回 */
+    /** 新建对话，只保存原文，立即返回；免费次数用完时报 QUOTA_EXCEEDED */
     create: { req: { mode: InputMode; rawText: string }; res: { sessionId: string } }
-    /** 以下三个是生成任务：结果写入对话；若已有任务在运行，直接返回当前对话 */
+    /** 以下三个是生成任务：结果写入对话；若已有任务在运行，直接返回当前对话。
+     *  generate 生成第一版时扣 1 次免费次数（失败退回），revise / analyze 不扣 */
     generate: { req: { sessionId: string }; res: { session: Session } }
     revise: {
       req: { sessionId: string; baseVid: string; instruction: string }
@@ -152,9 +164,10 @@ export interface CloudApi {
     /** 按收藏时的原句语境补全表达的释义、用法和例句；已在补全时直接返回当前状态 */
     explainExpression: { req: { expressionId: string }; res: { expression: Expression } }
 
-    getLlmConfig: { req: Empty; res: LlmConfigState }
-    saveLlmConfig: { req: LlmConfigInput; res: LlmConfigState }
-    clearLlmConfig: { req: { scope: LlmScope }; res: LlmConfigState }
+    /** 以下四个只有管理员能调用 */
+    getLlmConfig: { req: Empty; res: { config: LlmConfigView | null } }
+    saveLlmConfig: { req: LlmConfigInput; res: { config: LlmConfigView | null } }
+    clearLlmConfig: { req: Empty; res: { config: LlmConfigView | null } }
     testLlm: { req: LlmConfigInput; res: { latencyMs: number; reply: string } }
   }
 
@@ -168,12 +181,16 @@ export interface CloudApi {
   }
 
   assess: {
-    /** 提交一段背诵录音，创建练习；同一对话只保留最近几次 */
+    /** 提交一段背诵录音，保存为练习记录（马上能回放，不评分）；同一对话只保留最近几次 */
     start: {
       req: { sessionId: string; vid: string; fileID: string; durationMs: number }
       res: { practiceId: string }
     }
-    /** 推进评测流程（可能一次完成多步）；已有步骤在运行时直接返回当前状态 */
+    /** 开始评分：扣 1 次免费次数（Pro 不扣，失败退回），并推进第一段 */
+    score: { req: { practiceId: string }; res: { practice: Practice } }
+    /** 为分享准备歌词时间：只做识别和对照，不扣次数，并推进第一段 */
+    prepareShare: { req: { practiceId: string }; res: { practice: Practice } }
+    /** 继续推进（可能一次完成多步）；已到目标或已有步骤在运行时直接返回当前状态 */
     advance: { req: { practiceId: string }; res: { practice: Practice } }
     get: { req: { practiceId: string }; res: { practice: Practice } }
     list: { req: { sessionId: string }; res: { items: PracticeSummary[] } }

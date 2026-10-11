@@ -31,7 +31,10 @@
           @blur="focusRequested = false"
         />
         <view class="compose__footer">
-          <text class="compose__count">{{ text.length }} / {{ LIMITS.rawTextMax }}</text>
+          <view class="compose__meta">
+            <text class="compose__count">{{ text.length }} / {{ LIMITS.rawTextMax }}</text>
+            <text v-if="quotaHint" class="compose__quota">{{ quotaHint }}</text>
+          </view>
           <sv-button :disabled="!text.trim()" :loading="submitting" haptic @click="emit('submit')">
             <sv-icon name="sparkles" :size="18" color="var(--sv-text-on-accent)" />
             <text>生成地道表达</text>
@@ -56,6 +59,8 @@ const props = defineProps<{
   text: string
   errorMessage: string
   submitting: boolean
+  /** 免费用户的剩余次数提示；Pro 不显示 */
+  quotaHint?: string
 }>()
 
 const emit = defineEmits<{
@@ -150,9 +155,20 @@ function onInput(e: { detail: { value: string } }) {
   margin-top: 14px;
 }
 
+.compose__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .compose__count {
   font-size: 13px;
   font-variant-numeric: tabular-nums;
   color: var(--sv-text-3);
+}
+
+.compose__quota {
+  font-size: 13px;
+  color: var(--sv-text-2);
 }
 </style>

@@ -82,22 +82,28 @@
     :phase="sheet.phase"
     :error-message="sheet.error"
     :submitting="sheet.submitting"
+    :quota-hint="quotaHint"
     @submit="submit"
     @switch-to-text="openTextInput"
     @retry-voice="retryVoice"
   />
+  <pro-sheet v-model:show="showPro" reason="quota" />
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { LIMITS } from '@shared/constants'
 import type { InputMode } from '@shared/types'
+import ProSheet from '@/components/pro/ProSheet.vue'
 import { useCollapsingTitle } from '@/composables/useCollapsingTitle'
 import { useRecorder, type RecordingResult } from '@/composables/useRecorder'
 import { useTabBarInset } from '@/composables/useTabBarInset'
 import { callCloud, CloudError, uploadFile } from '@/services/cloud'
 import { createSession } from '@/services/sessions'
+import { useAccountStore } from '@/stores/account'
 import { useSessionsStore } from '@/stores/sessions'
+import { canUse } from '@/utils/account'
 import { navigateTo } from '@/utils/nav'
 import ComposeSheet, { type ComposePhase } from '../components/ComposeSheet.vue'
 import RecentList from '../components/RecentList.vue'
@@ -107,6 +113,21 @@ const { collapsed, onScroll } = useCollapsingTitle()
 const bottomInset = useTabBarInset()
 const sessionsStore = useSessionsStore()
 const maxSeconds = Math.round(LIMITS.recordMaxMs / 1000)
+
+// --- 免费次数：用完时先说明 Pro，不让开始说话或打字 ------------------------
+
+const accountStore = useAccountStore()
+const { account } = storeToRefs(accountStore)
+const showPro = ref(false)
+const quotaHint = computed(() =>
+  account.value && !account.value.pro ? `免费体验还剩 ${account.value.freeLeft} 次` : '',
+)
+
+function quotaAllows(): boolean {
+  if (canUse(account.value)) return true
+  showPro.value = true
+  return false
+}
 
 const sheet = reactive<{
   show: boolean
@@ -129,6 +150,7 @@ watch(
 
 const recorder = useRecorder(recognize)
 function startRecording() {
+  if (!quotaAllows()) return
   void recorder.start()
 }
 
@@ -157,6 +179,7 @@ function retryVoice() {
 }
 
 function openTextInput() {
+  if (!quotaAllows()) return
   recognizeToken++
   Object.assign(sheet, { show: true, mode: 'text', phase: 'editing', text: '', error: '' })
 }
@@ -170,6 +193,11 @@ async function submit() {
     sheet.show = false
     openSession(id)
   } catch (err) {
+    if (err instanceof CloudError && err.code === 'QUOTA_EXCEEDED') {
+      sheet.show = false
+      showPro.value = true
+      return
+    }
     uni.showToast({
       title: err instanceof CloudError ? err.message : '创建失败，请重试',
       icon: 'none',

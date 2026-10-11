@@ -2,6 +2,8 @@ import type * as Sdk from 'wx-server-sdk'
 
 /** 临时链接有效期（秒） */
 const TEMP_URL_MAX_AGE = 2 * 3600
+/** getTempFileURL 一次最多换 50 个 */
+const TEMP_URL_BATCH = 50
 
 /** 云存储的最小封装：下载、上传、删除、换临时链接 */
 export function createWxStorage(cloud: typeof Sdk) {
@@ -18,11 +20,15 @@ export function createWxStorage(cloud: typeof Sdk) {
       await cloud.deleteFile({ fileList: [fileID] })
     },
     async tempUrls(fileIDs: string[]): Promise<string[]> {
-      if (fileIDs.length === 0) return []
-      const res = (await cloud.getTempFileURL({
-        fileList: fileIDs.map((fileID) => ({ fileID, maxAge: TEMP_URL_MAX_AGE })),
-      })) as { fileList: { fileID: string; tempFileURL: string }[] }
-      const byId = new Map(res.fileList.map((f) => [f.fileID, f.tempFileURL]))
+      const byId = new Map<string, string>()
+      for (let i = 0; i < fileIDs.length; i += TEMP_URL_BATCH) {
+        const res = (await cloud.getTempFileURL({
+          fileList: fileIDs
+            .slice(i, i + TEMP_URL_BATCH)
+            .map((fileID) => ({ fileID, maxAge: TEMP_URL_MAX_AGE })),
+        })) as { fileList: { fileID: string; tempFileURL: string }[] }
+        for (const f of res.fileList) byId.set(f.fileID, f.tempFileURL)
+      }
       return fileIDs.map((id) => byId.get(id) ?? '')
     },
   }

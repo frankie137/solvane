@@ -47,6 +47,7 @@ function setup() {
       now: () => 5_000,
       storage: createMemoryStorage(),
       newFileName: () => 'f',
+      adminOpenids: () => [],
     }),
   }
 }

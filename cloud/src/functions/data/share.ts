@@ -9,7 +9,7 @@ import { AppError } from '../../lib/errors'
 import type { ProfileStored, Repos, ShareDoc } from '../../lib/repos'
 import type { Handlers } from '../../lib/router'
 import { requireSession, sessionTitle } from '../../lib/sessions'
-import { buildShareSentences } from '../../lib/share'
+import { buildShareSentences, wordsFromTranscript } from '../../lib/share'
 import { parsePayload } from '../../lib/validate'
 
 export interface ShareStorage {
@@ -101,8 +101,9 @@ export function createShareHandlers(deps: ShareDeps): Pick<Handlers<'data'>, Sha
 
       const practice = await practices.get(practiceId, ctx.openid)
       if (!practice) throw new AppError('NOT_FOUND', '练习记录不存在或已被删除')
-      if (practice.stage !== 'done' || !practice.wavFileID || !practice.alignment) {
-        throw new AppError('BAD_REQUEST', '评测完成后才能分享')
+      // 歌词时间来自识别和对照：评过分的已经有，没评分的由前端先调 assess.prepareShare
+      if (!practice.wavFileID || !practice.alignment || !practice.transcript) {
+        throw new AppError('BAD_REQUEST', '歌词还没准备好，请稍后再试')
       }
       const profile = (await settings.get(ctx.openid))?.profile
       if (!profile) throw new AppError('BAD_REQUEST', '请先设置头像和昵称')
@@ -122,7 +123,9 @@ export function createShareHandlers(deps: ShareDeps): Pick<Handlers<'data'>, Sha
         sentences: buildShareSentences(
           version.sentences,
           practice.alignment.sentences,
-          practice.pronunciation?.words ?? [],
+          // 评过分的用评测给的逐词时间（更准），没评分的用识别结果的
+          practice.pronunciation?.words ??
+            wordsFromTranscript(practice.transcript.words, practice.alignment.sentences),
         ),
         audioFileID,
         durationMs: practice.durationMs,

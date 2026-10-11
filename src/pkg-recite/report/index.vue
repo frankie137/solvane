@@ -6,41 +6,67 @@
     :bounces="true"
     :show-scrollbar="false"
   >
-    <sv-nav-bar title="背诵报告" back :large="false" />
+    <sv-nav-bar :title="navTitle" back :large="false" />
 
     <view class="report">
-      <!-- 报告取不到：还不知道练习的情况，只能重试 -->
+      <!-- 记录取不到：还不知道练习的情况，只能重试 -->
       <sv-card v-if="error && !practice" :padding="24">
-        <sv-state icon="alert" tone="danger" title="报告加载失败" :description="error.message">
-          <sv-button size="sm" :loading="retrying" @click="retry">重试</sv-button>
+        <sv-state icon="alert" tone="danger" title="练习记录加载失败" :description="error.message">
+          <sv-button size="sm" :loading="loading" @click="run">重试</sv-button>
         </sv-state>
       </sv-card>
 
-      <!-- 评测失败 -->
-      <sv-card v-else-if="error" :padding="24">
-        <sv-state icon="alert" tone="danger" title="评测没有完成" :description="error.message">
-          <view class="actions">
-            <sv-button v-if="canRetry" size="sm" :loading="retrying" @click="retry">重试</sv-button>
-            <sv-button type="secondary" size="sm" @click="reciteAgain">再背一次</sv-button>
-          </view>
-        </sv-state>
-      </sv-card>
-
-      <!-- 取报告中：还不知道是否已经评完，先显示骨架，不闪「正在评测」 -->
+      <!-- 取记录中：还不知道是否已经评完，先显示骨架，不闪「正在评测」 -->
       <view v-else-if="!practice" class="report__loading">
         <sv-card :padding="22"><sv-skeleton :rows="4" title /></sv-card>
       </view>
 
-      <!-- 评测中 -->
-      <sv-card v-else-if="!done" :padding="22">
-        <text class="report__title">正在评测</text>
-        <text class="report__desc"
-          >大约需要 20～40 秒，可以先离开，稍后在对话页的练习记录里查看。</text
-        >
-        <view class="report__stages">
-          <stage-progress :stage="practice?.stage ?? 'transcribe'" :failed="false" />
+      <template v-else>
+        <!-- 评分失败：云端已撤回评分、退回次数，下面回到「录好了」可以再评；M6 之前的练习在这里重试 -->
+        <sv-card v-if="error" :padding="24">
+          <sv-state icon="alert" tone="danger" title="评分没有完成" :description="error.message">
+            <view v-if="practice.scoreRequested" class="actions">
+              <sv-button v-if="canRetry" size="sm" :loading="scoring" @click="startScore">
+                重试
+              </sv-button>
+              <sv-button type="secondary" size="sm" @click="reciteAgain">再背一次</sv-button>
+            </view>
+            <text v-else class="report__note">没评出来，这次不扣次数</text>
+          </sv-state>
+        </sv-card>
+
+        <!-- 录好了，还没评分：先回放，评分自己决定；不评分也能分享 -->
+        <view v-if="!practice.scoreRequested" class="report__result">
+          <sv-card :padding="22">
+            <text class="report__title">录好了</text>
+            <text class="report__desc"
+              >先听听自己背得怎么样。想知道发音和背诵哪里能改进，可以评个分。</text
+            >
+            <view class="recorded">
+              <sv-button v-if="practice.audioUrl" type="secondary" block @click="toggleRecording">
+                <sv-icon :name="playingAll ? 'stop.fill' : 'play.fill'" :size="14" />
+                <text>{{ playingAll ? '停止' : '回放我的背诵' }}</text>
+              </sv-button>
+              <sv-button block haptic :loading="scoring" @click="startScore">
+                <sv-icon name="waveform" :size="16" color="var(--sv-text-on-accent)" />
+                <text>评分</text>
+              </sv-button>
+              <text v-if="scoreHint" class="recorded__hint">{{ scoreHint }}</text>
+            </view>
+          </sv-card>
         </view>
-      </sv-card>
+
+        <!-- 评测中 -->
+        <sv-card v-else-if="!done && !error" :padding="22">
+          <text class="report__title">正在评测</text>
+          <text class="report__desc"
+            >大约需要 20～40 秒，可以先离开，稍后在对话页的练习记录里查看。</text
+          >
+          <view class="report__stages">
+            <stage-progress :stage="practice.stage" :failed="false" />
+          </view>
+        </sv-card>
+      </template>
 
       <!-- 评测结果 -->
       <view v-if="done && practice && report" class="report__result">
@@ -152,11 +178,14 @@
             </view>
           </sv-card>
         </view>
+      </view>
 
+      <!-- 录好了或评完了：分享、返回、再背；没评分时「评分」是主按钮，这里的「再背一次」降为次要 -->
+      <view v-if="practice && (!practice.scoreRequested || (done && report))" class="report__end">
         <view v-if="practice.audioUrl" class="share-entry">
           <sv-button type="plain" block :loading="shareFlow.state.busy" @click="sharePractice">
             <sv-icon name="share" :size="16" color="var(--sv-accent)" />
-            <text>分享这次背诵</text>
+            <text>{{ shareFlow.state.preparing ? '正在准备歌词…' : '分享这次背诵' }}</text>
           </sv-button>
         </view>
 
@@ -165,7 +194,13 @@
             <sv-button type="secondary" block @click="backToSession">返回对话</sv-button>
           </view>
           <view class="footer__item">
-            <sv-button block haptic @click="reciteAgain">再背一次</sv-button>
+            <sv-button
+              :type="practice.scoreRequested ? 'primary' : 'secondary'"
+              block
+              :haptic="practice.scoreRequested"
+              @click="reciteAgain"
+              >再背一次</sv-button
+            >
           </view>
         </view>
       </view>
@@ -207,6 +242,7 @@
     :bottom="toastBottom"
     @action="organizer.onSavedAction"
   />
+  <pro-sheet v-model:show="showPro" reason="quota" />
 </template>
 
 <script setup lang="ts">
@@ -215,6 +251,7 @@ import { onHide, onLoad, onUnload } from '@dcloudio/uni-app'
 import { storeToRefs } from 'pinia'
 import type { DiffKind, Practice, ScoredWord, Version } from '@shared/types'
 import FolderPicker from '@/components/library/FolderPicker.vue'
+import ProSheet from '@/components/pro/ProSheet.vue'
 import ProfileSheet from '@/components/profile/ProfileSheet.vue'
 import SavedToast from '@/components/library/SavedToast.vue'
 import { useAudio } from '@/composables/useAudio'
@@ -223,8 +260,10 @@ import { useShareFlow } from '@/composables/useShareFlow'
 import { CloudError } from '@/services/cloud'
 import { getPractice, runPractice, wordAudioPath } from '@/services/practice'
 import { getSession } from '@/services/sessions'
+import { useAccountStore } from '@/stores/account'
 import { useLibraryStore } from '@/stores/library'
 import { useSystemStore } from '@/stores/system'
+import { canUse } from '@/utils/account'
 import { toast } from '@/utils/dialog'
 import { navigateTo } from '@/utils/nav'
 import { scoreTone } from '@/utils/recite'
@@ -249,17 +288,9 @@ const version = ref<Version | null>(null)
 const error = ref<CloudError | null>(null)
 
 const done = computed(() => practice.value?.stage === 'done')
-
-const retrying = ref(false)
-async function retry() {
-  if (retrying.value) return
-  retrying.value = true
-  try {
-    await run()
-  } finally {
-    retrying.value = false
-  }
-}
+const navTitle = computed(() =>
+  practice.value && !practice.value.scoreRequested ? '练习记录' : '背诵报告',
+)
 const report = computed(() => practice.value?.report ?? null)
 
 /** 评分条先从 0 开始，结果出现后再长到分数，和分数环一起动 */
@@ -290,20 +321,78 @@ onLoad((query) => {
   void run()
 })
 
+const loading = ref(false)
+const scoring = ref(false)
+const wasCancelled = (err: unknown) =>
+  disposed || (err instanceof CloudError && err.code === 'CANCELLED')
+const asError = (err: unknown) =>
+  err instanceof CloudError ? err : new CloudError('INTERNAL', '评测失败，请重试')
+const runOptions = {
+  onUpdate: (p: Practice) => (practice.value = p),
+  isCancelled: () => disposed,
+}
+
 async function run() {
+  if (loading.value) return
+  loading.value = true
   error.value = null
   try {
     if (!practice.value) practice.value = await getPractice(practiceId.value)
     void loadVersion()
-    if (practice.value.stage !== 'done') {
-      practice.value = await runPractice(practiceId.value, {
-        onUpdate: (p) => (practice.value = p),
-        isCancelled: () => disposed,
-      })
+    // 评分进行到一半离开过：接着评（不会重复扣次数）
+    if (practice.value.scoreRequested && practice.value.stage !== 'done') {
+      scoring.value = true
+      practice.value = await runPractice(practiceId.value, 'score', runOptions)
     }
   } catch (err) {
-    if (disposed || (err instanceof CloudError && err.code === 'CANCELLED')) return
-    error.value = err instanceof CloudError ? err : new CloudError('INTERNAL', '评测失败，请重试')
+    if (!wasCancelled(err)) error.value = asError(err)
+  } finally {
+    loading.value = false
+    scoring.value = false
+  }
+}
+
+// --- 评分 -------------------------------------------------------------------
+
+const accountStore = useAccountStore()
+const { account } = storeToRefs(accountStore)
+const showPro = ref(false)
+
+const scoreHint = computed(() => {
+  const a = account.value
+  if (!a || a.isAdmin) return ''
+  if (a.pro) return 'Pro 会员不限次数'
+  return a.freeLeft > 0
+    ? `免费体验还剩 ${a.freeLeft} 次（新建对话和评分合计）`
+    : '免费体验已用完，开通 Pro 后可以评分'
+})
+
+/** 评分：扣一次免费次数（Pro 不扣），失败时云端撤回评分并退回次数，回到「录好了」 */
+async function startScore() {
+  const p = practice.value
+  if (!p || scoring.value) return
+  if (!p.scoreRequested && !canUse(account.value)) {
+    showPro.value = true
+    return
+  }
+  audio.stop()
+  playingAll.value = false
+  scoring.value = true
+  error.value = null
+  // 先切到「正在评测」，不等第一步返回
+  practice.value = { ...p, scoreRequested: true }
+  try {
+    practice.value = await runPractice(practiceId.value, 'score', runOptions)
+  } catch (err) {
+    if (wasCancelled(err)) return
+    // 以云端为准：失败时评分请求已撤回
+    practice.value = await getPractice(practiceId.value).catch(() => p)
+    const e = asError(err)
+    if (e.code === 'QUOTA_EXCEEDED') showPro.value = true
+    else error.value = e
+  } finally {
+    scoring.value = false
+    accountStore.refresh()
   }
 }
 
@@ -402,12 +491,15 @@ const sheet = reactive<{
 
 // --- 分享 -------------------------------------------------------------------
 
-const shareFlow = useShareFlow()
+const shareFlow = useShareFlow({
+  isCancelled: () => disposed,
+  onPrepared: (p) => (practice.value = p),
+})
 
 function sharePractice() {
   audio.stop()
   playingAll.value = false
-  if (practice.value) void shareFlow.share(practice.value.id)
+  if (practice.value) void shareFlow.share(practice.value)
 }
 
 // --- 收藏单词 ---------------------------------------------------------------
@@ -558,6 +650,25 @@ function backToSession() {
 
 .report__stages {
   margin-top: 20px;
+}
+
+.report__note {
+  font-size: 13px;
+  color: var(--sv-text-2);
+}
+
+.recorded {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.recorded__hint {
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+  color: var(--sv-text-2);
 }
 
 .summary {
@@ -825,7 +936,10 @@ function backToSession() {
   line-height: 22px;
 }
 
-.share-entry {
+.report__end {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
   margin-top: -8px;
 }
 

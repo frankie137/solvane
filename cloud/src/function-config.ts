@@ -7,10 +7,16 @@
 export const FUNCTION_CONFIG = {
   compose: { timeout: 60, env: ['KEY_ENCRYPTION_SECRET', 'ADMIN_OPENIDS'] },
   speech: { timeout: 20, env: ['TENCENT_SECRET_ID', 'TENCENT_SECRET_KEY'] },
-  data: { timeout: 10, env: [] },
+  data: { timeout: 10, env: ['ADMIN_OPENIDS'] },
   assess: {
     timeout: 60,
-    env: ['TENCENT_SECRET_ID', 'TENCENT_SECRET_KEY', 'SOE_APP_ID', 'KEY_ENCRYPTION_SECRET'],
+    env: [
+      'TENCENT_SECRET_ID',
+      'TENCENT_SECRET_KEY',
+      'SOE_APP_ID',
+      'KEY_ENCRYPTION_SECRET',
+      'ADMIN_OPENIDS',
+    ],
   },
 } as const
 

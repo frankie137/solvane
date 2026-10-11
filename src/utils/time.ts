@@ -16,3 +16,10 @@ export function formatRelative(ts: number, now = Date.now()): string {
   const md = `${d.getMonth() + 1}月${d.getDate()}日`
   return d.getFullYear() === today.getFullYear() ? md : `${d.getFullYear()}年${md}`
 }
+
+/** 日期：今年的省略年份（11月10日），其他年份带上（2027年1月3日） */
+export function formatDate(ts: number, now = Date.now()): string {
+  const d = new Date(ts)
+  const md = `${d.getMonth() + 1}月${d.getDate()}日`
+  return d.getFullYear() === new Date(now).getFullYear() ? md : `${d.getFullYear()}年${md}`
+}

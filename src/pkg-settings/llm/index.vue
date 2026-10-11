@@ -15,29 +15,28 @@
         </sv-state>
       </sv-card>
 
-      <view v-else-if="!state" class="llm__loading">
+      <view v-else-if="!loaded" class="llm__loading">
         <sv-card :padding="18" radius="m"><sv-skeleton :rows="2" /></sv-card>
       </view>
 
       <view v-else class="llm__content">
         <sv-card :padding="18" radius="m">
           <view class="status">
-            <view class="status__dot" :class="`is-${state.effective}`" />
+            <view class="status__dot" :class="{ 'is-none': !saved }" />
             <view class="status__text">
-              <text class="status__title">{{ EFFECTIVE_TEXT[state.effective] }}</text>
-              <text class="status__desc">{{ effectiveDesc }}</text>
+              <text class="status__title">{{ saved ? '已配置' : '还没有配置' }}</text>
+              <text class="status__desc">{{
+                saved
+                  ? '所有成员生成和评分都用这份配置。'
+                  : '填写下面的配置后，所有成员才能生成英文表达。'
+              }}</text>
             </view>
           </view>
         </sv-card>
 
-        <view v-if="state.isAdmin" class="scopes">
-          <sv-chip :active="scope === 'own'" @click="switchScope('own')">我的配置</sv-chip>
-          <sv-chip :active="scope === 'global'" @click="switchScope('global')">
-            全局默认（所有成员）
-          </sv-chip>
-        </view>
-
-        <sv-group :footer="footer">
+        <sv-group
+          footer="所有成员共用这份配置，费用计入这个 Key。Key 加密保存在云端；不填 Key 时沿用已保存的。"
+        >
           <sv-cell title="服务商" :value="presetName" arrow clickable @click="choosePreset" />
           <sv-field
             v-model="form.baseUrl"
@@ -85,7 +84,7 @@
 
         <view v-if="saved" class="clear">
           <sv-button type="plain" size="sm" @click="clear">
-            <text class="clear__text">清除{{ scope === 'own' ? '我的' : '全局默认' }}配置</text>
+            <text class="clear__text">清除配置</text>
           </sv-button>
         </view>
       </view>
@@ -103,7 +102,7 @@ import { storeToRefs } from 'pinia'
 import { onLoad } from '@dcloudio/uni-app'
 import type { LlmConfigInput } from '@shared/api'
 import { LLM_PRESETS, type LlmPreset } from '@shared/constants'
-import type { LlmConfigState, LlmPresetId, LlmScope } from '@shared/types'
+import type { LlmConfigView, LlmPresetId } from '@shared/types'
 import { callCloud, CloudError } from '@/services/cloud'
 import { useSettingsStore } from '@/stores/settings'
 import { useSystemStore } from '@/stores/system'
@@ -112,16 +111,11 @@ const { metrics: systemMetrics } = storeToRefs(useSystemStore())
 // 底部留出安全区，最后的内容不贴着手势条
 const bottomInset = computed(() => `height:${systemMetrics.value.safeAreaBottom + 24}px`)
 
-const EFFECTIVE_TEXT: Record<LlmConfigState['effective'], string> = {
-  own: '正在使用我的配置',
-  global: '正在使用管理员的默认配置',
-  none: '还没有可用的配置',
-}
-
+/** 只有管理员能进这个页面；所有成员共用这一份配置 */
 const settingsStore = useSettingsStore()
-const state = ref<LlmConfigState | null>(null)
+const saved = ref<LlmConfigView | null>(null)
+const loaded = ref(false)
 const loadError = ref('')
-const scope = ref<LlmScope>('own')
 const saving = ref(false)
 const testing = ref(false)
 const testResult = ref<{ ok: boolean; text: string } | null>(null)
@@ -137,23 +131,8 @@ const preset = computed<LlmPreset>(
   () => LLM_PRESETS.find((p) => p.id === form.preset) ?? LLM_PRESETS[0]!,
 )
 const presetName = computed(() => preset.value.name)
-const saved = computed(() => (state.value ? state.value[scope.value] : null))
 const canSubmit = computed(() =>
   Boolean(form.baseUrl.trim() && form.model.trim() && (form.apiKey.trim() || saved.value)),
-)
-
-const effectiveDesc = computed(() => {
-  const s = state.value
-  if (!s) return ''
-  if (s.effective === 'own') return '你的配置优先于管理员的默认配置。'
-  if (s.effective === 'global') return '你没有填写自己的配置，生成时会使用管理员设置的默认配置。'
-  return '填写下面的配置后才能生成英文表达。'
-})
-
-const footer = computed(() =>
-  scope.value === 'global'
-    ? '全局默认会被所有没有自己配置的成员使用，费用计入这个 Key。Key 加密保存在云端。'
-    : 'Key 加密保存在云端，只用于调用你填写的接口。不填 Key 时沿用已保存的。',
 )
 
 function fillForm() {
@@ -168,15 +147,16 @@ function fillForm() {
   testResult.value = null
 }
 
-function applyState(next: LlmConfigState) {
-  state.value = next
-  settingsStore.setLlmState(next)
+function applyConfig(next: LlmConfigView | null) {
+  saved.value = next
+  loaded.value = true
+  settingsStore.setLlm(next)
 }
 
 async function load() {
   loadError.value = ''
   try {
-    applyState(await callCloud('compose', 'getLlmConfig', {}))
+    applyConfig((await callCloud('compose', 'getLlmConfig', {})).config)
     fillForm()
   } catch (err) {
     loadError.value = err instanceof CloudError ? err.message : '出了点问题，请重试'
@@ -186,12 +166,6 @@ async function load() {
 onLoad(() => {
   void load()
 })
-
-function switchScope(next: LlmScope) {
-  if (scope.value === next) return
-  scope.value = next
-  fillForm()
-}
 
 function choosePreset() {
   uni.showActionSheet({
@@ -211,7 +185,6 @@ function choosePreset() {
 
 function input(): LlmConfigInput {
   return {
-    scope: scope.value,
     preset: form.preset,
     baseUrl: form.baseUrl.trim(),
     model: form.model.trim(),
@@ -240,7 +213,7 @@ async function save() {
   if (saving.value || !canSubmit.value) return
   saving.value = true
   try {
-    applyState(await callCloud('compose', 'saveLlmConfig', input()))
+    applyConfig((await callCloud('compose', 'saveLlmConfig', input())).config)
     form.apiKey = ''
     uni.showToast({ title: '已保存', icon: 'success' })
   } catch (err) {
@@ -256,10 +229,7 @@ async function save() {
 function clear() {
   uni.showModal({
     title: '清除配置',
-    content:
-      scope.value === 'own'
-        ? '清除后，将使用管理员的默认配置（如果有）。'
-        : '清除后，没有自己配置的成员将无法生成。',
+    content: '清除后，所有成员都无法生成和评分，直到重新配置。',
     confirmText: '清除',
     // 原生弹窗不支持 CSS 变量，这里用和 --sv-danger 一致的色值
     confirmColor: '#ff3b30',
@@ -267,7 +237,7 @@ function clear() {
       if (!res.confirm) return
       uni.showLoading({ title: '正在清除…', mask: true })
       try {
-        applyState(await callCloud('compose', 'clearLlmConfig', { scope: scope.value }))
+        applyConfig((await callCloud('compose', 'clearLlmConfig', {})).config)
         fillForm()
         uni.hideLoading()
         uni.showToast({ title: '已清除', icon: 'success' })
@@ -332,11 +302,6 @@ function clear() {
   font-size: 14px;
   line-height: 20px;
   color: var(--sv-text-2);
-}
-
-.scopes {
-  display: flex;
-  gap: 8px;
 }
 
 .test {
