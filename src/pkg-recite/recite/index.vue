@@ -32,7 +32,6 @@
             :sentences="version.sentences"
             :levels="levels"
             :active-sentence="activeSentence"
-            :active-token="activeToken"
             @tap-sentence="cycleHint"
           />
         </sv-card>
@@ -96,7 +95,6 @@ const submitting = ref(false)
 const { metrics } = storeToRefs(useSystemStore())
 const bottomInset = computed(() => `height:${PANEL_HEIGHT + metrics.value.safeAreaBottom + 24}px`)
 
-const sentences = computed(() => version.value?.sentences ?? [])
 const allHidden = computed(() => levels.value.every((l) => l === 0))
 const allShown = computed(() => levels.value.every((l) => l === 2))
 
@@ -139,10 +137,9 @@ const {
   playing: demoPlaying,
   loading: demoLoading,
   activeSentence,
-  activeToken,
   playAll,
   stop: stopDemo,
-} = useDemoPlayer(sessionId, vid, sentences)
+} = useDemoPlayer(sessionId, vid)
 
 function toggleDemo() {
   if (demoPlaying.value) stopDemo()

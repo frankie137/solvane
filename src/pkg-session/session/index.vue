@@ -122,7 +122,6 @@
                 <sentence-list
                   :sentences="current.sentences"
                   :active-sentence="activeSentence"
-                  :active-token="activeToken"
                   :located="located"
                   interactive
                   @select="playSentence"
@@ -377,16 +376,14 @@ onHide(() => {
 // --- 示范朗读 ---------------------------------------------------------------
 
 const currentVid = computed(() => current.value?.vid ?? null)
-const currentSentences = computed(() => current.value?.sentences ?? [])
 const {
   playing: demoPlaying,
   loading: demoLoading,
   activeSentence,
-  activeToken,
   playAll,
   playSentence,
   stop: stopDemo,
-} = useDemoPlayer(sessionId, currentVid, currentSentences)
+} = useDemoPlayer(sessionId, currentVid)
 
 function toggleDemo() {
   if (demoPlaying.value) stopDemo()

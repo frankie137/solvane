@@ -14,10 +14,7 @@
           v-for="(t, j) in tokensOf(i)"
           :key="j"
           class="masked__token"
-          :class="[
-            `is-level-${levelOf(i)}`,
-            { 'is-current': i === activeSentence && j === activeToken },
-          ]"
+          :class="`is-level-${levelOf(i)}`"
           >{{ display(t.text, levelOf(i)) }}</text
         >
       </view>
@@ -38,10 +35,10 @@ const props = withDefaults(
   defineProps<{
     sentences: SentencePair[]
     levels: HintLevel[]
+    /** 正在朗读的句子，-1 表示没有 */
     activeSentence?: number
-    activeToken?: number
   }>(),
-  { activeSentence: -1, activeToken: -1 },
+  { activeSentence: -1 },
 )
 
 const emit = defineEmits<{ 'tap-sentence': [index: number] }>()
@@ -113,15 +110,11 @@ function display(text: string, level: HintLevel): string {
     color: var(--sv-text-2);
     letter-spacing: 1px;
   }
+}
 
-  &.is-current {
-    color: var(--sv-accent);
-  }
-
-  &.is-level-0.is-current {
-    color: transparent;
-    background-color: var(--sv-accent-soft);
-  }
+// 正在朗读的句子：整句底色变浅强调色，露出来的字用强调色，遮住的块保持原样
+.masked__item.is-active .masked__token:not(.is-level-0) {
+  color: var(--sv-accent);
 }
 
 .masked__foot {

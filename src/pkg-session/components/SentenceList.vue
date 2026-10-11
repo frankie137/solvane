@@ -14,46 +14,30 @@
       @tap="onTap(i)"
       @longpress="onHold(i)"
     >
-      <!-- 正在朗读的句子逐词渲染以便高亮，其余句子整句渲染，减少节点 -->
-      <view v-if="i === activeSentence" class="sentence__en sv-en">
-        <text
-          v-for="(t, j) in tokensOf(i)"
-          :key="j"
-          class="sentence__token"
-          :class="{ 'is-current': j === activeToken }"
-          >{{ t.text + ' ' }}</text
-        >
-      </view>
-      <text v-else class="sentence__en sv-en">{{ s.en }}</text>
+      <text class="sentence__en sv-en">{{ s.en }}</text>
       <text class="sentence__zh">{{ s.zh }}</text>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
 import type { SentencePair } from '@shared/types'
-import { tokenize } from '@/utils/recite'
 import { LOCATE_HIGHLIGHT_MS } from '../constants'
 
 const props = withDefaults(
   defineProps<{
     sentences: SentencePair[]
-    /** 正在朗读的句子和词，-1 表示没有 */
+    /** 正在朗读的句子，-1 表示没有 */
     activeSentence?: number
-    activeToken?: number
     /** 点句子可以单独重听，长按可以挑词收藏 */
     interactive?: boolean
     /** 从收藏溯源过来时要突出的那一句，-1 表示没有 */
     located?: number
   }>(),
-  { activeSentence: -1, activeToken: -1, interactive: false, located: -1 },
+  { activeSentence: -1, interactive: false, located: -1 },
 )
 
 const emit = defineEmits<{ select: [index: number]; hold: [index: number] }>()
-
-const tokens = computed(() => props.sentences.map((s) => tokenize(s.en)))
-const tokensOf = (i: number) => tokens.value[i] ?? []
 
 function onTap(i: number) {
   if (props.interactive) emit('select', i)
@@ -90,6 +74,10 @@ function onHold(i: number) {
     background-color: var(--sv-accent-soft);
   }
 
+  &.is-active .sentence__en {
+    color: var(--sv-accent);
+  }
+
   &.is-located {
     animation: sentence-located var(--locate-ms) var(--sv-ease) 1;
   }
@@ -112,17 +100,7 @@ function onHold(i: number) {
   line-height: 26px;
   font-weight: 600;
   color: var(--sv-text);
-}
-
-.sentence__token {
-  border-radius: 4px;
-  transition:
-    color var(--sv-dur-1) var(--sv-ease),
-    background-color var(--sv-dur-1) var(--sv-ease);
-
-  &.is-current {
-    color: var(--sv-accent);
-  }
+  transition: color var(--sv-dur-1) var(--sv-ease);
 }
 
 .sentence__zh {
