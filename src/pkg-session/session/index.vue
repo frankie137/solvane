@@ -56,11 +56,18 @@
             >
               <view class="actions">
                 <sv-button
-                  v-if="genError.code === 'NOT_CONFIGURED'"
+                  v-if="genError.code === 'NOT_CONFIGURED' && account?.isAdmin"
                   size="sm"
                   @click="openLlmSettings"
                 >
                   去配置
+                </sv-button>
+                <sv-button
+                  v-if="genError.code === 'QUOTA_EXCEEDED'"
+                  size="sm"
+                  @click="showPro = true"
+                >
+                  了解 Pro
                 </sv-button>
                 <sv-button type="secondary" size="sm" @click="generate">重试</sv-button>
               </view>
@@ -240,6 +247,7 @@
     :bottom="toastBottom"
     @action="organizer.onSavedAction"
   />
+  <pro-sheet v-model:show="showPro" reason="quota" />
 </template>
 
 <script setup lang="ts">
@@ -249,12 +257,14 @@ import { storeToRefs } from 'pinia'
 import type { PracticeSummary, Session, Version } from '@shared/types'
 import FolderPicker from '@/components/library/FolderPicker.vue'
 import SavedToast from '@/components/library/SavedToast.vue'
+import ProSheet from '@/components/pro/ProSheet.vue'
 import { useDemoPlayer } from '@/composables/useDemoPlayer'
 import { useOrganizer, type OrganizeTarget } from '@/composables/useOrganizer'
 import { callCloud, CloudError } from '@/services/cloud'
 import { starSession } from '@/services/library'
 import { listPractices } from '@/services/practice'
 import { getSession, runSessionJob, setCurrentVersion } from '@/services/sessions'
+import { useAccountStore } from '@/stores/account'
 import { useLibraryStore } from '@/stores/library'
 import { useSessionsStore } from '@/stores/sessions'
 import { useSystemStore } from '@/stores/system'
@@ -286,6 +296,10 @@ const progressIndex = ref(0)
 
 const { metrics } = storeToRefs(useSystemStore())
 const sessionsStore = useSessionsStore()
+const accountStore = useAccountStore()
+const { account } = storeToRefs(accountStore)
+/** 免费次数用完时说明 Pro */
+const showPro = ref(false)
 
 const current = computed<Version | null>(() => {
   const s = session.value
@@ -402,7 +416,14 @@ function practiceTitle(p: PracticeSummary) {
 }
 
 function practiceMeta(p: PracticeSummary) {
-  const status = p.stage === 'done' ? '' : p.failed ? ' · 评测失败' : ' · 评测中'
+  const status =
+    p.stage === 'done'
+      ? ''
+      : !p.scoreRequested
+        ? ' · 未评分'
+        : p.failed
+          ? ' · 评分失败'
+          : ' · 评分中'
   return `${formatRelative(p.createdAt)}${status}`
 }
 
@@ -616,10 +637,14 @@ async function generate() {
     )
     void sessionsStore.refresh()
   } catch (err) {
-    if (!disposed) genError.value = asCloudError(err)
+    if (disposed) return
+    genError.value = asCloudError(err)
+    if (genError.value.code === 'QUOTA_EXCEEDED') showPro.value = true
     return
   } finally {
     generating.value = false
+    // 生成第一版扣了一次（失败会退回），刷新剩余次数
+    accountStore.refresh()
   }
   await ensureAnalysis()
 }
@@ -677,7 +702,7 @@ async function revise(instruction: string) {
   } catch (err) {
     if (disposed) return
     const e = asCloudError(err)
-    if (e.code === 'NOT_CONFIGURED') {
+    if (e.code === 'NOT_CONFIGURED' && account.value?.isAdmin) {
       uni.showModal({
         title: '还不能修改',
         content: e.message,

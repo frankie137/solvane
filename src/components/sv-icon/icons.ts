@@ -62,6 +62,9 @@ const ICONS = {
   'chevron.down': '<path d="M5.5 9.5L12 16l6.5-6.5"/>',
   quote:
     '<path d="M5 17.5c0-4 1.5-7 4.5-8.5M14 17.5c0-4 1.5-7 4.5-8.5"/><circle cx="7" cy="15.5" r="2"/><circle cx="16" cy="15.5" r="2"/>',
+  crown: '<path d="M4 8l4 4 4-6.5 4 6.5 4-4-1.5 10h-13z"/><path d="M5.5 20.5h13"/>',
+  people:
+    '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.2a6.5 6.5 0 0 1 3.5 5.8"/>',
 } as const
 
 export type IconName = keyof typeof ICONS

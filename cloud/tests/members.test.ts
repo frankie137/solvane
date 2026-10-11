@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { extendedUntil } from '@shared/account'
 import { PRO } from '@shared/constants'
 import { createDataHandlers } from '../src/functions/data/handlers'
-import { createAccounts, extendedUntil, toAccount } from '../src/lib/account'
+import { createAccounts, toAccount } from '../src/lib/account'
 import { createMemoryRepos } from './support/memory-repos'
 import { createMemoryStorage } from './support/memory-storage'
 

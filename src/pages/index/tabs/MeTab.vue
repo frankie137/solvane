@@ -34,6 +34,20 @@
 
       <sv-group>
         <sv-cell
+          title="会员"
+          icon="crown"
+          icon-bg="var(--sv-tint-orange)"
+          arrow
+          clickable
+          @click="showPro = true"
+        >
+          <template #value>
+            <text class="me__value" :class="{ 'is-warn': account && !canUse(account) }">{{
+              account ? planLabel(account) : '—'
+            }}</text>
+          </template>
+        </sv-cell>
+        <sv-cell
           title="我的分享"
           icon="share"
           icon-bg="var(--sv-tint-cyan)"
@@ -42,6 +56,34 @@
           :divider="false"
           @click="openShares"
         />
+      </sv-group>
+
+      <sv-group
+        v-if="account?.isAdmin"
+        header="管理"
+        footer="只有管理员能看到。大模型配置所有成员共用，费用计入你的 Key。"
+      >
+        <sv-cell
+          title="会员管理"
+          icon="people"
+          icon-bg="var(--sv-tint-purple)"
+          arrow
+          clickable
+          @click="openMembers"
+        />
+        <sv-cell
+          title="大模型配置"
+          icon="sliders"
+          icon-bg="var(--sv-tint-green)"
+          arrow
+          clickable
+          :divider="false"
+          @click="openLlm"
+        >
+          <template #value>
+            <text class="me__value" :class="{ 'is-warn': llm === null }">{{ llmLabel }}</text>
+          </template>
+        </sv-cell>
       </sv-group>
 
       <sv-group header="学习偏好" footer="英语水平决定用词和句式的难度，口吻始终是日常对话。">
@@ -66,33 +108,16 @@
         <sv-cell
           title="示范朗读"
           icon="speaker"
-          icon-bg="var(--sv-tint-orange)"
+          icon-bg="var(--sv-tint-blue)"
           :value="ttsName"
           arrow
           clickable
+          :divider="false"
           @click="chooseTts"
         />
-        <sv-cell
-          title="大模型配置"
-          icon="sliders"
-          icon-bg="var(--sv-tint-green)"
-          arrow
-          clickable
-          :divider="false"
-          @click="openLlm"
-        >
-          <template #value>
-            <text class="me__value" :class="{ 'is-warn': llmLabel === '未配置' }">{{
-              llmLabel
-            }}</text>
-          </template>
-        </sv-cell>
       </sv-group>
 
-      <sv-group
-        header="关于"
-        footer="用户 ID 用于设置管理员：填到 compose 云函数的 ADMIN_OPENIDS。"
-      >
+      <sv-group header="关于" footer="开通 Pro 时把用户 ID 发给管理员，点一下即可复制。">
         <sv-cell
           title="云服务"
           icon="cloud"
@@ -136,19 +161,23 @@
   </scroll-view>
 
   <profile-sheet v-model:show="editingProfile" />
+  <pro-sheet v-model:show="showPro" />
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { ACCENTS, LEVELS, TTS_SPEEDS, TTS_VOICES } from '@shared/constants'
+import { ACCENTS, LEVELS, LLM_PRESETS, TTS_SPEEDS, TTS_VOICES } from '@shared/constants'
 import type { UserSettings } from '@shared/types'
 import { useCollapsingTitle } from '@/composables/useCollapsingTitle'
 import { useTabBarInset } from '@/composables/useTabBarInset'
 import { callCloud, CloudError } from '@/services/cloud'
+import ProSheet from '@/components/pro/ProSheet.vue'
 import ProfileSheet from '@/components/profile/ProfileSheet.vue'
+import { useAccountStore } from '@/stores/account'
 import { useProfileStore } from '@/stores/profile'
 import { useSettingsStore } from '@/stores/settings'
+import { canUse, planLabel } from '@/utils/account'
 import { getEnvVersion } from '@/utils/env'
 import { navigateTo } from '@/utils/nav'
 
@@ -156,6 +185,23 @@ const { collapsed, onScroll } = useCollapsingTitle()
 const bottomInset = useTabBarInset()
 const settingsStore = useSettingsStore()
 const { settings, llm, loaded } = storeToRefs(settingsStore)
+
+const accountStore = useAccountStore()
+const { account } = storeToRefs(accountStore)
+const showPro = ref(false)
+let accountFailed = false
+
+/** 会员状态；管理员再取大模型配置的状态 */
+async function loadAccount() {
+  try {
+    const next = await accountStore.load()
+    accountFailed = false
+    if (next.isAdmin) await settingsStore.loadLlm().catch(() => {})
+  } catch {
+    // 失败原因会显示在"云服务"那一行，这里保持"—"
+    accountFailed = true
+  }
+}
 
 const profileStore = useProfileStore()
 const { profile } = storeToRefs(profileStore)
@@ -225,8 +271,10 @@ const ttsName = computed(() => {
 })
 
 const llmLabel = computed(() => {
-  if (!llm.value) return '—'
-  return { own: '我的配置', global: '管理员默认', none: '未配置' }[llm.value.effective]
+  if (llm.value === undefined) return '—'
+  if (llm.value === null) return '未配置'
+  const preset = llm.value.preset
+  return LLM_PRESETS.find((p) => p.id === preset)?.name ?? '已配置'
 })
 
 const cloud = reactive<{
@@ -260,6 +308,7 @@ async function checkCloud() {
     cloud.state = 'ok'
     // 云服务恢复了，之前加载失败的设置补上（还在加载中的不重复发）
     if (settingsFailed) void loadSettings()
+    if (accountFailed) void loadAccount()
   } catch (err) {
     cloud.state = 'error'
     cloud.message = err instanceof CloudError ? err.message : '连接失败'
@@ -342,6 +391,10 @@ function openLlm() {
   navigateTo('/pkg-settings/llm/index')
 }
 
+function openMembers() {
+  navigateTo('/pkg-admin/members/index')
+}
+
 function openGallery() {
   navigateTo('/pkg-dev/gallery/index')
 }
@@ -349,6 +402,7 @@ function openGallery() {
 onMounted(() => {
   void checkCloud()
   void loadSettings()
+  void loadAccount()
 })
 </script>
 

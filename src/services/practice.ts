@@ -40,16 +40,30 @@ export async function listPractices(sessionId: string): Promise<PracticeSummary[
 /** 防止异常情况下无限循环：正常最多四步 */
 const MAX_ROUNDS = 10
 
+/** score：评分（扣次数），推进到出报告；share：只为分享准备歌词时间（识别和对照），不扣次数 */
+export type PracticeGoal = 'score' | 'share'
+
+const ACTION = { score: 'score', share: 'prepareShare' } as const
+
+/** 分享需要的歌词时间来自对照这一步 */
+export const reachedGoal = (p: Practice, goal: PracticeGoal) =>
+  goal === 'score' ? p.stage === 'done' : p.alignment !== null
+
 export interface RunOptions {
   onUpdate?: (practice: Practice) => void
   isCancelled?: () => boolean
 }
 
 /**
- * 推进评测直到完成：每次调用云函数执行一到多步；
+ * 推进评测直到目标：每次调用云函数执行一到多步；
  * 等不到返回或已有步骤在运行时，轮询练习状态直到这一步结束。
+ * 每轮都调用目标对应的接口：云端对同一条录音只扣一次，请求没送达时也能重新发起。
  */
-export async function runPractice(practiceId: string, options: RunOptions = {}): Promise<Practice> {
+export async function runPractice(
+  practiceId: string,
+  goal: PracticeGoal,
+  options: RunOptions = {},
+): Promise<Practice> {
   const cancelled = () => options.isCancelled?.() === true
   const waitIdle = async () => {
     const {
@@ -70,7 +84,7 @@ export async function runPractice(practiceId: string, options: RunOptions = {}):
     if (cancelled()) throw new CloudError('CANCELLED', '已取消')
     let practice: Practice
     try {
-      practice = (await callCloud('assess', 'advance', { practiceId })).practice
+      practice = (await callCloud('assess', ACTION[goal], { practiceId })).practice
     } catch (err) {
       if (!mayStillRun(err)) throw err
       practice = await waitIdle()
@@ -78,7 +92,7 @@ export async function runPractice(practiceId: string, options: RunOptions = {}):
     if (practice.job) practice = await waitIdle()
     options.onUpdate?.(practice)
 
-    if (practice.stage === 'done') return practice
+    if (reachedGoal(practice, goal)) return practice
     if (practice.lastError)
       throw new CloudError(practice.lastError.code, practice.lastError.message)
   }

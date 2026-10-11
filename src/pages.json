@@ -88,6 +88,15 @@
       ]
     },
     {
+      "root": "pkg-admin",
+      "pages": [
+        {
+          "path": "members/index",
+          "style": {}
+        }
+      ]
+    },
+    {
       "root": "pkg-dev",
       "pages": [
         {

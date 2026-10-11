@@ -59,6 +59,8 @@ const ROUTES: Route[] = [
     path: 'pkg-share/play/index',
   },
   { name: '13-my-shares', url: '/pkg-share/mine/index', path: 'pkg-share/mine/index' },
+  // 开发者工具里登录的是管理员时显示成员列表，否则显示「只有管理员可以管理会员」
+  { name: '14-members', url: '/pkg-admin/members/index', path: 'pkg-admin/members/index' },
 ]
 
 /** 等 tab 切换和入场动画结束 */

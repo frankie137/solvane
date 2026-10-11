@@ -22,7 +22,7 @@
         <sv-state
           icon="share"
           title="还没有分享过"
-          description="在评分报告里点「分享这次背诵」，把录音做成歌词页发给朋友。"
+          description="背完一遍后，在练习记录里点「分享这次背诵」，把录音做成歌词页发给朋友。"
         />
       </sv-card>
 

@@ -2,12 +2,12 @@
  * 会员与免费次数：判断 Pro、占用和退回免费次数、管理员开通或结束 Pro。
  * 免费次数用数据库条件更新来占用，并发请求也不会多扣；占用以后任务失败要退回。
  */
+import { extendedUntil } from '@shared/account'
 import { PRO } from '@shared/constants'
 import type { Account } from '@shared/types'
 import { AppError } from './errors'
 import type { AccountDoc, AccountRepo } from './repos'
 
-const DAY_MS = 24 * 60 * 60 * 1000
 /** 并发开通时重新读一次再算，最多试几次 */
 const MAX_ATTEMPTS = 3
 
@@ -24,11 +24,6 @@ export function toAccount(doc: AccountDoc | null, isAdmin: boolean, now: number)
     freeUsed,
     freeLeft: Math.max(0, PRO.freeTrials - freeUsed),
   }
-}
-
-/** 开通一次后的到期时间：没开通或已过期的从现在起算，还没到期的在到期时间上往后加 */
-export function extendedUntil(proUntil: number | null, now: number): number {
-  return Math.max(proUntil ?? 0, now) + PRO.grantDays * DAY_MS
 }
 
 export interface AccountsDeps {
