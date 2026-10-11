@@ -5,7 +5,7 @@ import { createComposeHandlers } from '../src/functions/compose/handlers'
 import { createDataHandlers } from '../src/functions/data/handlers'
 import { encryptSecret } from '../src/lib/crypto'
 import { AppError } from '../src/lib/errors'
-import type { SessionDoc } from '../src/lib/repos'
+import { GLOBAL_SETTINGS_ID, type SessionDoc } from '../src/lib/repos'
 import { createFakeLlm, EXPLAIN } from './support/fake-llm'
 import { createMemoryRepos } from './support/memory-repos'
 import { createMemoryStorage } from './support/memory-storage'
@@ -53,6 +53,7 @@ function setup() {
     now,
     storage: createMemoryStorage(),
     newFileName: () => 'f',
+    adminOpenids: () => [],
   })
   const fake = createFakeLlm()
   const compose = createComposeHandlers({
@@ -64,7 +65,7 @@ function setup() {
   })
   const addSession = (patch: Partial<SessionDoc> = {}) => repos.sessions.create(sessionDoc(patch))
   const storeLlm = () =>
-    repos.settings.upsert(ME.openid, {
+    repos.settings.upsert(GLOBAL_SETTINGS_ID, {
       llm: {
         preset: 'deepseek',
         baseUrl: 'https://api.deepseek.com/v1',

@@ -118,6 +118,13 @@ export const LIMITS = {
   sharesMax: 50,
 } as const
 
+/** 会员：免费体验次数（新建对话和评分合计，不重置）、每次开通的天数、展示用的价格 */
+export const PRO = {
+  freeTrials: 5,
+  grantDays: 30,
+  price: '9.9 元/月',
+} as const
+
 /** 评分权重：发音 40%、流利度 20%、内容还原 25%、表达正确 15% */
 export const SCORE_WEIGHTS = {
   pronunciation: 0.4,

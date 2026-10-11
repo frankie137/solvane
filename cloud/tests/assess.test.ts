@@ -10,6 +10,7 @@ import type { SoeResult } from '../src/lib/tencent/soe'
 import { createMemoryRepos } from './support/memory-repos'
 
 const ME = { openid: 'o_me' }
+const ADMIN = { openid: 'o_admin' }
 const PCM_FILE = 'cloud://env.x/recite-input/r1.pcm'
 
 const VERSION: Version = {
@@ -120,6 +121,7 @@ function setup(over: Partial<AssessDeps> = {}) {
         ttsSpeed: 'normal' as const,
       },
     })),
+    adminOpenids: () => [ADMIN.openid],
     now: () => clock,
     ...over,
   }
@@ -130,9 +132,9 @@ function setup(over: Partial<AssessDeps> = {}) {
   return { handlers, deps, repos, files, removed, llmCalls, tick }
 }
 
-async function addSession(repos: ReturnType<typeof createMemoryRepos>) {
+async function addSession(repos: ReturnType<typeof createMemoryRepos>, openid = ME.openid) {
   const doc: Omit<SessionDoc, '_id'> = {
-    _openid: ME.openid,
+    _openid: openid,
     title: 't',
     input: { mode: 'text', rawText: 'x' },
     polishedZh: '',
@@ -173,6 +175,38 @@ describe('assess.start', () => {
     ).rejects.toThrow('版本')
   })
 
+  it('马上转成 WAV 能回放，不识别也不评分', async () => {
+    const { handlers, practiceId, removed, files, deps, repos } = await started()
+    const { practice } = await handlers.get({ practiceId }, ME)
+    expect(practice).toMatchObject({ stage: 'transcribe', scoreRequested: false, job: null })
+    expect(practice.durationMs).toBe(3000)
+    expect(practice.audioUrl).toBe(`https://tmp/cloud://env.x/recordings/o_me/${practiceId}.wav`)
+    const wav = files.get(`cloud://env.x/recordings/o_me/${practiceId}.wav`)!
+    expect(wav.equals(pcmToWav(Buffer.alloc(32 * 3000)))).toBe(true)
+    expect(removed).toEqual([PCM_FILE])
+    expect(repos.practiceDocs.get(practiceId)!.pcmFileID).toBeNull()
+
+    // 没要求评分时推进什么也不做
+    await handlers.advance({ practiceId }, ME)
+    expect(deps.recognize).not.toHaveBeenCalled()
+    expect(repos.accountDocs.size).toBe(0)
+  })
+
+  it('转存失败时撤掉记录，原始录音留着重新提交', async () => {
+    const { handlers, repos, deps } = setup()
+    const sessionId = await addSession(repos)
+    vi.mocked(deps.storage.upload).mockRejectedValueOnce(new Error('upload failed'))
+    await expect(
+      handlers.start({ sessionId, vid: 'v1', fileID: PCM_FILE, durationMs: 3000 }, ME),
+    ).rejects.toThrow('upload failed')
+    expect(repos.practiceDocs.size).toBe(0)
+    const { practiceId } = await handlers.start(
+      { sessionId, vid: 'v1', fileID: PCM_FILE, durationMs: 3000 },
+      ME,
+    )
+    expect(repos.practiceDocs.get(practiceId)!.wavFileID).toBeTruthy()
+  })
+
   it('每个对话只保留最近 3 次，旧的连同录音删除', async () => {
     const { handlers, repos, removed, files, tick } = setup()
     const sessionId = await addSession(repos)
@@ -186,7 +220,7 @@ describe('assess.start', () => {
       tick(1000)
     }
     expect([...repos.practiceDocs.keys()].sort()).toEqual(ids.slice(1).sort())
-    expect(removed).toEqual(['cloud://env.x/recite-input/r0.pcm'])
+    expect(removed).toContain(`cloud://env.x/recordings/o_me/${ids[0]}.wav`)
   })
 
   it('清理旧练习时跳过还在评测中的', async () => {
@@ -214,16 +248,14 @@ describe('assess.start', () => {
   })
 })
 
-describe('assess.advance', () => {
+describe('assess.score', () => {
   it('一次调用时间够时走完全部步骤', async () => {
-    const { handlers, practiceId, removed, llmCalls, deps } = await started()
-    const { practice } = await handlers.advance({ practiceId }, ME)
+    const { handlers, practiceId, llmCalls, deps } = await started()
+    const { practice } = await handlers.score({ practiceId }, ME)
 
     expect(practice.stage).toBe('done')
+    expect(practice.scoreRequested).toBe(true)
     expect(practice.job).toBeNull()
-    expect(practice.audioUrl).toBe(`https://tmp/cloud://env.x/recordings/o_me/${practiceId}.wav`)
-    // 原始 PCM 转存成 WAV 后删除
-    expect(removed).toContain(PCM_FILE)
     expect(llmCalls).toEqual(['align', 'report'])
     expect(deps.recognize).toHaveBeenCalledWith(expect.any(Buffer), {
       engine: '16k_en',
@@ -270,22 +302,24 @@ describe('assess.advance', () => {
         }
       }),
     })
-    const first = await handlers.advance({ practiceId }, ME)
+    const first = await handlers.score({ practiceId }, ME)
     expect(first.practice.stage).toBe('align')
     expect(first.practice.job).toBeNull()
     expect(repos.practiceDocs.get(practiceId)!.job).toBeNull()
   })
 
-  it('没识别出内容时报错并记录，录音保留以便重试', async () => {
+  it('没识别出内容时报错并记录，录音保留，次数退回', async () => {
     const { handlers, practiceId, repos, removed } = await started({
       recognize: vi.fn(async () => ({ text: '', words: [] })),
     })
-    await expect(handlers.advance({ practiceId }, ME)).rejects.toThrow('没有听清')
+    await expect(handlers.score({ practiceId }, ME)).rejects.toThrow('没有听清')
     const doc = repos.practiceDocs.get(practiceId)!
     expect(doc.stage).toBe('transcribe')
     expect(doc.job).toBeNull()
     expect(doc.lastError).toMatchObject({ stage: 'transcribe', code: 'BAD_REQUEST' })
-    expect(removed).not.toContain(PCM_FILE)
+    expect(doc).toMatchObject({ scoreRequested: false, freeCharged: false })
+    expect(removed).not.toContain(doc.wavFileID)
+    expect(repos.accountDocs.get(ME.openid)!.freeUsed).toBe(0)
   })
 
   it('个别句子评测失败时用其余句子的结果', async () => {
@@ -296,7 +330,7 @@ describe('assess.advance', () => {
         return soe(80, ["I'm", 'going', 'hiking'])
       }),
     })
-    const { practice } = await handlers.advance({ practiceId }, ME)
+    const { practice } = await handlers.score({ practiceId }, ME)
     expect(practice.stage).toBe('done')
     expect(practice.pronunciation!.accuracy).toBe(80)
     // 没能评测的句子单独标出，报告里不会显示成没背出来
@@ -312,7 +346,7 @@ describe('assess.advance', () => {
         return soe(80, ["I'm", 'going', 'hiking'])
       }),
     })
-    await handlers.advance({ practiceId }, ME)
+    await handlers.score({ practiceId }, ME)
     expect(deps.evaluate).toHaveBeenCalledTimes(1)
     const [, req] = (deps.evaluate as ReturnType<typeof vi.fn>).mock.calls[0]!
     expect((req as { timeoutMs: number }).timeoutMs).toBeLessThan(55_000)
@@ -325,9 +359,10 @@ describe('assess.advance', () => {
         throw new AppError('NOT_CONFIGURED', '口语评测鉴权失败')
       }),
     })
-    await expect(handlers.advance({ practiceId }, ME)).rejects.toThrow('鉴权')
+    await expect(handlers.score({ practiceId }, ME)).rejects.toThrow('鉴权')
     expect(repos.practiceDocs.get(practiceId)).toMatchObject({
       stage: 'score',
+      scoreRequested: false,
       lastError: { stage: 'score', code: 'NOT_CONFIGURED' },
     })
   })
@@ -345,7 +380,7 @@ describe('assess.advance', () => {
         ),
       },
     })
-    const { practice } = await handlers.advance({ practiceId }, ME)
+    const { practice } = await handlers.score({ practiceId }, ME)
     expect(deps.evaluate).not.toHaveBeenCalled()
     expect(practice.report!.scores.pronunciation).toBe(0)
   })
@@ -358,34 +393,176 @@ describe('assess.advance', () => {
       { stage: 'transcribe', startedAt: 1_000_000 },
       0,
     )
-    const { practice } = await handlers.advance({ practiceId }, ME)
+    const { practice } = await handlers.score({ practiceId }, ME)
     expect(practice.job).toMatchObject({ stage: 'transcribe' })
     expect(deps.recognize).not.toHaveBeenCalled()
   })
 
   it('不能操作别人的练习', async () => {
     const { handlers, practiceId } = await started()
+    await expect(handlers.score({ practiceId }, { openid: 'o_other' })).rejects.toThrow('不存在')
     await expect(handlers.advance({ practiceId }, { openid: 'o_other' })).rejects.toThrow('不存在')
+  })
+})
+
+describe('评分扣次数', () => {
+  const used = (repos: ReturnType<typeof createMemoryRepos>, openid = ME.openid) =>
+    repos.accountDocs.get(openid)?.freeUsed ?? 0
+
+  it('评分扣一次，同一条录音再点不重复扣', async () => {
+    const { handlers, practiceId, repos } = await started()
+    await handlers.score({ practiceId }, ME)
+    await handlers.score({ practiceId }, ME)
+    expect(used(repos)).toBe(1)
+    expect(repos.practiceDocs.get(practiceId)!.freeCharged).toBe(true)
+  })
+
+  it('次数用完时不评分', async () => {
+    const { handlers, practiceId, repos, deps } = await started()
+    await repos.accounts.create({
+      _id: ME.openid,
+      freeUsed: 5,
+      proUntil: null,
+      grants: [],
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    await expect(handlers.score({ practiceId }, ME)).rejects.toMatchObject({
+      code: 'QUOTA_EXCEEDED',
+    })
+    expect(deps.recognize).not.toHaveBeenCalled()
+    expect(repos.practiceDocs.get(practiceId)!.scoreRequested).toBe(false)
+  })
+
+  it('Pro 和管理员不扣次数', async () => {
+    const { handlers, practiceId, repos } = await started()
+    await repos.accounts.create({
+      _id: ME.openid,
+      freeUsed: 5,
+      proUntil: 2_000_000,
+      grants: [],
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    const { practice } = await handlers.score({ practiceId }, ME)
+    expect(practice.stage).toBe('done')
+    expect(used(repos)).toBe(5)
+    expect(repos.practiceDocs.get(practiceId)!.freeCharged).toBe(false)
+
+    const admin = setup()
+    const sessionId = await addSession(admin.repos, ADMIN.openid)
+    const recorded = await admin.handlers.start(
+      { sessionId, vid: 'v1', fileID: PCM_FILE, durationMs: 3000 },
+      ADMIN,
+    )
+    await admin.handlers.score(recorded, ADMIN)
+    expect(used(admin.repos, ADMIN.openid)).toBe(0)
+  })
+
+  it('失败退回后再评分，总共只扣一次', async () => {
+    let fail = true
+    const { handlers, practiceId, repos } = await started({
+      evaluate: vi.fn(async () => {
+        if (fail) throw new AppError('UPSTREAM_ERROR', '口语评测失败')
+        return soe(80, ["I'm", 'going', 'hiking'])
+      }),
+    })
+    await expect(handlers.score({ practiceId }, ME)).rejects.toThrow('口语评测失败')
+    expect(used(repos)).toBe(0)
+    fail = false
+    const { practice } = await handlers.score({ practiceId }, ME)
+    expect(practice.stage).toBe('done')
+    expect(used(repos)).toBe(1)
+  })
+})
+
+describe('assess.prepareShare', () => {
+  it('只做识别和对照，不扣次数；之后评分从评测接着做', async () => {
+    const { handlers, practiceId, repos, deps, llmCalls } = await started()
+    const { practice } = await handlers.prepareShare({ practiceId }, ME)
+    expect(practice.stage).toBe('score')
+    expect(practice.job).toBeNull()
+    expect(practice.scoreRequested).toBe(false)
+    expect(practice.alignment!.sentences).toHaveLength(2)
+    expect(deps.evaluate).not.toHaveBeenCalled()
+    expect(llmCalls).toEqual(['align'])
+    expect(repos.accountDocs.size).toBe(0)
+
+    // 再推进不会继续评测
+    await handlers.advance({ practiceId }, ME)
+    expect(deps.evaluate).not.toHaveBeenCalled()
+
+    const scored = await handlers.score({ practiceId }, ME)
+    expect(scored.practice.stage).toBe('done')
+    expect(deps.recognize).toHaveBeenCalledTimes(1)
+    expect(llmCalls).toEqual(['align', 'report'])
+  })
+
+  it('准备失败不影响评分标记', async () => {
+    const { handlers, practiceId, repos } = await started({
+      recognize: vi.fn(async () => ({ text: '', words: [] })),
+    })
+    await expect(handlers.prepareShare({ practiceId }, ME)).rejects.toThrow('没有听清')
+    expect(repos.practiceDocs.get(practiceId)).toMatchObject({
+      scoreRequested: false,
+      lastError: { code: 'BAD_REQUEST' },
+    })
+  })
+})
+
+describe('M6 之前的练习', () => {
+  it('没有标记的按要评分处理，不扣次数；原始 PCM 在识别时转成 WAV', async () => {
+    const { handlers, repos, removed } = setup()
+    const sessionId = await addSession(repos)
+    const practiceId = await repos.practices.create({
+      _openid: ME.openid,
+      sessionId,
+      vid: 'v1',
+      stage: 'transcribe',
+      job: null,
+      lastError: null,
+      pcmFileID: PCM_FILE,
+      wavFileID: null,
+      durationMs: 3000,
+      transcript: null,
+      alignment: null,
+      pronunciation: null,
+      report: null,
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    const { practice } = await handlers.advance({ practiceId }, ME)
+    expect(practice).toMatchObject({ stage: 'done', scoreRequested: true })
+    expect(practice.audioUrl).toBe(`https://tmp/cloud://env.x/recordings/o_me/${practiceId}.wav`)
+    expect(removed).toContain(PCM_FILE)
+    expect(repos.accountDocs.size).toBe(0)
   })
 })
 
 describe('assess.list', () => {
   it('列出最近的练习和分数', async () => {
     const { handlers, practiceId, sessionId } = await started()
-    await handlers.advance({ practiceId }, ME)
+    expect((await handlers.list({ sessionId }, ME)).items[0]).toMatchObject({
+      scoreRequested: false,
+      overall: null,
+    })
+    await handlers.score({ practiceId }, ME)
     const { items } = await handlers.list({ sessionId }, ME)
     expect(items).toHaveLength(1)
-    expect(items[0]).toMatchObject({ id: practiceId, stage: 'done', failed: false })
+    expect(items[0]).toMatchObject({
+      id: practiceId,
+      stage: 'done',
+      scoreRequested: true,
+      failed: false,
+    })
     expect(items[0]!.overall).toBeGreaterThan(0)
   })
 })
 
 describe('WAV 回放与评测切片', () => {
   it('评测时从 WAV 里取 PCM 切片', async () => {
-    const { handlers, practiceId, files, deps } = await started()
-    await handlers.advance({ practiceId }, ME)
-    const wav = files.get(`cloud://env.x/recordings/o_me/${practiceId}.wav`)!
-    expect(wav.equals(pcmToWav(Buffer.alloc(32 * 3000)))).toBe(true)
+    const { handlers, practiceId, deps } = await started()
+    await handlers.score({ practiceId }, ME)
     const firstSlice = (deps.evaluate as ReturnType<typeof vi.fn>).mock.calls[0]![0] as Buffer
     // 第一句 100～1200ms：开头延伸到录音起点，结尾到和下一句之间停顿的中点
     expect(firstSlice.length).toBe((1250 - 0) * 32)

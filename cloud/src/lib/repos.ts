@@ -36,6 +36,8 @@ export interface SessionDoc {
   tags: string[]
   /** 示范朗读缓存（只在服务端使用，不发给前端）：版本号 → 音色语速 → 每句 */
   tts?: Record<string, TtsCache>
+  /** 生成第一版时占用了一次免费次数（生成失败时退回并清掉）；M6 之前的对话没有这个字段 */
+  freeCharged?: boolean
   createdAt: number
   updatedAt: number
 }
@@ -47,11 +49,17 @@ export interface PracticeDoc {
   sessionId: string
   vid: string
   stage: PracticeStage
+  /** 要不要评分；M6 之前的练习没有这个字段，都是评过分的 */
+  scoreRequested?: boolean
+  /** 分享时要歌词时间：只做到对照这一步 */
+  timingRequested?: boolean
+  /** 这次评分占用了一次免费次数（评分失败时退回并清掉） */
+  freeCharged?: boolean
   job: PracticeJob | null
   lastError: PracticeError | null
-  /** 原始 PCM 录音，评测完成后删除 */
+  /** 原始 PCM 录音，转成 WAV 后删除（M6 起提交时就转） */
   pcmFileID: string | null
-  /** 转换后的 WAV，用于回放 */
+  /** 转换后的 WAV，用于回放和评测 */
   wavFileID: string | null
   durationMs: number
   transcript: Practice['transcript']
@@ -152,6 +160,28 @@ export interface ShareDoc {
   createdAt: number
 }
 
+/** 会员档案：_id 为用户 openid，第一次用到时建档 */
+export interface AccountDoc {
+  _id: string
+  /** 已用的免费次数（新建对话和评分合计） */
+  freeUsed: number
+  /** 最近一次开通的到期时间；从没开通过为 null */
+  proUntil: number | null
+  /** 管理员的开通、结束记录 */
+  grants: ProGrant[]
+  createdAt: number
+  updatedAt: number
+}
+
+export interface ProGrant {
+  action: 'grant' | 'revoke'
+  /** 操作后的到期时间 */
+  until: number
+  /** 操作的管理员 */
+  by: string
+  at: number
+}
+
 /** 一句示范朗读的缓存：云存储文件 + 逐词时间 */
 export interface TtsCachedSentence {
   fileID: string
@@ -221,11 +251,18 @@ export interface SettingsRepo {
   get(id: string): Promise<SettingsDoc | null>
   /** 合并更新；文档不存在时创建 */
   upsert(id: string, patch: Partial<Omit<SettingsDoc, '_id'>>): Promise<void>
+  /** 这些用户的署名资料（会员管理页用） */
+  listProfiles(ids: string[]): Promise<Pick<SettingsDoc, '_id' | 'profile'>[]>
+  /** 清掉成员自己存的大模型配置（M6 起只用全局配置）；可以重复执行 */
+  clearMemberLlm(): Promise<void>
 }
 
 export interface PracticeRepo {
   create(doc: Omit<PracticeDoc, '_id'>): Promise<string>
   get(id: string, openid: string): Promise<PracticeDoc | null>
+  update(id: string, openid: string, patch: PracticePatch): Promise<boolean>
+  /** 还没要求评分时标记为要评分；返回是否标记成功（同一条录音并发请求时只有一个成功） */
+  requestScore(id: string, openid: string, freeCharged: boolean): Promise<boolean>
   acquireJob(id: string, openid: string, job: PracticeJob, staleBefore: number): Promise<boolean>
   updateIfJob(id: string, openid: string, startedAt: number, patch: PracticePatch): Promise<boolean>
   /** 某个对话的练习，按创建时间倒序 */
@@ -243,7 +280,22 @@ export interface ShareRepo {
   remove(id: string, openid: string): Promise<void>
 }
 
+export interface AccountRepo {
+  get(id: string): Promise<AccountDoc | null>
+  /** 新建档案；已存在时不覆盖（并发建档时只留一个） */
+  create(doc: AccountDoc): Promise<void>
+  /** 已用次数小于 limit 时加 1；返回是否占用成功 */
+  consume(id: string, limit: number, now: number): Promise<boolean>
+  /** 退回一次（已用次数大于 0 时减 1） */
+  refund(id: string, now: number): Promise<void>
+  /** 到期时间仍是 expected 时改成 grant.until 并追加记录；返回是否写入（并发操作时只有一个成功） */
+  setProUntil(id: string, expected: number | null, grant: ProGrant): Promise<boolean>
+  /** 所有档案，按建档时间先后 */
+  list(limit: number): Promise<AccountDoc[]>
+}
+
 export interface Repos {
+  accounts: AccountRepo
   sessions: SessionRepo
   settings: SettingsRepo
   practices: PracticeRepo
@@ -287,6 +339,9 @@ interface WxCommand {
   eq(value: unknown): unknown
   neq(value: unknown): unknown
   lt(value: number): unknown
+  gt(value: number): unknown
+  inc(value: number): unknown
+  push(values: unknown[]): unknown
   in(values: unknown[]): unknown
   and(conditions: object[]): object
   or(conditions: object[]): object
@@ -305,6 +360,7 @@ const PRACTICES = 'practices'
 const FOLDERS = 'folders'
 const EXPRESSIONS = 'expressions'
 const SHARES = 'shares'
+const ACCOUNTS = 'accounts'
 
 /** 云函数端一次最多取 100 条，更多的分页取 */
 const PAGE = 100
@@ -519,6 +575,24 @@ export function createWxRepos(db: WxDatabase): Repos {
           }
         }
       }),
+
+    listProfiles: (ids) =>
+      withCollection(db, SETTINGS, async () => {
+        if (ids.length === 0) return []
+        const { data } = await settings()
+          .where({ _id: _.in(ids) })
+          .limit(ids.length)
+          .field({ profile: true })
+          .get()
+        return data as Pick<SettingsDoc, '_id' | 'profile'>[]
+      }),
+
+    clearMemberLlm: () =>
+      withCollection(db, SETTINGS, async () => {
+        await settings()
+          .where({ _id: _.neq(GLOBAL_SETTINGS_ID), llm: _.neq(null) })
+          .update({ data: { llm: null } })
+      }),
   }
 
   const practices = () => db.collection(PRACTICES)
@@ -530,6 +604,22 @@ export function createWxRepos(db: WxDatabase): Repos {
       withCollection(db, PRACTICES, async () => {
         const { data } = await practices().where({ _id: id, _openid: openid }).limit(1).get()
         return (data[0] as PracticeDoc | undefined) ?? null
+      }),
+
+    update: (id, openid, patch) =>
+      withCollection(db, PRACTICES, async () => {
+        const res = await practices()
+          .where({ _id: id, _openid: openid })
+          .update({ data: toUpdateData(_, patch) })
+        return res.stats.updated === 1
+      }),
+
+    requestScore: (id, openid, freeCharged) =>
+      withCollection(db, PRACTICES, async () => {
+        const res = await practices()
+          .where({ _id: id, _openid: openid, scoreRequested: false })
+          .update({ data: { scoreRequested: true, freeCharged } })
+        return res.stats.updated === 1
       }),
 
     acquireJob: (id, openid, job, staleBefore) =>
@@ -737,7 +827,57 @@ export function createWxRepos(db: WxDatabase): Repos {
       }),
   }
 
+  const accounts = () => db.collection(ACCOUNTS)
+  const accountRepo: AccountRepo = {
+    get: (id) =>
+      withCollection(db, ACCOUNTS, async () => {
+        const { data } = await accounts().where({ _id: id }).limit(1).get()
+        return (data[0] as AccountDoc | undefined) ?? null
+      }),
+
+    create: (doc) =>
+      withCollection(db, ACCOUNTS, async () => {
+        try {
+          await accounts().add({ data: { ...doc } })
+        } catch (err) {
+          if (!isDuplicateKey(err)) throw err
+        }
+      }),
+
+    consume: (id, limit, now) =>
+      withCollection(db, ACCOUNTS, async () => {
+        const res = await accounts()
+          .where({ _id: id, freeUsed: _.lt(limit) })
+          .update({ data: { freeUsed: _.inc(1), updatedAt: now } })
+        return res.stats.updated === 1
+      }),
+
+    refund: (id, now) =>
+      withCollection(db, ACCOUNTS, async () => {
+        await accounts()
+          .where({ _id: id, freeUsed: _.gt(0) })
+          .update({ data: { freeUsed: _.inc(-1), updatedAt: now } })
+      }),
+
+    setProUntil: (id, expected, grant) =>
+      withCollection(db, ACCOUNTS, async () => {
+        const res = await accounts()
+          .where({ _id: id, proUntil: _.eq(expected) })
+          .update({ data: { proUntil: grant.until, grants: _.push([grant]), updatedAt: grant.at } })
+        return res.stats.updated === 1
+      }),
+
+    list: (limit) =>
+      withCollection(
+        db,
+        ACCOUNTS,
+        async () =>
+          (await fetchAll(() => accounts().orderBy('createdAt', 'asc'), limit)) as AccountDoc[],
+      ),
+  }
+
   return {
+    accounts: accountRepo,
     sessions: sessionRepo,
     settings: settingsRepo,
     practices: practiceRepo,

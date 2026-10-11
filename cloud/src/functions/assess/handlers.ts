@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { JOB_STALE_MS, LIMITS } from '@shared/constants'
 import type { Practice, PracticeStage, PracticeSummary } from '@shared/types'
+import { createAccounts } from '../../lib/account'
 import { pcmDurationMs, pcmToWav, slicePcm, wavToPcm } from '../../lib/audio'
 import { mapLimit } from '../../lib/concurrency'
 import { AppError } from '../../lib/errors'
@@ -13,6 +14,8 @@ import {
   mergeResults,
   pickWeakWords,
   planSegments,
+  practiceGoal,
+  reachedStage,
   type Segment,
 } from '../../lib/practice'
 import type { PracticeDoc, PracticePatch, Repos } from '../../lib/repos'
@@ -31,6 +34,7 @@ export interface AssessDeps {
   evaluate(audio: Buffer, req: SoeRequest & { timeoutMs: number }): Promise<SoeResult>
   llm: Pick<LlmService, 'chatJson'>
   loadLlmContext(openid: string): Promise<LlmContext>
+  adminOpenids(): string[]
   now(): number
 }
 
@@ -66,6 +70,11 @@ interface StageResult {
 
 export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
   const { practices, sessions } = deps.repos
+  const accounts = createAccounts({
+    accounts: deps.repos.accounts,
+    adminOpenids: deps.adminOpenids,
+    now: deps.now,
+  })
 
   async function requirePractice(id: string, openid: string): Promise<PracticeDoc> {
     const doc = await practices.get(id, openid)
@@ -80,6 +89,7 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
       sessionId: doc.sessionId,
       vid: doc.vid,
       stage: doc.stage,
+      scoreRequested: doc.scoreRequested ?? true,
       job: doc.job,
       lastError: doc.lastError,
       durationMs: doc.durationMs,
@@ -104,9 +114,15 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
 
   // --- 四个步骤，每步返回要写入的字段 ---------------------------------------
 
+  /** 录音存成 WAV（回放和评测都用它） */
+  const wavPath = (openid: string, practiceId: string) => `recordings/${openid}/${practiceId}.wav`
+
   async function transcribe(doc: PracticeDoc, ctx: RequestContext): Promise<StageResult> {
-    if (!doc.pcmFileID) throw new AppError('INTERNAL', '找不到录音，请重新背一遍')
-    const pcm = await deps.storage.download(doc.pcmFileID)
+    // M6 起提交时就转成了 WAV；之前提交、还没评测的练习仍是 PCM
+    const fileID = doc.wavFileID ?? doc.pcmFileID
+    if (!fileID) throw new AppError('INTERNAL', '找不到录音，请重新背一遍')
+    const raw = await deps.storage.download(fileID)
+    const pcm = doc.wavFileID ? wavToPcm(raw) : raw
     if (pcm.length > MAX_AUDIO_BYTES) {
       throw new AppError('BAD_REQUEST', '录音太长了，请控制在 60 秒以内')
     }
@@ -114,19 +130,13 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
     if (!text.trim() || words.length === 0) {
       throw new AppError('BAD_REQUEST', '没有听清，请靠近一点再背一遍')
     }
-    const wavFileID = await deps.storage.upload(
-      `recordings/${ctx.openid}/${doc._id}.wav`,
-      pcmToWav(pcm),
-    )
+    const transcript = { text: text.trim(), words }
+    if (doc.wavFileID) return { patch: { transcript } }
+    const wavFileID = await deps.storage.upload(wavPath(ctx.openid, doc._id), pcmToWav(pcm))
     return {
-      patch: {
-        wavFileID,
-        pcmFileID: null,
-        durationMs: pcmDurationMs(pcm),
-        transcript: { text: text.trim(), words },
-      },
+      patch: { wavFileID, pcmFileID: null, durationMs: pcmDurationMs(pcm), transcript },
       // 原始 PCM 等结果写入成功后再删，否则写入失败时重试就找不到录音了
-      cleanup: [doc.pcmFileID],
+      cleanup: [fileID],
     }
   }
 
@@ -258,9 +268,87 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
     }
   }
 
+  /**
+   * 推进评测，直到这条练习的目标（见 practiceGoal）。
+   * 时间够就连着往下做，减少前端来回调用的次数；已有步骤在运行时直接返回当前状态，由前端再来推进。
+   */
+  async function drive(practiceId: string, ctx: RequestContext): Promise<{ practice: Practice }> {
+    const doc = await requirePractice(practiceId, ctx.openid)
+    if (reachedStage(doc.stage, practiceGoal(doc))) return { practice: await toPractice(doc) }
+
+    const startedAt = deps.now()
+    const acquired = await practices.acquireJob(
+      practiceId,
+      ctx.openid,
+      { stage: doc.stage, startedAt },
+      startedAt - JOB_STALE_MS,
+    )
+    if (!acquired)
+      return { practice: await toPractice(await requirePractice(practiceId, ctx.openid)) }
+
+    const deadline = startedAt + BUDGET_MS
+    let current = await requirePractice(practiceId, ctx.openid)
+    const goal = practiceGoal(current)
+    try {
+      // 第一步总是执行
+      let first = true
+      while (!reachedStage(current.stage, goal) && current.stage !== 'done') {
+        const stage = current.stage
+        if (!first && deadline - deps.now() < MIN_BUDGET[stage]) break
+        first = false
+        const { patch, cleanup } = await runStage(current, ctx, deadline)
+        const next = NEXT[stage]
+        const written = await practices.updateIfJob(practiceId, ctx.openid, startedAt, {
+          ...patch,
+          stage: next,
+          job: reachedStage(next, goal) ? null : { stage: next, startedAt },
+          lastError: null,
+          updatedAt: deps.now(),
+        })
+        // 锁已被接管（本次运行超时后有人重新发起），停止并以数据库为准
+        if (!written) break
+        for (const fileID of cleanup ?? []) {
+          await deps.storage.remove(fileID).catch(() => {})
+        }
+        current = { ...current, ...patch, stage: next } as PracticeDoc
+      }
+      if (!reachedStage(current.stage, goal)) {
+        await practices.updateIfJob(practiceId, ctx.openid, startedAt, { job: null })
+      }
+    } catch (err) {
+      const appErr =
+        err instanceof AppError ? err : new AppError('INTERNAL', '评测失败，请稍后再试')
+      if (!(err instanceof AppError)) {
+        console.error(`[assess.${current.stage}]`, err instanceof Error ? err.stack : String(err))
+      }
+      // 评分失败不扣次数：撤回评分请求并退回占用的次数，用户再点评分时重新占用
+      const latest = await practices.get(practiceId, ctx.openid).catch(() => null)
+      const scoring = latest?.scoreRequested === true
+      const written = await practices.updateIfJob(practiceId, ctx.openid, startedAt, {
+        job: null,
+        lastError: {
+          stage: current.stage,
+          code: appErr.code,
+          message: appErr.message,
+          at: deps.now(),
+        },
+        ...(scoring ? { scoreRequested: false, freeCharged: false } : {}),
+      })
+      if (written && scoring && latest?.freeCharged) {
+        await accounts.refund(ctx.openid).catch((e: unknown) => {
+          console.error('[assess.refund]', e instanceof Error ? e.message : String(e))
+        })
+      }
+      throw appErr
+    }
+    return { practice: await toPractice(await requirePractice(practiceId, ctx.openid)) }
+  }
+
+  const practiceIdSchema = z.object({ practiceId: z.string().min(1) })
+
   return {
     async start(payload, ctx) {
-      const { sessionId, vid, fileID, durationMs } = parsePayload(
+      const { sessionId, vid, fileID } = parsePayload(
         z.object({
           sessionId: z.string().min(1),
           vid: z.string().min(1),
@@ -277,17 +365,24 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
       if (!session.versions.some((v) => v.vid === vid)) {
         throw new AppError('BAD_REQUEST', '找不到要背诵的版本')
       }
+      const pcm = await deps.storage.download(fileID)
+      if (pcm.length > MAX_AUDIO_BYTES) {
+        throw new AppError('BAD_REQUEST', '录音太长了，请控制在 60 秒以内')
+      }
       const now = deps.now()
       const practiceId = await practices.create({
         _openid: ctx.openid,
         sessionId,
         vid,
         stage: 'transcribe',
+        scoreRequested: false,
+        timingRequested: false,
+        freeCharged: false,
         job: null,
         lastError: null,
         pcmFileID: fileID,
         wavFileID: null,
-        durationMs,
+        durationMs: pcmDurationMs(pcm),
         transcript: null,
         alignment: null,
         pronunciation: null,
@@ -295,6 +390,17 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
         createdAt: now,
         updatedAt: now,
       })
+      // 马上转成 WAV，提交完就能回放；转换失败时撤掉这条记录，原始录音留着可以重新提交
+      let wavFileID: string | null = null
+      try {
+        wavFileID = await deps.storage.upload(wavPath(ctx.openid, practiceId), pcmToWav(pcm))
+        await practices.update(practiceId, ctx.openid, { wavFileID, pcmFileID: null })
+      } catch (err) {
+        await practices.remove(practiceId, ctx.openid).catch(() => {})
+        if (wavFileID) await deps.storage.remove(wavFileID).catch(() => {})
+        throw err
+      }
+      await deps.storage.remove(fileID).catch(() => {})
 
       // 每个对话只保留最近几次练习，更早的连同录音一起删除
       const all = await practices.listBySession(ctx.openid, sessionId, 20)
@@ -308,71 +414,39 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
       return { practiceId }
     },
 
-    async advance(payload, ctx) {
-      const { practiceId } = parsePayload(z.object({ practiceId: z.string().min(1) }), payload)
+    async score(payload, ctx) {
+      const { practiceId } = parsePayload(practiceIdSchema, payload)
       const doc = await requirePractice(practiceId, ctx.openid)
-      if (doc.stage === 'done') return { practice: await toPractice(doc) }
-
-      const startedAt = deps.now()
-      const acquired = await practices.acquireJob(
-        practiceId,
-        ctx.openid,
-        { stage: doc.stage, startedAt },
-        startedAt - JOB_STALE_MS,
-      )
-      if (!acquired)
-        return { practice: await toPractice(await requirePractice(practiceId, ctx.openid)) }
-
-      const deadline = startedAt + BUDGET_MS
-      let current = await requirePractice(practiceId, ctx.openid)
-      try {
-        // 时间够就连着往下做，减少前端来回调用的次数；第一步总是执行
-        let first = true
-        while (current.stage !== 'done') {
-          const stage = current.stage
-          if (!first && deadline - deps.now() < MIN_BUDGET[stage]) break
-          first = false
-          const { patch, cleanup } = await runStage(current, ctx, deadline)
-          const next = NEXT[stage]
-          const written = await practices.updateIfJob(practiceId, ctx.openid, startedAt, {
-            ...patch,
-            stage: next,
-            job: next === 'done' ? null : { stage: next, startedAt },
-            lastError: null,
-            updatedAt: deps.now(),
-          })
-          // 锁已被接管（本次运行超时后有人重新发起），停止并以数据库为准
-          if (!written) break
-          for (const fileID of cleanup ?? []) {
-            await deps.storage.remove(fileID).catch(() => {})
-          }
-          current = { ...current, ...patch, stage: next } as PracticeDoc
+      // 已经要求过评分（或 M6 之前的练习）：不再占用次数，接着推进
+      if (doc.scoreRequested === false) {
+        const charged = await accounts.consume(ctx.openid)
+        let marked = false
+        try {
+          marked = await practices.requestScore(practiceId, ctx.openid, charged)
+        } finally {
+          // 同一条录音并发点了两次评分：只算一次
+          if (!marked && charged) await accounts.refund(ctx.openid)
         }
-        if (current.stage !== 'done') {
-          await practices.updateIfJob(practiceId, ctx.openid, startedAt, { job: null })
-        }
-      } catch (err) {
-        const appErr =
-          err instanceof AppError ? err : new AppError('INTERNAL', '评测失败，请稍后再试')
-        if (!(err instanceof AppError)) {
-          console.error(`[assess.${current.stage}]`, err instanceof Error ? err.stack : String(err))
-        }
-        await practices.updateIfJob(practiceId, ctx.openid, startedAt, {
-          job: null,
-          lastError: {
-            stage: current.stage,
-            code: appErr.code,
-            message: appErr.message,
-            at: deps.now(),
-          },
-        })
-        throw appErr
       }
-      return { practice: await toPractice(await requirePractice(practiceId, ctx.openid)) }
+      return drive(practiceId, ctx)
+    },
+
+    async prepareShare(payload, ctx) {
+      const { practiceId } = parsePayload(practiceIdSchema, payload)
+      const doc = await requirePractice(practiceId, ctx.openid)
+      if (!doc.timingRequested) {
+        await practices.update(practiceId, ctx.openid, { timingRequested: true })
+      }
+      return drive(practiceId, ctx)
+    },
+
+    async advance(payload, ctx) {
+      const { practiceId } = parsePayload(practiceIdSchema, payload)
+      return drive(practiceId, ctx)
     },
 
     async get(payload, ctx) {
-      const { practiceId } = parsePayload(z.object({ practiceId: z.string().min(1) }), payload)
+      const { practiceId } = parsePayload(practiceIdSchema, payload)
       return { practice: await toPractice(await requirePractice(practiceId, ctx.openid)) }
     },
 
@@ -383,6 +457,7 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
         id: d._id,
         vid: d.vid,
         stage: d.stage,
+        scoreRequested: d.scoreRequested ?? true,
         failed: !!d.lastError && !d.job,
         overall: d.report?.scores.overall ?? null,
         durationMs: d.durationMs,

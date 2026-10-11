@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ScoredWord } from '@shared/types'
 import { createDataHandlers } from '../src/functions/data/handlers'
 import type { PracticeDoc } from '../src/lib/repos'
-import { buildShareSentences, mapWordTimings } from '../src/lib/share'
+import { buildShareSentences, mapWordTimings, wordsFromTranscript } from '../src/lib/share'
 import { createMemoryRepos } from './support/memory-repos'
 import { createMemoryStorage } from './support/memory-storage'
 
@@ -73,6 +73,44 @@ describe('buildShareSentences', () => {
   })
 })
 
+describe('wordsFromTranscript', () => {
+  it('识别出的词按句子时间范围分句；句子之间的杂音不要', () => {
+    const spoken = [
+      { word: 'Hi', startMs: 100, endMs: 300 },
+      { word: 'there', startMs: 400, endMs: 900 },
+      { word: 'um', startMs: 1000, endMs: 1100 },
+      { word: 'see', startMs: 1200, endMs: 1400 },
+      { word: 'you', startMs: 1500, endMs: 1800 },
+    ]
+    const words = wordsFromTranscript(spoken, [
+      { index: 0, intended: 'Hi there.', startMs: 100, endMs: 900 },
+      { index: 1, intended: 'See you.', startMs: 1200, endMs: 1800 },
+      { index: 2, intended: '', startMs: 0, endMs: 0 },
+    ])
+    expect(words.map((w) => [w.word, w.sentenceIndex])).toEqual([
+      ['Hi', 0],
+      ['there', 0],
+      ['see', 1],
+      ['you', 1],
+    ])
+    const out = buildShareSentences(
+      [
+        { en: 'Hi there.', zh: '你好。' },
+        { en: 'See you.', zh: '再见。' },
+      ],
+      [
+        { index: 0, intended: 'Hi there.', startMs: 100, endMs: 900 },
+        { index: 1, intended: 'See you.', startMs: 1200, endMs: 1800 },
+      ],
+      words,
+    )
+    expect(out[1]!.words.map((w) => [w.text, w.beginMs])).toEqual([
+      ['See', 1200],
+      ['you', 1500],
+    ])
+  })
+})
+
 // ---------------------------------------------------------------------------
 // handlers
 
@@ -90,6 +128,7 @@ function setup() {
     storage,
     now: () => 9_000,
     newFileName: () => `copy${++n}`,
+    adminOpenids: () => [],
   })
   return { repos, storage, data }
 }
@@ -238,12 +277,42 @@ describe('分享', () => {
     await expect(ctx.data.getShare({ shareId }, FRIEND)).resolves.toBeTruthy()
   })
 
-  it('评测没完成、别人的练习都不能分享', async () => {
+  it('没评分的录音用识别结果的逐词时间', async () => {
+    const ctx = setup()
+    await ctx.data.updateProfile({ nickname: '小明' }, ME)
+    const { practiceId } = await donePractice(ctx, {
+      stage: 'score',
+      scoreRequested: false,
+      timingRequested: true,
+      transcript: {
+        text: 'hi there',
+        words: [
+          { word: 'hi', startMs: 100, endMs: 300 },
+          { word: 'there', startMs: 400, endMs: 900 },
+        ],
+      },
+      pronunciation: null,
+    })
+    const { shareId } = await ctx.data.createShare({ practiceId }, ME)
+    const { share } = await ctx.data.getShare({ shareId }, FRIEND)
+    expect(share.sentences[0]!.words.map((w) => [w.text, w.beginMs])).toEqual([
+      ['Hi', 100],
+      ['there', 400],
+    ])
+  })
+
+  it('歌词时间还没准备好、别人的练习都不能分享', async () => {
     const ctx = setup()
     await ctx.data.updateProfile({ nickname: '小明' }, ME)
     await ctx.data.updateProfile({ nickname: '好友' }, FRIEND)
-    const { practiceId } = await donePractice(ctx, { stage: 'score' })
-    await expect(ctx.data.createShare({ practiceId }, ME)).rejects.toThrow('评测完成后')
+    const { practiceId } = await donePractice(ctx, {
+      stage: 'transcribe',
+      scoreRequested: false,
+      transcript: null,
+      alignment: null,
+      pronunciation: null,
+    })
+    await expect(ctx.data.createShare({ practiceId }, ME)).rejects.toThrow('歌词还没准备好')
     await expect(ctx.data.createShare({ practiceId }, FRIEND)).rejects.toThrow('不存在')
   })
 

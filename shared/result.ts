@@ -6,6 +6,8 @@ export type ErrorCode =
   | 'FORBIDDEN'
   | 'NOT_FOUND'
   | 'NOT_CONFIGURED'
+  /** 免费体验次数用完，前端据此弹出 Pro 介绍 */
+  | 'QUOTA_EXCEEDED'
   | 'UPSTREAM_ERROR'
   | 'TIMEOUT'
   | 'INTERNAL'

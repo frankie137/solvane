@@ -10,6 +10,7 @@ const handlers = createDataHandlers({
   now: () => 1000,
   storage: createMemoryStorage(),
   newFileName: () => 'f',
+  adminOpenids: () => [],
 })
 
 const withUser = () => ({ openid: 'o_test', appid: 'wx_test' })

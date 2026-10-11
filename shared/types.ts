@@ -125,24 +125,13 @@ export interface SessionSummary {
   updatedAt: number
 }
 
-export type LlmScope = 'own' | 'global'
-
-/** 前端能看到的大模型配置（不含明文 Key） */
+/** 前端能看到的大模型配置（不含明文 Key）；只有管理员能看，所有人共用这一份 */
 export interface LlmConfigView {
   preset: LlmPresetId
   baseUrl: string
   model: string
   apiKeyMask: string
   updatedAt: number
-}
-
-export interface LlmConfigState {
-  own: LlmConfigView | null
-  /** 管理员设置的全局默认 */
-  global: LlmConfigView | null
-  /** 实际生效的是哪一份 */
-  effective: LlmScope | 'none'
-  isAdmin: boolean
 }
 
 export type LlmPresetId = 'deepseek' | 'qwen' | 'moonshot' | 'zhipu' | 'doubao' | 'custom'
@@ -250,7 +239,10 @@ export interface Practice {
   id: string
   sessionId: string
   vid: string
+  /** 下一步要做的评测步骤；录好还没评分时停在 transcribe */
   stage: PracticeStage
+  /** 要不要评分（评分扣次数）；没评分的录音也能回放和分享 */
+  scoreRequested: boolean
   job: PracticeJob | null
   lastError: PracticeError | null
   durationMs: number
@@ -285,6 +277,7 @@ export interface PracticeSummary {
   id: string
   vid: string
   stage: PracticeStage
+  scoreRequested: boolean
   failed: boolean
   overall: number | null
   durationMs: number
@@ -419,5 +412,31 @@ export interface ShareSummary {
   /** 第一句英文 */
   preview: string
   durationMs: number
+  createdAt: number
+}
+
+// ---------------------------------------------------------------------------
+// 会员（M6）
+
+/** 自己的会员状态 */
+export interface Account {
+  /** 管理员一直按 Pro 算 */
+  isAdmin: boolean
+  /** 现在是不是 Pro：管理员，或者开通了还没到期 */
+  pro: boolean
+  /** 最近一次开通的到期时间；从没开通过为 null（已过期的也保留） */
+  proUntil: number | null
+  /** 免费体验已用和剩余的次数 */
+  freeUsed: number
+  freeLeft: number
+}
+
+/** 会员管理页里的一位成员 */
+export interface Member extends Account {
+  openid: string
+  /** 分享署名里的昵称和头像；没设置过为 null */
+  nickname: string | null
+  avatarUrl: string | null
+  /** 第一次使用的时间 */
   createdAt: number
 }

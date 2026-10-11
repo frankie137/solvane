@@ -23,7 +23,10 @@ export const main = createFunction(
     llm: {
       chatJson: (target, messages, schema, options) => chatJson(target, messages, schema, options),
     },
-    loadLlmContext: createLlmContextLoader(repos.settings, env.assessEncryptionSecret),
+    loadLlmContext: createLlmContextLoader(repos.settings, env.assessEncryptionSecret, (openid) =>
+      env.adminOpenids().includes(openid),
+    ),
+    adminOpenids: env.adminOpenids,
     now: Date.now,
   }),
 )

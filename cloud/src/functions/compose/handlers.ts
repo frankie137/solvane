@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import type { LlmConfigInput } from '@shared/api'
 import { JOB_STALE_MS, LIMITS } from '@shared/constants'
-import type { JobKind, LlmConfigState, LlmConfigView, LlmScope, Session } from '@shared/types'
+import type { JobKind, LlmConfigView, Session } from '@shared/types'
+import { createAccounts } from '../../lib/account'
 import { decryptSecret, encryptSecret, maskSecret } from '../../lib/crypto'
 import { AppError } from '../../lib/errors'
 import { requireExpression, toExpression } from '../../lib/expressions'
@@ -44,10 +45,8 @@ const MAX_VERSIONS = 20
 const EXPLAIN_CONTEXT_SENTENCES = 2
 
 const presetSchema = z.enum(['deepseek', 'qwen', 'moonshot', 'zhipu', 'doubao', 'custom'])
-const scopeSchema = z.enum(['own', 'global'])
 
 const llmInputSchema = z.object({
-  scope: scopeSchema,
   preset: presetSchema,
   baseUrl: z.string().min(1).max(300),
   model: z.string().trim().min(1).max(100),
@@ -67,38 +66,25 @@ function toView(stored: LlmStored | null | undefined): LlmConfigView | null {
 
 export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
   const { sessions, settings, expressions } = deps.repos
+  const accounts = createAccounts({
+    accounts: deps.repos.accounts,
+    adminOpenids: deps.adminOpenids,
+    now: deps.now,
+  })
 
-  const isAdmin = (openid: string) => deps.adminOpenids().includes(openid)
-  const settingsId = (scope: LlmScope, openid: string) =>
-    scope === 'global' ? GLOBAL_SETTINGS_ID : openid
-
-  function assertScopeAllowed(scope: LlmScope, openid: string) {
-    if (scope === 'global' && !isAdmin(openid)) {
-      throw new AppError('FORBIDDEN', '只有管理员可以设置全局默认配置')
-    }
+  function assertAdmin(openid: string) {
+    if (!accounts.isAdmin(openid)) throw new AppError('FORBIDDEN', '只有管理员可以设置大模型')
   }
 
-  const loadJobContext = createLlmContextLoader(settings, deps.encryptionSecret)
+  const loadJobContext = createLlmContextLoader(settings, deps.encryptionSecret, accounts.isAdmin)
 
-  async function configState(openid: string): Promise<LlmConfigState> {
-    const [own, global] = await Promise.all([
-      settings.get(openid),
-      settings.get(GLOBAL_SETTINGS_ID),
-    ])
-    const ownView = toView(own?.llm)
-    const globalView = toView(global?.llm)
-    return {
-      own: ownView,
-      global: globalView,
-      effective: ownView ? 'own' : globalView ? 'global' : 'none',
-      isAdmin: isAdmin(openid),
-    }
+  async function configView(): Promise<{ config: LlmConfigView | null }> {
+    return { config: toView((await settings.get(GLOBAL_SETTINGS_ID))?.llm) }
   }
 
-  /** 校验输入并得到可用的目标；没填 Key 时沿用该范围已保存的 Key */
+  /** 校验输入并得到可用的目标；没填 Key 时沿用已保存的 Key */
   async function targetFromInput(
     input: LlmConfigInput,
-    openid: string,
   ): Promise<{ target: LlmTarget; stored: LlmStored }> {
     const baseUrl = normalizeBaseUrl(input.baseUrl)
     const secret = deps.encryptionSecret()
@@ -109,7 +95,7 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
       cipher = encryptSecret(apiKey, secret)
       mask = maskSecret(apiKey)
     } else {
-      const saved = (await settings.get(settingsId(input.scope, openid)))?.llm
+      const saved = (await settings.get(GLOBAL_SETTINGS_ID))?.llm
       if (!saved) throw new AppError('BAD_REQUEST', '请填写 API Key')
       // 换了服务商地址就不能沿用旧 Key，否则会把一家的 Key 发给另一家
       if (new URL(saved.baseUrl).host !== new URL(baseUrl).host) {
@@ -135,6 +121,7 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
   /**
    * 运行一个生成任务：加锁 → 执行 → 写入结果并解锁。
    * 已有任务在运行时不重复执行，直接返回当前对话，由前端轮询结果。
+   * charge：生成第一版时占用一次免费次数并记在对话上（之前中断的任务已占用过就不再占）；失败时退回。
    */
   async function runJob(
     ctx: RequestContext,
@@ -142,6 +129,7 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
     kind: JobKind,
     vid: string | null,
     work: (doc: SessionDoc, deadline: number) => Promise<SessionPatch>,
+    charge = false,
   ): Promise<{ session: Session }> {
     const startedAt = deps.now()
     const acquired = await sessions.acquireJob(
@@ -150,12 +138,29 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
       { kind, vid, startedAt },
       startedAt - JOB_STALE_MS,
     )
-    if (!acquired) {
-      return { session: toSession(await requireSession(sessions, sessionId, ctx.openid)) }
-    }
+    const current = async () => ({
+      session: toSession(await requireSession(sessions, sessionId, ctx.openid)),
+    })
+    if (!acquired) return current()
 
+    /** 对话上记着已占用一次免费次数（这次占的，或之前中断的任务占的） */
+    let charged = false
     try {
       const fresh = await requireSession(sessions, sessionId, ctx.openid)
+      if (charge && fresh.versions.length === 0) {
+        charged = !!fresh.freeCharged
+        if (!charged && (await accounts.consume(ctx.openid))) {
+          try {
+            charged = await sessions.updateIfJob(sessionId, ctx.openid, startedAt, {
+              freeCharged: true,
+            })
+          } finally {
+            if (!charged) await accounts.refund(ctx.openid)
+          }
+          // 锁已被接管：交给接管的任务
+          if (!charged) return current()
+        }
+      }
       const patch = await work(fresh, startedAt + JOB_BUDGET_MS)
       await sessions.updateIfJob(sessionId, ctx.openid, startedAt, {
         ...patch,
@@ -170,14 +175,21 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
       if (!(err instanceof AppError)) {
         console.error(`[compose.${kind}]`, err instanceof Error ? err.stack : String(err))
       }
-      await sessions.updateIfJob(sessionId, ctx.openid, startedAt, {
+      const written = await sessions.updateIfJob(sessionId, ctx.openid, startedAt, {
         job: null,
         lastError: { kind, vid, code: appErr.code, message: appErr.message, at: deps.now() },
+        ...(charged ? { freeCharged: false } : {}),
       })
+      // 失败不扣次数；锁已被接管时由接管的任务决定
+      if (charged && written) {
+        await accounts.refund(ctx.openid).catch((e: unknown) => {
+          console.error('[compose.refund]', e instanceof Error ? e.message : String(e))
+        })
+      }
       throw appErr
     }
     // 锁若已被接管（任务超时后别人重新发起），结果不会写入；这里都以数据库为准
-    return { session: toSession(await requireSession(sessions, sessionId, ctx.openid)) }
+    return current()
   }
 
   return {
@@ -190,6 +202,8 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
       if (rawText.length > LIMITS.rawTextMax) {
         throw new AppError('BAD_REQUEST', `内容太长了，请控制在 ${LIMITS.rawTextMax} 字以内`)
       }
+      // 次数用完时不建空对话；真正占用次数在生成第一版时
+      await accounts.assertAvailable(ctx.openid)
       const now = deps.now()
       const sessionId = await sessions.create({
         _openid: ctx.openid,
@@ -213,23 +227,30 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
       const doc = await requireSession(sessions, sessionId, ctx.openid)
       if (doc.versions.length > 0) return { session: toSession(doc) }
 
-      return runJob(ctx, sessionId, 'generate', null, async (fresh, deadline) => {
-        if (fresh.versions.length > 0) return {}
-        const { target, userSettings } = await loadJobContext(ctx.openid)
-        const draft = await deps.llm.chatJson(
-          target,
-          buildGenerateMessages(fresh.input.rawText, userSettings),
-          draftSchema,
-          { deadline, maxTokens: 1500 },
-        )
-        const version = makeVersion([], draft.sentences, draft.alternatives, null, deps.now())
-        return {
-          title: draft.title,
-          polishedZh: draft.polishedZh,
-          versions: [version],
-          currentVid: version.vid,
-        }
-      })
+      return runJob(
+        ctx,
+        sessionId,
+        'generate',
+        null,
+        async (fresh, deadline) => {
+          if (fresh.versions.length > 0) return {}
+          const { target, userSettings } = await loadJobContext(ctx.openid)
+          const draft = await deps.llm.chatJson(
+            target,
+            buildGenerateMessages(fresh.input.rawText, userSettings),
+            draftSchema,
+            { deadline, maxTokens: 1500 },
+          )
+          const version = makeVersion([], draft.sentences, draft.alternatives, null, deps.now())
+          return {
+            title: draft.title,
+            polishedZh: draft.polishedZh,
+            versions: [version],
+            currentVid: version.vid,
+          }
+        },
+        true,
+      )
     },
 
     async revise(payload, ctx) {
@@ -357,31 +378,30 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
     },
 
     async getLlmConfig(_payload, ctx) {
-      return configState(ctx.openid)
+      assertAdmin(ctx.openid)
+      // M6 起成员不能用自己的配置：管理员打开配置页时顺带清掉成员以前存的（含加密的 Key）
+      await settings.clearMemberLlm()
+      return configView()
     },
 
     async saveLlmConfig(payload, ctx) {
+      assertAdmin(ctx.openid)
       const input = parsePayload(llmInputSchema, payload)
-      assertScopeAllowed(input.scope, ctx.openid)
-      const { stored } = await targetFromInput(input, ctx.openid)
-      await settings.upsert(settingsId(input.scope, ctx.openid), {
-        llm: stored,
-        updatedAt: deps.now(),
-      })
-      return configState(ctx.openid)
+      const { stored } = await targetFromInput(input)
+      await settings.upsert(GLOBAL_SETTINGS_ID, { llm: stored, updatedAt: deps.now() })
+      return configView()
     },
 
-    async clearLlmConfig(payload, ctx) {
-      const { scope } = parsePayload(z.object({ scope: scopeSchema }), payload)
-      assertScopeAllowed(scope, ctx.openid)
-      await settings.upsert(settingsId(scope, ctx.openid), { llm: null, updatedAt: deps.now() })
-      return configState(ctx.openid)
+    async clearLlmConfig(_payload, ctx) {
+      assertAdmin(ctx.openid)
+      await settings.upsert(GLOBAL_SETTINGS_ID, { llm: null, updatedAt: deps.now() })
+      return configView()
     },
 
     async testLlm(payload, ctx) {
+      assertAdmin(ctx.openid)
       const input = parsePayload(llmInputSchema, payload)
-      assertScopeAllowed(input.scope, ctx.openid)
-      const { target } = await targetFromInput(input, ctx.openid)
+      const { target } = await targetFromInput(input)
       const start = deps.now()
       const reply = await deps.llm.ping(target)
       return { latencyMs: deps.now() - start, reply: reply.trim().slice(0, 20) }
