@@ -12,7 +12,7 @@ const ME = { openid: 'o_me' }
 const ADMIN = { openid: 'o_admin' }
 const AVATAR = 'cloud://env.x/avatars/a1.jpg'
 
-const doc = (patch: Partial<Parameters<typeof toAccount>[0] & object> = {}) => ({
+const doc = (patch: Partial<Parameters<typeof toAccount>[1] & object> = {}) => ({
   _id: ME.openid,
   freeUsed: 0,
   proUntil: null,
@@ -24,7 +24,8 @@ const doc = (patch: Partial<Parameters<typeof toAccount>[0] & object> = {}) => (
 
 describe('toAccount', () => {
   it('新用户有 5 次免费体验，不是 Pro', () => {
-    expect(toAccount(null, false, NOW)).toEqual({
+    expect(toAccount(ME.openid, null, false, NOW)).toEqual({
+      openid: ME.openid,
       isAdmin: false,
       pro: false,
       proUntil: null,
@@ -34,13 +35,13 @@ describe('toAccount', () => {
   })
 
   it('没到期是 Pro，到期后不是；剩余次数不小于 0', () => {
-    expect(toAccount(doc({ proUntil: NOW + 1 }), false, NOW).pro).toBe(true)
-    expect(toAccount(doc({ proUntil: NOW }), false, NOW).pro).toBe(false)
-    expect(toAccount(doc({ freeUsed: 7 }), false, NOW).freeLeft).toBe(0)
+    expect(toAccount(ME.openid, doc({ proUntil: NOW + 1 }), false, NOW).pro).toBe(true)
+    expect(toAccount(ME.openid, doc({ proUntil: NOW }), false, NOW).pro).toBe(false)
+    expect(toAccount(ME.openid, doc({ freeUsed: 7 }), false, NOW).freeLeft).toBe(0)
   })
 
   it('管理员一直是 Pro', () => {
-    expect(toAccount(doc(), true, NOW).pro).toBe(true)
+    expect(toAccount(ME.openid, doc(), true, NOW).pro).toBe(true)
   })
 })
 

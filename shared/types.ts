@@ -420,6 +420,8 @@ export interface ShareSummary {
 
 /** 自己的会员状态 */
 export interface Account {
+  /** 用户 ID：开通 Pro 时发给管理员 */
+  openid: string
   /** 管理员一直按 Pro 算 */
   isAdmin: boolean
   /** 现在是不是 Pro：管理员，或者开通了还没到期 */
@@ -433,7 +435,6 @@ export interface Account {
 
 /** 会员管理页里的一位成员 */
 export interface Member extends Account {
-  openid: string
   /** 分享署名里的昵称和头像；没设置过为 null */
   nickname: string | null
   avatarUrl: string | null

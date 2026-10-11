@@ -14,10 +14,16 @@ const MAX_ATTEMPTS = 3
 export const QUOTA_MESSAGE = `免费体验的 ${PRO.freeTrials} 次已经用完，开通 Pro 后可以继续使用`
 
 /** 档案换成前端看到的会员状态；还没建档的按新用户算 */
-export function toAccount(doc: AccountDoc | null, isAdmin: boolean, now: number): Account {
+export function toAccount(
+  openid: string,
+  doc: AccountDoc | null,
+  isAdmin: boolean,
+  now: number,
+): Account {
   const freeUsed = doc?.freeUsed ?? 0
   const proUntil = doc?.proUntil ?? null
   return {
+    openid,
     isAdmin,
     pro: isAdmin || (proUntil !== null && proUntil > now),
     proUntil,
@@ -56,7 +62,7 @@ export function createAccounts(deps: AccountsDeps) {
   }
 
   async function view(openid: string): Promise<Account> {
-    return toAccount(await load(openid), isAdmin(openid), deps.now())
+    return toAccount(openid, await load(openid), isAdmin(openid), deps.now())
   }
 
   return {

@@ -326,6 +326,20 @@ describe('大模型配置', () => {
     expect(repos.settingsDocs.get(GLOBAL_SETTINGS_ID)!.llm).not.toBeNull()
   })
 
+  it('清理成员配置失败时仍能读取配置', async () => {
+    const { handlers, repos, storeLlm } = setup()
+    await storeLlm(GLOBAL_SETTINGS_ID)
+    repos.settings.clearMemberLlm = async () => {
+      throw new Error('db down')
+    }
+    const original = console.error
+    console.error = () => {}
+    const { config } = await handlers
+      .getLlmConfig({}, ADMIN)
+      .finally(() => (console.error = original))
+    expect(config).not.toBeNull()
+  })
+
   it('测试连接用填写的 Key，不保存', async () => {
     const { handlers, fake, repos } = setup()
     const res = await handlers.testLlm(input, ADMIN)

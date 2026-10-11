@@ -43,7 +43,7 @@ import { computed, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { PRO } from '@shared/constants'
 import type { IconName } from '@/components/sv-icon/icons'
-import { callCloud, CloudError } from '@/services/cloud'
+import { CloudError } from '@/services/cloud'
 import { useAccountStore } from '@/stores/account'
 import { planLabel } from '@/utils/account'
 import { toast } from '@/utils/dialog'
@@ -82,7 +82,7 @@ async function copyOpenid() {
   if (copying.value) return
   copying.value = true
   try {
-    const { openid } = await callCloud('data', 'ping', {})
+    const { openid } = account.value ?? (await store.load())
     uni.setClipboardData({ data: openid })
   } catch (err) {
     toast(err instanceof CloudError ? err.message : '复制失败，请重试')

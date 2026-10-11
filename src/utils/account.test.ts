@@ -3,7 +3,14 @@ import type { Account } from '@shared/types'
 import { canUse, planLabel } from './account'
 
 const NOW = new Date(2026, 9, 10).getTime()
-const base: Account = { isAdmin: false, pro: false, proUntil: null, freeUsed: 0, freeLeft: 5 }
+const base: Account = {
+  openid: 'o_me',
+  isAdmin: false,
+  pro: false,
+  proUntil: null,
+  freeUsed: 0,
+  freeLeft: 5,
+}
 
 describe('planLabel', () => {
   it('管理员、Pro、免费三种状态', () => {

@@ -165,7 +165,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ACCENTS, LEVELS, LLM_PRESETS, TTS_SPEEDS, TTS_VOICES } from '@shared/constants'
 import type { UserSettings } from '@shared/types'
@@ -191,17 +191,25 @@ const { account } = storeToRefs(accountStore)
 const showPro = ref(false)
 let accountFailed = false
 
-/** 会员状态；管理员再取大模型配置的状态 */
+/** 会员状态（首页显示时已经在取，这里只补取失败或还没有的） */
 async function loadAccount() {
   try {
-    const next = await accountStore.load()
+    await accountStore.load()
     accountFailed = false
-    if (next.isAdmin) await settingsStore.loadLlm().catch(() => {})
   } catch {
     // 失败原因会显示在"云服务"那一行，这里保持"—"
     accountFailed = true
   }
 }
+
+// 管理员才取大模型配置的状态；之后由配置页更新，不重复取
+watch(
+  () => account.value?.isAdmin,
+  (admin) => {
+    if (admin && llm.value === undefined) void settingsStore.loadLlm().catch(() => {})
+  },
+  { immediate: true },
+)
 
 const profileStore = useProfileStore()
 const { profile } = storeToRefs(profileStore)
@@ -402,7 +410,7 @@ function openGallery() {
 onMounted(() => {
   void checkCloud()
   void loadSettings()
-  void loadAccount()
+  if (!account.value) void loadAccount()
 })
 </script>
 

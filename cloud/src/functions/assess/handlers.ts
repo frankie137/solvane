@@ -365,6 +365,9 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
       if (!session.versions.some((v) => v.vid === vid)) {
         throw new AppError('BAD_REQUEST', '找不到要背诵的版本')
       }
+      // 上次提交等不到返回、其实已经建好：重新提交同一个文件时直接返回，不重复建
+      const existing = await practices.findBySource(ctx.openid, fileID)
+      if (existing) return { practiceId: existing._id }
       const pcm = await deps.storage.download(fileID)
       if (pcm.length > MAX_AUDIO_BYTES) {
         throw new AppError('BAD_REQUEST', '录音太长了，请控制在 60 秒以内')
@@ -378,6 +381,7 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
         scoreRequested: false,
         timingRequested: false,
         freeCharged: false,
+        sourceFileID: fileID,
         job: null,
         lastError: null,
         pcmFileID: fileID,

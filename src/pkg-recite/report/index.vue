@@ -54,22 +54,6 @@
               <text v-if="scoreHint" class="recorded__hint">{{ scoreHint }}</text>
             </view>
           </sv-card>
-
-          <view v-if="practice.audioUrl" class="share-entry">
-            <sv-button type="plain" block :loading="shareFlow.state.busy" @click="sharePractice">
-              <sv-icon name="share" :size="16" color="var(--sv-accent)" />
-              <text>{{ shareFlow.state.preparing ? '正在准备歌词…' : '分享这次背诵' }}</text>
-            </sv-button>
-          </view>
-
-          <view class="footer">
-            <view class="footer__item">
-              <sv-button type="secondary" block @click="backToSession">返回对话</sv-button>
-            </view>
-            <view class="footer__item">
-              <sv-button type="secondary" block @click="reciteAgain">再背一次</sv-button>
-            </view>
-          </view>
         </view>
 
         <!-- 评测中 -->
@@ -194,11 +178,14 @@
             </view>
           </sv-card>
         </view>
+      </view>
 
+      <!-- 录好了或评完了：分享、返回、再背；没评分时「评分」是主按钮，这里的「再背一次」降为次要 -->
+      <view v-if="practice && (!practice.scoreRequested || (done && report))" class="report__end">
         <view v-if="practice.audioUrl" class="share-entry">
           <sv-button type="plain" block :loading="shareFlow.state.busy" @click="sharePractice">
             <sv-icon name="share" :size="16" color="var(--sv-accent)" />
-            <text>分享这次背诵</text>
+            <text>{{ shareFlow.state.preparing ? '正在准备歌词…' : '分享这次背诵' }}</text>
           </sv-button>
         </view>
 
@@ -207,7 +194,13 @@
             <sv-button type="secondary" block @click="backToSession">返回对话</sv-button>
           </view>
           <view class="footer__item">
-            <sv-button block haptic @click="reciteAgain">再背一次</sv-button>
+            <sv-button
+              :type="practice.scoreRequested ? 'primary' : 'secondary'"
+              block
+              :haptic="practice.scoreRequested"
+              @click="reciteAgain"
+              >再背一次</sv-button
+            >
           </view>
         </view>
       </view>
@@ -498,7 +491,10 @@ const sheet = reactive<{
 
 // --- 分享 -------------------------------------------------------------------
 
-const shareFlow = useShareFlow({ isCancelled: () => disposed })
+const shareFlow = useShareFlow({
+  isCancelled: () => disposed,
+  onPrepared: (p) => (practice.value = p),
+})
 
 function sharePractice() {
   audio.stop()
@@ -940,7 +936,10 @@ function backToSession() {
   line-height: 22px;
 }
 
-.share-entry {
+.report__end {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
   margin-top: -8px;
 }
 

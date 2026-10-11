@@ -230,6 +230,12 @@ export function createMemoryRepos(): Repos & {
         applyPractice(doc, patch)
         return true
       },
+      async findBySource(openid, fileID) {
+        const doc = [...practiceDocs.values()].find(
+          (d) => d._openid === openid && d.sourceFileID === fileID,
+        )
+        return doc ? clone(doc) : null
+      },
       async requestScore(id, openid, freeCharged) {
         const doc = ownPractice(id, openid)
         if (!doc || doc.scoreRequested !== false) return false

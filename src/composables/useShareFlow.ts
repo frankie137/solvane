@@ -12,7 +12,13 @@ import { navigateTo } from '@/utils/nav'
  * 没评分的录音先做识别和对照得到歌词时间（不扣次数），再生成分享，打开歌词页预览，在那里发给朋友。
  * 页面里放一个 profile-sheet 绑定 sheet 的状态。
  */
-export function useShareFlow(options: { isCancelled?: () => boolean } = {}) {
+export function useShareFlow(
+  options: {
+    isCancelled?: () => boolean
+    /** 准备好歌词时间后的练习，页面据此更新，再分享时不用重新准备 */
+    onPrepared?: (practice: Practice) => void
+  } = {},
+) {
   const store = useProfileStore()
   const state = reactive({ busy: false, preparing: false, sheet: false })
   let pending: Practice | null = null
@@ -29,7 +35,10 @@ export function useShareFlow(options: { isCancelled?: () => boolean } = {}) {
       }
       if (!practice.alignment) {
         state.preparing = true
-        await runPractice(practice.id, 'share', { isCancelled: options.isCancelled })
+        const prepared = await runPractice(practice.id, 'share', {
+          isCancelled: options.isCancelled,
+        })
+        options.onPrepared?.(prepared)
       }
       const shareId = await createShare(practice.id)
       navigateTo(sharePath(shareId))

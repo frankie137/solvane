@@ -5,13 +5,22 @@ import { pollUntil } from '@/utils/poll'
 import { callCloud, CloudError, uploadFile } from './cloud'
 import { mayStillRun } from './cloud-error'
 
+/** 上传背诵录音，返回 fileID */
+export async function uploadRecitation(recording: RecordingResult): Promise<string> {
+  const cloudPath = `recite-input/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.pcm`
+  return uploadFile(recording.tempFilePath, cloudPath)
+}
+
+/**
+ * 用上传好的录音建练习记录。超时或断网时记录可能已经建好：保留文件，
+ * 用同一个 fileID 重新提交，云端会认出来直接返回，不会重复建。
+ */
 export async function startPractice(
   sessionId: string,
   vid: string,
+  fileID: string,
   recording: RecordingResult,
 ): Promise<string> {
-  const cloudPath = `recite-input/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.pcm`
-  const fileID = await uploadFile(recording.tempFilePath, cloudPath)
   try {
     const { practiceId } = await callCloud('assess', 'start', {
       sessionId,

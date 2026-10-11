@@ -207,6 +207,16 @@ describe('assess.start', () => {
     expect(repos.practiceDocs.get(practiceId)!.wavFileID).toBeTruthy()
   })
 
+  it('重新提交同一个文件时返回已建好的记录', async () => {
+    const { handlers, practiceId, sessionId, repos } = await started()
+    const again = await handlers.start(
+      { sessionId, vid: 'v1', fileID: PCM_FILE, durationMs: 3000 },
+      ME,
+    )
+    expect(again.practiceId).toBe(practiceId)
+    expect(repos.practiceDocs.size).toBe(1)
+  })
+
   it('每个对话只保留最近 3 次，旧的连同录音删除', async () => {
     const { handlers, repos, removed, files, tick } = setup()
     const sessionId = await addSession(repos)

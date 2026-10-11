@@ -55,6 +55,8 @@ export interface PracticeDoc {
   timingRequested?: boolean
   /** 这次评分占用了一次免费次数（评分失败时退回并清掉） */
   freeCharged?: boolean
+  /** 提交时上传的原始录音；重新提交同一个文件时据此认出已建好的记录 */
+  sourceFileID?: string
   job: PracticeJob | null
   lastError: PracticeError | null
   /** 原始 PCM 录音，转成 WAV 后删除（M6 起提交时就转） */
@@ -261,6 +263,8 @@ export interface PracticeRepo {
   create(doc: Omit<PracticeDoc, '_id'>): Promise<string>
   get(id: string, openid: string): Promise<PracticeDoc | null>
   update(id: string, openid: string, patch: PracticePatch): Promise<boolean>
+  /** 由这个上传文件建的练习（重新提交时去重） */
+  findBySource(openid: string, fileID: string): Promise<PracticeDoc | null>
   /** 还没要求评分时标记为要评分；返回是否标记成功（同一条录音并发请求时只有一个成功） */
   requestScore(id: string, openid: string, freeCharged: boolean): Promise<boolean>
   acquireJob(id: string, openid: string, job: PracticeJob, staleBefore: number): Promise<boolean>
@@ -612,6 +616,15 @@ export function createWxRepos(db: WxDatabase): Repos {
           .where({ _id: id, _openid: openid })
           .update({ data: toUpdateData(_, patch) })
         return res.stats.updated === 1
+      }),
+
+    findBySource: (openid, fileID) =>
+      withCollection(db, PRACTICES, async () => {
+        const { data } = await practices()
+          .where({ _openid: openid, sourceFileID: fileID })
+          .limit(1)
+          .get()
+        return (data[0] as PracticeDoc | undefined) ?? null
       }),
 
     requestScore: (id, openid, freeCharged) =>

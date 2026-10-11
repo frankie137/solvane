@@ -78,6 +78,21 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
 
   const loadJobContext = createLlmContextLoader(settings, deps.encryptionSecret, accounts.isAdmin)
 
+  /**
+   * M6 起成员不能用自己的配置：管理员打开配置时顺带清掉成员以前存的（含加密的 Key）。
+   * 每个函数实例只做一次；清理失败不影响读取配置，下次再试。
+   */
+  let memberLlmCleared = false
+  async function clearMemberLlmOnce() {
+    if (memberLlmCleared) return
+    try {
+      await settings.clearMemberLlm()
+      memberLlmCleared = true
+    } catch (err) {
+      console.error('[compose.clearMemberLlm]', err instanceof Error ? err.message : String(err))
+    }
+  }
+
   async function configView(): Promise<{ config: LlmConfigView | null }> {
     return { config: toView((await settings.get(GLOBAL_SETTINGS_ID))?.llm) }
   }
@@ -379,8 +394,7 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
 
     async getLlmConfig(_payload, ctx) {
       assertAdmin(ctx.openid)
-      // M6 起成员不能用自己的配置：管理员打开配置页时顺带清掉成员以前存的（含加密的 Key）
-      await settings.clearMemberLlm()
+      await clearMemberLlmOnce()
       return configView()
     },
 

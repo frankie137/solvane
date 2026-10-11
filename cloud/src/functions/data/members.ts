@@ -49,8 +49,7 @@ export function createMemberHandlers(deps: MemberDeps): Pick<Handlers<'data'>, M
     return docs.map((doc) => {
       const profile = profiles.get(doc._id)
       return {
-        ...toAccount(doc, accounts.isAdmin(doc._id), now),
-        openid: doc._id,
+        ...toAccount(doc._id, doc, accounts.isAdmin(doc._id), now),
         nickname: profile?.nickname ?? null,
         avatarUrl: profile?.avatarFileID ? (avatarUrl.get(profile.avatarFileID) ?? null) : null,
         createdAt: doc.createdAt,
