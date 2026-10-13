@@ -14,6 +14,10 @@
 [![WeChat CloudBase](https://img.shields.io/badge/WeChat-CloudBase-07C160.svg?logo=wechat&logoColor=white)](https://developers.weixin.qq.com/miniprogram/en/dev/wxcloud/basis/getting-started.html)
 [![LLM: OpenAI-compatible](https://img.shields.io/badge/LLM-OpenAI--compatible-412991.svg)](#4-llm-configuration)
 
+<br>
+
+https://github.com/user-attachments/assets/f2d0eae0-57c1-460d-94ef-072b232dcb81
+
 </div>
 
 A WeChat mini program that turns what you want to say in Chinese into idiomatic English, then helps you recite it and get the pronunciation right.
@@ -220,9 +224,11 @@ solvane/
 ├── scripts/
 │   ├── build-cloud.ts            #   Bundles cloud functions into cloudfunctions/ with esbuild
 │   ├── mp-ci.ts                  #   Preview QR code, trial version upload, cloud function deployment (miniprogram-ci)
+│   ├── showcase.ts               #   Renders the README showcase to WebP and MP4
 │   └── smoke.ts                  #   Smoke test: drives WeChat DevTools and screenshots each page
 ├── docs/
 │   ├── REVIEW.md                 #   Development and review process, review checklist
+│   ├── showcase/                 #   README showcase: the animation (flow.html), WebP and MP4 in light and dark
 │   └── stages/                   #   Per-stage task lists and review records
 ├── .github/workflows/ci.yml      # Runs pnpm check on push and PR
 ├── project.config.json           # WeChat DevTools config: just open the repository root
@@ -498,18 +504,19 @@ If the IP whitelist blocks you (a home broadband public IP can change), use `pnp
 
 **Common commands**
 
-| Command                       | Purpose                                                                                                                                                             |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`                    | Development build (watch mode), output to `dist/mp-weixin`                                                                                                          |
-| `pnpm build`                  | Production build                                                                                                                                                    |
-| `pnpm build:cloud`            | Bundle cloud functions into `cloudfunctions/`                                                                                                                       |
-| `pnpm test`                   | Unit tests                                                                                                                                                          |
-| `pnpm check`                  | Required before committing: formatting, linting, types, tests, builds                                                                                               |
-| `pnpm smoke`                  | Smoke test (WeChat DevTools must be logged in, with the service port enabled under Settings → Security (「设置 → 安全设置」))                                       |
-| `pnpm preview`                | Generate a preview QR code at `.ci/preview.png` to scan with a phone (works for the mini program's admins and developers)                                           |
-| `pnpm upload`                 | Upload as the development version; the first time, set it as the trial version in the WeChat MP console, after which uploads update the trial version automatically |
-| `pnpm deploy:cloud:devtools`  | Deploy all cloud functions through WeChat DevTools, not subject to the IP whitelist                                                                                 |
-| `pnpm deploy:cloud [name...]` | Bundle and deploy cloud functions; the environment ID comes from `--env` or from `VITE_CLOUD_ENV` in `.env.local`                                                   |
+| Command                       | Purpose                                                                                                                                                                                                                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm dev`                    | Development build (watch mode), output to `dist/mp-weixin`                                                                                                                                                                                                               |
+| `pnpm build`                  | Production build                                                                                                                                                                                                                                                         |
+| `pnpm build:cloud`            | Bundle cloud functions into `cloudfunctions/`                                                                                                                                                                                                                            |
+| `pnpm test`                   | Unit tests                                                                                                                                                                                                                                                               |
+| `pnpm check`                  | Required before committing: formatting, linting, types, tests, builds                                                                                                                                                                                                    |
+| `pnpm smoke`                  | Smoke test (WeChat DevTools must be logged in, with the service port enabled under Settings → Security (「设置 → 安全设置」))                                                                                                                                            |
+| `pnpm preview`                | Generate a preview QR code at `.ci/preview.png` to scan with a phone (works for the mini program's admins and developers)                                                                                                                                                |
+| `pnpm upload`                 | Upload as the development version; the first time, set it as the trial version in the WeChat MP console, after which uploads update the trial version automatically                                                                                                      |
+| `pnpm deploy:cloud:devtools`  | Deploy all cloud functions through WeChat DevTools, not subject to the IP whitelist                                                                                                                                                                                      |
+| `pnpm deploy:cloud [name...]` | Bundle and deploy cloud functions; the environment ID comes from `--env` or from `VITE_CLOUD_ENV` in `.env.local`                                                                                                                                                        |
+| `pnpm showcase`               | Render [docs/showcase/flow.html](docs/showcase/flow.html) to WebP and MP4 in light and dark (the README plays the light MP4, uploaded as a GitHub attachment); needs Playwright and ffmpeg-static in the directory named by `SHOWCASE_TOOLS` (see `scripts/showcase.ts`) |
 
 ---
 

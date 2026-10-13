@@ -29,6 +29,7 @@ pnpm preview      # generate the preview QR code at .ci/preview.png
 pnpm upload       # upload a development version / update the trial version
 pnpm deploy:cloud # deploy cloud functions (optionally by name); if the IP whitelist blocks it, use pnpm deploy:cloud:devtools
 pnpm cloud:config # write .keys/cloud.env into each cloud function's environment variables and set timeouts
+pnpm showcase     # render docs/showcase/flow.html to WebP and MP4 in light and dark (tools from SHOWCASE_TOOLS, see scripts/showcase.ts)
 ```
 
 Open the **repository root** in WeChat DevTools (the root `project.config.json` points to the build output and the cloud function directory).
