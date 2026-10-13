@@ -16,11 +16,7 @@
 
 <br>
 
-<!-- Showcase video: in GitHub's web editor, drag docs/showcase/flow-light.mp4 onto this line and
-     keep the https://github.com/user-attachments/assets/... link it inserts on its own line.
-     Then delete the animated WebP below, which stands in until the video is uploaded. -->
-
-<img src="docs/showcase/flow-light.webp" width="600" alt="One card morphs through Solvane's core flow: speak in Chinese, confirm the transcript, get polished Chinese and idiomatic English, learn a key expression, hear it read aloud, recite it with the text hidden, get scored, and share it as a lyrics page">
+https://github.com/user-attachments/assets/f2d0eae0-57c1-460d-94ef-072b232dcb81
 
 </div>
 
