@@ -15,7 +15,7 @@ export interface SpeechStorage {
   download(fileID: string): Promise<Buffer>
   upload(cloudPath: string, data: Buffer): Promise<string>
   remove(fileID: string): Promise<void>
-  /** 换取临时播放链接，顺序与入参一致 */
+  /** Get temporary playback URLs, in the same order as the input */
   tempUrls(fileIDs: string[]): Promise<string[]>
 }
 
@@ -27,15 +27,16 @@ export interface SpeechDeps {
 }
 
 /**
- * 只处理前端上传到 voice-input/ 目录的录音。云函数有整个存储的管理权限，
- * 不限制的话，拿到别人文件 ID 的人可以借这个接口读取并删除别人的文件。
+ * Only handle recordings the frontend uploaded to voice-input/. The cloud function has admin access
+ * to all of storage, so without this check anyone holding someone else's file ID could use this API
+ * to read and delete their files.
  */
 const VOICE_INPUT_FILE = /^cloud:\/\/[^/]+\/voice-input\/[\w-]+\.pcm$/
 
-/** 60 秒 16kHz 16bit 单声道 PCM 约 1.92 MB，留一点余量 */
+/** 60 s of 16 kHz 16-bit mono PCM is about 1.92 MB; leave some headroom */
 const MAX_AUDIO_BYTES = 2_100_000
 
-/** 同时合成的句子数，低于腾讯云的默认并发上限 */
+/** Sentences synthesized concurrently, below Tencent Cloud's default concurrency limit */
 const TTS_CONCURRENCY = 4
 
 export function createSpeechHandlers(deps: SpeechDeps): Handlers<'speech'> {
@@ -63,9 +64,12 @@ export function createSpeechHandlers(deps: SpeechDeps): Handlers<'speech'> {
         if (!text.trim()) throw new AppError('BAD_REQUEST', '没有听清，请靠近一点再说一遍')
         return { text: text.trim() }
       } finally {
-        // 录音只用于识别，无论成功与否都删除
+        // The recording is only used for recognition; delete it whether or not that succeeds
         await deps.storage.remove(fileID).catch((err: unknown) => {
-          console.error('[speech.recognize] 删除录音失败', err instanceof Error ? err.message : err)
+          console.error(
+            '[speech.recognize] Failed to delete recording',
+            err instanceof Error ? err.message : err,
+          )
         })
       }
     },
@@ -94,7 +98,8 @@ export function createSpeechHandlers(deps: SpeechDeps): Handlers<'speech'> {
           )
           return { fileID, words } satisfies TtsCachedSentence
         })
-        // 缓存只在服务端使用；不改 updatedAt，听示范不算编辑对话
+        // The cache is server-side only; leave updatedAt alone, since listening to the demo reading
+        // doesn't edit the session
         await sessions.update(sessionId, ctx.openid, {
           tts: { ...doc.tts, [vid]: { ...doc.tts?.[vid], [key]: cached } },
         })
@@ -112,7 +117,7 @@ export function createSpeechHandlers(deps: SpeechDeps): Handlers<'speech'> {
     async ttsWord(payload, ctx) {
       const { word } = parsePayload(
         z.object({
-          // 单词或收藏的短语：只允许字母、撇号、连字符和空格
+          // A word or saved phrase: letters, apostrophes, hyphens and spaces only
           word: z
             .string()
             .transform((w) => w.replace(/\s+/g, ' ').trim())
@@ -121,7 +126,7 @@ export function createSpeechHandlers(deps: SpeechDeps): Handlers<'speech'> {
         payload,
       )
       const { voice } = await voiceFor(ctx.openid)
-      // 单词发音用正常语速，听得更清楚
+      // Words are read at normal speed so they're clearer
       const { audio } = await deps.synthesize({ text: word, voiceType: voice.voiceType, speed: 0 })
       return { audio: audio.toString('base64') }
     },

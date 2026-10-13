@@ -1,6 +1,6 @@
 import type { ShareStorage } from '../../src/functions/data/share'
 
-/** 内存里的云存储：fileID 为 cloud://env.x/<路径>，临时链接为 https://tmp/<fileID> */
+/** In-memory cloud storage: fileID is cloud://env.x/<path>, temp URL is https://tmp/<fileID> */
 export function createMemoryStorage(): ShareStorage & {
   files: Map<string, Buffer>
   removed: string[]

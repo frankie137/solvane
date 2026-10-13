@@ -1,7 +1,7 @@
 import type { CloudFunctionName, EnvVarOf } from '../function-config'
 import { AppError } from './errors'
 
-/** 读取云函数环境变量；缺失时给出指向具体配置项的提示 */
+/** Reads a cloud function env variable; when missing, the error points to the exact setting */
 function required<F extends CloudFunctionName>(name: EnvVarOf<F>, fn: F, minLength = 1): string {
   const value = process.env[name]?.trim()
   if (!value || value.length < minLength) {
@@ -20,7 +20,7 @@ export const env = {
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean),
-  /** 腾讯云密钥：speech 和 assess 都需要，各自在自己的环境变量里 */
+  /** Tencent Cloud credentials: speech and assess both need them, each in its own env variables */
   tencentCredential: (fn: 'speech' | 'assess') => ({
     secretId: required('TENCENT_SECRET_ID', fn),
     secretKey: required('TENCENT_SECRET_KEY', fn),

@@ -12,16 +12,16 @@ describe('normalizeBaseUrl', () => {
   })
 
   it.each([
-    ['不是网址', 'not a url'],
-    ['http 协议', 'http://api.deepseek.com/v1'],
+    ['not a URL', 'not a url'],
+    ['http scheme', 'http://api.deepseek.com/v1'],
     ['IPv4', 'https://10.0.0.1/v1'],
     ['IPv6', 'https://[::1]/v1'],
     ['localhost', 'https://localhost/v1'],
-    ['没有点的主机名', 'https://intranet/v1'],
-    ['内网后缀', 'https://llm.internal/v1'],
-    ['带账号', 'https://user:pass@api.deepseek.com/v1'],
-    ['带查询参数', 'https://api.deepseek.com/v1?x=1'],
-  ])('拒绝%s', (_name, input) => {
+    ['hostname without a dot', 'https://intranet/v1'],
+    ['internal suffix', 'https://llm.internal/v1'],
+    ['credentials', 'https://user:pass@api.deepseek.com/v1'],
+    ['query string', 'https://api.deepseek.com/v1?x=1'],
+  ])('rejects %s', (_name, input) => {
     expect(() => normalizeBaseUrl(input)).toThrow()
   })
 })

@@ -1,8 +1,9 @@
 /**
- * 每个云函数的超时（秒）和需要的环境变量。
- * pnpm cloud:config 据此写入云端，每个函数只拿到自己需要的变量；
- * lib/env.ts 读取变量时也受这里约束，用错函数会在类型检查时报错。
- * 这个文件不能有任何 import，部署脚本也会直接引用它。
+ * Timeout (seconds) and required environment variables for each cloud function.
+ * pnpm cloud:config writes these to the cloud, so each function only gets the variables it needs;
+ * lib/env.ts is also bound by this when reading variables, so using the wrong function fails
+ * type checking.
+ * This file must not have any imports, because the deployment scripts also reference it directly.
  */
 export const FUNCTION_CONFIG = {
   compose: { timeout: 60, env: ['KEY_ENCRYPTION_SECRET', 'ADMIN_OPENIDS'] },

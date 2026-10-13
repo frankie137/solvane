@@ -1,7 +1,10 @@
 import type { z } from 'zod'
 import { AppError } from './errors'
 
-/** 校验前端传来的参数；路由只保证是对象，字段由各 action 自己校验 */
+/**
+ * Validates the payload from the frontend; the router only ensures it's an object, and each
+ * action validates its own fields
+ */
 export function parsePayload<S extends z.ZodType>(schema: S, payload: unknown): z.infer<S> {
   const result = schema.safeParse(payload)
   if (!result.success) {

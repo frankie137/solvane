@@ -1,6 +1,7 @@
 /**
- * 分享：署名资料、生成分享快照（复制录音）、公开读取、我的分享、撤回。
- * getShare 是唯一不按 OPENID 校验归属的读取，只返回快照字段，不含 openid、分数和解析。
+ * Sharing: author profile, share snapshots (copies the recording), public reads, my shares, revoke.
+ * getShare is the only read that doesn't check ownership by OPENID; it returns snapshot fields
+ * only, without openid, scores or analysis.
  */
 import { z } from 'zod'
 import { LIMITS } from '@shared/constants'
@@ -23,7 +24,7 @@ export interface ShareDeps {
   repos: Repos
   storage: ShareStorage
   now: () => number
-  /** 录音副本的文件名；路径里不放 openid，临时链接会暴露路径 */
+  /** Recording copy file name; no openid in the path, since temporary URLs expose it */
   newFileName: () => string
 }
 
@@ -31,8 +32,9 @@ type ShareActions =
   'getProfile' | 'updateProfile' | 'createShare' | 'getShare' | 'listShares' | 'revokeShare'
 
 /**
- * 只接受前端上传到 avatars/ 目录的头像。云函数有整个存储的管理权限，
- * 不限制路径的话，拿到别人文件 ID 就能把它挂到自己的分享上。
+ * Only accept avatars the frontend uploaded to avatars/. The cloud function has admin access to all
+ * of storage, so without a path check anyone holding someone else's file ID could attach it to
+ * their own share.
  */
 const AVATAR_FILE = /^cloud:\/\/[^/]+\/avatars\/[\w-]+\.(jpe?g|png|webp)$/
 
@@ -40,7 +42,7 @@ const id = z.string().min(1).max(64)
 
 const shareIdOf = (practiceId: string) => `share-${practiceId}`
 
-/** 昵称在函数里检查，报错能说清楚原因 */
+/** Nicknames are checked in the function so the error can say exactly what's wrong */
 const nickname = z
   .string()
   .max(200)
@@ -56,7 +58,7 @@ const nickname = z
 export function createShareHandlers(deps: ShareDeps): Pick<Handlers<'data'>, ShareActions> {
   const { settings, practices, sessions, shares } = deps.repos
 
-  /** 把存储里的头像换成临时链接 */
+  /** Turn the stored avatar into a temporary URL */
   async function toProfile(stored: ProfileStored): Promise<Profile> {
     const [avatarUrl] = stored.avatarFileID
       ? await deps.storage.tempUrls([stored.avatarFileID])
@@ -85,7 +87,7 @@ export function createShareHandlers(deps: ShareDeps): Pick<Handlers<'data'>, Sha
         throw new AppError('BAD_REQUEST', '头像文件不正确，请重新选择')
       }
       const previous = (await settings.get(ctx.openid))?.profile
-      // 旧头像不删：已经分享出去的快照还在用
+      // Keep the old avatar: snapshots already shared still use it
       const profile: ProfileStored = {
         nickname: input.nickname,
         avatarFileID: input.avatarFileID ?? previous?.avatarFileID ?? null,
@@ -101,7 +103,8 @@ export function createShareHandlers(deps: ShareDeps): Pick<Handlers<'data'>, Sha
 
       const practice = await practices.get(practiceId, ctx.openid)
       if (!practice) throw new AppError('NOT_FOUND', '练习记录不存在或已被删除')
-      // 歌词时间来自识别和对照：评过分的已经有，没评分的由前端先调 assess.prepareShare
+      // Lyric timings come from recognition and alignment: scored practices already have them; for
+      // unscored ones the frontend calls assess.prepareShare first
       if (!practice.wavFileID || !practice.alignment || !practice.transcript) {
         throw new AppError('BAD_REQUEST', '歌词还没准备好，请稍后再试')
       }
@@ -111,7 +114,7 @@ export function createShareHandlers(deps: ShareDeps): Pick<Handlers<'data'>, Sha
       const version = session.versions.find((v) => v.vid === practice.vid)
       if (!version) throw new AppError('NOT_FOUND', '背诵的版本已不存在')
 
-      // 复制一份录音：练习记录被清理时，已分享的链接不受影响
+      // Copy the recording so shared links keep working when the practice record is cleaned up
       const audio = await deps.storage.download(practice.wavFileID)
       const audioFileID = await deps.storage.upload(`shares/${deps.newFileName()}.wav`, audio)
       const doc: Omit<ShareDoc, '_id'> = {
@@ -123,7 +126,8 @@ export function createShareHandlers(deps: ShareDeps): Pick<Handlers<'data'>, Sha
         sentences: buildShareSentences(
           version.sentences,
           practice.alignment.sentences,
-          // 评过分的用评测给的逐词时间（更准），没评分的用识别结果的
+          // Scored practices use per-word timings from the assessment (more accurate); unscored
+          // ones use the recognition result
           practice.pronunciation?.words ??
             wordsFromTranscript(practice.transcript.words, practice.alignment.sentences),
         ),
@@ -132,7 +136,8 @@ export function createShareHandlers(deps: ShareDeps): Pick<Handlers<'data'>, Sha
         author: profile,
         createdAt: deps.now(),
       }
-      // 分享 id 由练习决定：同一次练习并发分享（重复点、超时后重试）时只会留下一个
+      // The share id is derived from the practice: concurrent shares of one practice (double taps,
+      // retries after a timeout) leave just one
       const shareId = shareIdOf(practiceId)
       let created = false
       try {
@@ -148,7 +153,7 @@ export function createShareHandlers(deps: ShareDeps): Pick<Handlers<'data'>, Sha
       const doc = await shares.get(shareId)
       if (!doc) throw new AppError('NOT_FOUND', '分享已撤回或不存在')
       const [audioUrl] = await deps.storage.tempUrls([doc.audioFileID])
-      // 分享还在，只是暂时取不到录音：不能说成已撤回
+      // The share still exists, only the recording is temporarily unavailable: don't say revoked
       if (!audioUrl) throw new AppError('UPSTREAM_ERROR', '录音暂时取不到，请稍后再试')
       const share: Share = {
         id: doc._id,
@@ -179,7 +184,7 @@ export function createShareHandlers(deps: ShareDeps): Pick<Handlers<'data'>, Sha
       const { shareId } = parsePayload(z.object({ shareId: id }), payload)
       const doc = await requireOwnShare(shareId, ctx.openid)
       await shares.remove(shareId, ctx.openid)
-      // 链接先失效；录音副本删不掉也不影响
+      // The link is invalidated first; failing to delete the recording copy doesn't matter
       await deps.storage.remove(doc.audioFileID).catch(() => {})
       return {}
     },

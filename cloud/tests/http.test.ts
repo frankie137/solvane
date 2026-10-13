@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { resolveFetch } from '../src/lib/http'
 
 describe('resolveFetch', () => {
-  it('有全局 fetch 时使用它', async () => {
+  it('uses the global fetch when available', async () => {
     const calls: string[] = []
     const fake = async (url: string) => {
       calls.push(url)
@@ -14,7 +14,7 @@ describe('resolveFetch', () => {
     expect(calls).toEqual(['https://example.com'])
   })
 
-  it('Node 16 没有全局 fetch 时退回 node-fetch', () => {
+  it('falls back to node-fetch on Node 16 without a global fetch', () => {
     expect(resolveFetch(undefined)).toBe(nodeFetch)
   })
 })

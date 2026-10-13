@@ -14,7 +14,7 @@ const CRED = { secretId: 'AKIDtest', secretKey: 'secret-key', appId: '1300000000
 const FIXED = { timestamp: 1700000000, nonce: 12345, voiceId: 'voice-1' }
 
 describe('buildSoeUrl', () => {
-  it('参数按字典序拼接、用未编码原值签名，签名原文不带 wss://', () => {
+  it('joins parameters in lexicographic order, signs raw unencoded values, and omits wss:// from the signed string', () => {
     const url = buildSoeUrl(CRED, { refText: "I'm going hiking.", mode: 'sentence', ...FIXED })
     const raw = [
       'eval_mode=1',
@@ -41,7 +41,7 @@ describe('buildSoeUrl', () => {
     expect(parsed.searchParams.get('ref_text')).toBe("I'm going hiking.")
   })
 
-  it('签名里的 + 和 = 被正确编码', () => {
+  it('encodes + and = in the signature correctly', () => {
     const url = buildSoeUrl(CRED, { refText: 'a', mode: 'paragraph', ...FIXED })
     const encoded = url.split('signature=')[1]!
     expect(encoded).not.toMatch(/[+=/]/)
@@ -76,7 +76,7 @@ describe('parseSoeResult', () => {
     ],
   }
 
-  it('转换分数、单词和音素，去掉标点', () => {
+  it('converts scores, words and phonemes, dropping punctuation', () => {
     const r = parseSoeResult(sample)
     expect(r).toMatchObject({ accuracy: 82.5, fluency: 0.91, completeness: 0.95 })
     expect(r.words).toHaveLength(2)
@@ -96,12 +96,12 @@ describe('parseSoeResult', () => {
     })
   })
 
-  it('result 是 JSON 字符串时也能解析', () => {
+  it('also parses result when it is a JSON string', () => {
     expect(parseSoeResult(JSON.stringify(sample)).words).toHaveLength(2)
   })
 })
 
-/** 按脚本回放服务端消息的假连接 */
+/** Fake socket that replays scripted server messages */
 function fakeSocket(script: (s: FakeSocket) => void) {
   const sent: (Buffer | string)[] = []
   let socket: FakeSocket
@@ -147,7 +147,7 @@ const req = {
 }
 
 describe('toSoeError', () => {
-  it('先按错误码归类，提示里带上错误码', () => {
+  it('classifies by error code first and includes the code in the message', () => {
     const notOpen = toSoeError(4003, 'appid not authorized')
     expect(notOpen.code).toBe('NOT_CONFIGURED')
     expect(notOpen.message).toContain('未开通')
@@ -158,11 +158,11 @@ describe('toSoeError', () => {
 })
 
 describe('evaluatePronunciation', () => {
-  it('分片发送音频，最后发结束标记，拿到最终结果', async () => {
+  it('sends audio in chunks, then the end marker, and gets the final result', async () => {
     const long = Buffer.alloc(6400 * 2 + 100)
     const { factory, sent } = fakeSocket((s) => {
       s.emit('open')
-      // 等分片发完再回结果
+      // Reply only after all chunks have been sent
       setTimeout(() => {
         s.emit('message', JSON.stringify({ code: 0, final: 0, result: {} }))
         s.emit(
@@ -177,11 +177,11 @@ describe('evaluatePronunciation', () => {
     expect(sent[3]).toBe('{"type":"end"}')
   })
 
-  it('按实时率估算发送时长', () => {
+  it('estimates send duration at the real-time rate', () => {
     expect(streamDurationMs(Buffer.alloc(32_000))).toBe(1000)
   })
 
-  it('接口报错时给出可读提示', async () => {
+  it('gives a readable message when the API returns an error', async () => {
     const { factory } = fakeSocket((s) => {
       s.emit('open')
       s.emit('message', JSON.stringify({ code: 4002, message: 'signature invalid' }))
@@ -191,12 +191,12 @@ describe('evaluatePronunciation', () => {
     expect((err as AppError).message).toContain('SOE_APP_ID')
   })
 
-  it('没有结果就断开时报错', async () => {
+  it('fails when the connection closes without a result', async () => {
     const { factory } = fakeSocket((s) => s.emit('close'))
     await expect(evaluatePronunciation(CRED, audio, req, factory)).rejects.toThrow('断开')
   })
 
-  it('超时报 TIMEOUT', async () => {
+  it('reports TIMEOUT on timeout', async () => {
     const { factory } = fakeSocket(() => {})
     const err = await evaluatePronunciation(CRED, audio, { ...req, timeoutMs: 10 }, factory).catch(
       (e: unknown) => e,

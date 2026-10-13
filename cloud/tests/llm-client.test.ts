@@ -48,7 +48,7 @@ beforeEach(() => {
 })
 
 describe('chat', () => {
-  it('请求 /chat/completions 并返回内容', async () => {
+  it('requests /chat/completions and returns the content', async () => {
     const { impl, calls } = fetchSequence(reply('hello'))
     await expect(
       chat(target, [{ role: 'user', content: 'hi' }], { timeoutMs: 1000, json: true }, impl),
@@ -59,7 +59,7 @@ describe('chat', () => {
     expect(calls[0]!.body.model).toBe('m')
   })
 
-  it('服务商不支持 JSON 模式时去掉参数重试', async () => {
+  it('retries without the parameter when the provider does not support JSON mode', async () => {
     const { impl, calls } = fetchSequence(
       failure(400, { error: { message: 'response_format is not supported' } }),
       reply('{"a":1}'),
@@ -69,7 +69,7 @@ describe('chat', () => {
     expect(calls[1]!.body.response_format).toBeUndefined()
   })
 
-  it('记住不支持 JSON 模式的模型，之后不再先失败一次', async () => {
+  it('remembers models without JSON mode and skips the failing first attempt afterwards', async () => {
     const { impl, calls } = fetchSequence(
       failure(400, { error: { message: 'response_format is not supported' } }),
       reply('{"a":1}'),
@@ -86,12 +86,12 @@ describe('chat', () => {
     [404, '接口地址或模型名不正确'],
     [429, '额度'],
     [503, '暂时不可用'],
-  ])('HTTP %i 给出对应提示', async (status, text) => {
+  ])('HTTP %i gives the matching message', async (status, text) => {
     const { impl } = fetchSequence(failure(status, { error: { message: 'x' } }))
     await expectAppError(chat(target, [], { timeoutMs: 1000 }, impl), 'UPSTREAM_ERROR', text)
   })
 
-  it('上游错误信息里的 Key 会被隐去', async () => {
+  it('hides the key in upstream error messages', async () => {
     const { impl } = fetchSequence(
       failure(400, { error: { message: 'invalid key sk-secretkey123 for model' } }),
     )
@@ -100,7 +100,7 @@ describe('chat', () => {
     expect(err.message).toContain('***')
   })
 
-  it('Key 为空时错误信息保持可读', async () => {
+  it('keeps the error message readable when the key is empty', async () => {
     const { impl } = fetchSequence(failure(401, { error: { message: 'invalid key' } }))
     const err = await expectAppError(
       chat({ ...target, apiKey: '' }, [], { timeoutMs: 1000 }, impl),
@@ -109,7 +109,7 @@ describe('chat', () => {
     expect(err.message).toContain('invalid key')
   })
 
-  it('超时转换为 TIMEOUT', async () => {
+  it('converts a timeout to TIMEOUT', async () => {
     const impl: FetchLike = (_url, init) =>
       new Promise((_resolve, reject) => {
         init.signal?.addEventListener('abort', () =>
@@ -119,12 +119,12 @@ describe('chat', () => {
     await expectAppError(chat(target, [], { timeoutMs: 10 }, impl), 'TIMEOUT')
   })
 
-  it('网络错误提示检查接口地址', async () => {
+  it('suggests checking the base URL on network errors', async () => {
     const { impl } = fetchSequence(new TypeError('fetch failed'))
     await expectAppError(chat(target, [], { timeoutMs: 1000 }, impl), 'UPSTREAM_ERROR', '接口地址')
   })
 
-  it('空回复报错', async () => {
+  it('rejects an empty reply', async () => {
     const { impl } = fetchSequence(reply('   '))
     await expectAppError(chat(target, [], { timeoutMs: 1000 }, impl), 'UPSTREAM_ERROR', '空内容')
   })
@@ -132,13 +132,13 @@ describe('chat', () => {
 
 describe('extractJsonObject', () => {
   it.each([['{"a":1}'], ['```json\n{"a":1}\n```'], ['好的，结果如下：\n{"a":1}\n希望有帮助']])(
-    '解析 %j',
+    'parses %j',
     (text) => {
       expect(extractJsonObject(text)).toEqual({ a: 1 })
     },
   )
 
-  it('没有 JSON 时抛错', () => {
+  it('throws when there is no JSON', () => {
     expect(() => extractJsonObject('no json')).toThrow()
   })
 })
@@ -146,7 +146,7 @@ describe('extractJsonObject', () => {
 describe('chatJson', () => {
   const schema = z.object({ a: z.number() })
 
-  it('格式不对时把问题反馈给模型修正一次', async () => {
+  it('feeds problems back to the model for one correction when the format is wrong', async () => {
     const { impl, calls } = fetchSequence(reply('{"a":"x"}'), reply('{"a":2}'))
     await expect(
       chatJson(target, [{ role: 'user', content: 'q' }], schema, {
@@ -159,7 +159,7 @@ describe('chatJson', () => {
     expect(retryMessages.at(-1)!.content).toContain('a')
   })
 
-  it('修正后仍不对就报错', async () => {
+  it('fails if the correction is still wrong', async () => {
     const { impl } = fetchSequence(reply('nope'), reply('still nope'))
     await expectAppError(
       chatJson(target, [], schema, { deadline: Date.now() + 60_000, fetchImpl: impl }),
@@ -167,14 +167,14 @@ describe('chatJson', () => {
     )
   })
 
-  it('剩余时间不够时不再重试', async () => {
+  it('does not retry when too little time is left', async () => {
     let now = 0
     const { impl, calls } = fetchSequence(reply('bad'))
     const p = chatJson(target, [], schema, {
       deadline: 10_000,
       now: () => now,
       fetchImpl: async (url, init) => {
-        now = 5_000 // 第一次请求就用掉了一半时间
+        now = 5_000 // The first request uses up half the time
         return impl(url, init)
       },
     })
@@ -182,7 +182,7 @@ describe('chatJson', () => {
     expect(calls).toHaveLength(1)
   })
 
-  it('单次请求超时不超过剩余时间', async () => {
+  it('caps a single request timeout at the remaining time', async () => {
     const spy = vi.fn<FetchLike>(async () => reply('{"a":1}'))
     await chatJson(target, [], schema, {
       deadline: 3_000,

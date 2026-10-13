@@ -1,6 +1,7 @@
 /**
- * 会员与免费次数：判断 Pro、占用和退回免费次数、管理员开通或结束 Pro。
- * 免费次数用数据库条件更新来占用，并发请求也不会多扣；占用以后任务失败要退回。
+ * Membership and free uses: check Pro, consume and refund free uses, admins grant or revoke Pro.
+ * Free uses are consumed with a conditional database update, so concurrent requests never
+ * overcharge; if the job fails after consuming one, it must be refunded.
  */
 import { extendedUntil } from '@shared/account'
 import { PRO } from '@shared/constants'
@@ -8,12 +9,12 @@ import type { Account } from '@shared/types'
 import { AppError } from './errors'
 import type { AccountDoc, AccountRepo } from './repos'
 
-/** 并发开通时重新读一次再算，最多试几次 */
+/** On concurrent grants, re-read and recompute; maximum number of attempts */
 const MAX_ATTEMPTS = 3
 
 export const QUOTA_MESSAGE = `免费体验的 ${PRO.freeTrials} 次已经用完，开通 Pro 后可以继续使用`
 
-/** 档案换成前端看到的会员状态；还没建档的按新用户算 */
+/** Account record → membership status for the frontend; no record yet counts as a new user */
 export function toAccount(
   openid: string,
   doc: AccountDoc | null,
@@ -43,7 +44,7 @@ export type Accounts = ReturnType<typeof createAccounts>
 export function createAccounts(deps: AccountsDeps) {
   const isAdmin = (openid: string) => deps.adminOpenids().includes(openid)
 
-  /** 读档案，没有就新建 */
+  /** Reads the account record, creating it if missing */
   async function load(openid: string): Promise<AccountDoc> {
     const existing = await deps.accounts.get(openid)
     if (existing) return existing
@@ -57,7 +58,7 @@ export function createAccounts(deps: AccountsDeps) {
       updatedAt: now,
     }
     await deps.accounts.create(doc)
-    // 并发建档时以先写入的为准
+    // On concurrent creation, the first write wins
     return (await deps.accounts.get(openid)) ?? doc
   }
 
@@ -70,7 +71,7 @@ export function createAccounts(deps: AccountsDeps) {
     load,
     view,
 
-    /** 发起前检查：是 Pro 或者还有免费次数（只检查，不占用） */
+    /** Pre-check before starting: Pro, or free uses left (checks only, does not consume) */
     async assertAvailable(openid: string): Promise<void> {
       const account = await view(openid)
       if (!account.pro && account.freeLeft === 0) {
@@ -79,8 +80,9 @@ export function createAccounts(deps: AccountsDeps) {
     },
 
     /**
-     * 占用一次免费次数。Pro 不占用，返回 false；占用成功返回 true；用完了报 QUOTA_EXCEEDED。
-     * 返回 true 时调用方要记下来，任务失败时调用 refund 退回。
+     * Consumes one free use. Pro doesn't consume and returns false; returns true on success;
+     * throws QUOTA_EXCEEDED when none are left.
+     * When it returns true, the caller must record that and call refund if the job fails.
      */
     async consume(openid: string): Promise<boolean> {
       const account = await view(openid)
@@ -93,7 +95,7 @@ export function createAccounts(deps: AccountsDeps) {
       await deps.accounts.refund(openid, deps.now())
     },
 
-    /** 管理员开通（加 30 天）或结束 Pro；并发操作时重新读到期时间再算 */
+    /** Admin grants (adds 30 days) or revokes Pro; recomputes from a fresh expiry on conflicts */
     async changePro(
       admin: string,
       openid: string,

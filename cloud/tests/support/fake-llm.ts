@@ -43,7 +43,7 @@ export const EXPLAIN = {
   example: 'I need to catch up on sleep. (我得补补觉。)',
 }
 
-/** 按 schema 返回预设结果的假大模型，记录调用 */
+/** Fake LLM that returns preset results by schema and records calls */
 export function createFakeLlm() {
   const calls: { kind: string; target: LlmTarget; prompt: string }[] = []
   let failWith: Error | null = null

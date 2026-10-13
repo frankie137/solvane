@@ -2,8 +2,9 @@ import { isIP } from 'node:net'
 import { AppError } from './errors'
 
 /**
- * 校验并规范化大模型接口地址：只允许 https 的公网域名，
- * 避免云函数被用来访问内网地址。返回去掉末尾斜杠的地址。
+ * Validates and normalizes the LLM API base URL: only public HTTPS domains are allowed,
+ * so the cloud function can't be used to reach internal addresses. Returns the URL without
+ * trailing slashes.
  */
 export function normalizeBaseUrl(raw: string): string {
   let url: URL

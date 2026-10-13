@@ -2,7 +2,7 @@ import type { z } from 'zod'
 import type { ChatMessage, LlmTarget } from './client'
 import type { ChatJsonOptions } from './json'
 
-/** 云函数里用到的大模型能力，测试时可以替换成假的实现 */
+/** LLM capabilities used by the cloud functions; tests can swap in a fake implementation */
 export interface LlmService {
   chatJson<S extends z.ZodType>(
     target: LlmTarget,
@@ -10,6 +10,6 @@ export interface LlmService {
     schema: S,
     options: Pick<ChatJsonOptions, 'deadline' | 'maxTokens' | 'temperature'>,
   ): Promise<z.infer<S>>
-  /** 测试连接：返回模型的回复 */
+  /** Connection test: returns the model's reply */
   ping(target: LlmTarget): Promise<string>
 }
