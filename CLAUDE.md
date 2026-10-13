@@ -1,75 +1,77 @@
-# Solvane 协作约定
+# Solvane working agreement
 
-微信小程序，帮助用户把中文想法变成地道英文并练习背诵。设计与进度见 [README.md](README.md)。
+A WeChat mini program that helps people turn ideas they have in Chinese into idiomatic English and practice reciting them. Design and progress: [README.md](README.md).
 
-## 工作方式
+## How we work
 
-- **启动开发者工具（冒烟测试、截图、经开发者工具部署）前必须先得到使用者确认**，先做完静态检查；获准后通过 `scripts/devtools.ts`（`withAutomator()` / `runDevtoolsCli()`）驱动。不需要隐藏窗口，用完也不用关，开着留给下次用。`pnpm preview` 不需要开发者工具，可以直接用来给使用者真机验收
+- **Ask the owner before launching WeChat DevTools** (smoke tests, screenshots, deploying through DevTools), and finish static checks first. Once approved, drive it through `scripts/devtools.ts` (`withAutomator()` / `runDevtoolsCli()`). No need to hide the window or quit it afterwards; leave it open for next time. `pnpm preview` does not need DevTools and can be used directly for the owner's real-device acceptance
 
-- 和使用者用中文沟通；界面文案、文档、代码注释也用中文
-- 新需求先讨论、敲定细节，再动手开发
-- 按阶段推进，每个阶段必须完整走完 [docs/REVIEW.md](docs/REVIEW.md) 的六步流程才能合并
-- 阶段文档放在 `docs/stages/`，开工先写任务清单和验收标准
+- Language: chat with the owner in Chinese. Everything written into the repository is English: code comments, docs, stage docs, test titles, script output, commit messages, PR descriptions
+- Exceptions that stay Chinese: UI text the user sees (templates, toasts, `AppError` messages), because the product is for Chinese speakers; LLM prompts in `cloud/src/prompts/`; test fixtures that model Chinese input
+- Discuss new requirements and settle the details before writing code
+- Work in stages; every stage must go through all six steps of [docs/REVIEW.md](docs/REVIEW.md) before it is merged
+- Stage docs live in `docs/stages/`; start each stage by writing its task list and acceptance criteria. Earlier stages are summarized in [CHANGELOG.md](CHANGELOG.md)
 
-## 常用命令
+## Common commands
 
 ```bash
-pnpm dev          # 开发构建（监听），输出到 dist/mp-weixin
-pnpm build        # 生产构建
-pnpm build:cloud  # 打包云函数到 cloudfunctions/
-pnpm check        # 提交前必跑：格式、规范、类型、测试、构建（git push 前也会自动跑）
-pnpm smoke        # 冒烟测试：驱动开发者工具逐页截图（需已登录、开启服务端口；先征得使用者同意）
-pnpm preview      # 生成预览二维码 .ci/preview.png
-pnpm upload       # 上传开发版 / 更新体验版
-pnpm deploy:cloud # 部署云函数（可跟函数名）；IP 被白名单拦时用 pnpm deploy:cloud:devtools
-pnpm cloud:config # 把 .keys/cloud.env 写入各云函数的环境变量并设置超时
+pnpm dev          # development build (watch), output to dist/mp-weixin
+pnpm build        # production build
+pnpm build:cloud  # bundle cloud functions into cloudfunctions/
+pnpm check        # run before every commit: format, lint, types, tests, build (also runs before git push)
+pnpm smoke        # smoke test: drives DevTools and screenshots each page (needs login and the service port; ask the owner first)
+pnpm preview      # generate the preview QR code at .ci/preview.png
+pnpm upload       # upload a development version / update the trial version
+pnpm deploy:cloud # deploy cloud functions (optionally by name); if the IP whitelist blocks it, use pnpm deploy:cloud:devtools
+pnpm cloud:config # write .keys/cloud.env into each cloud function's environment variables and set timeouts
 ```
 
-微信开发者工具直接打开**仓库根目录**（根目录的 `project.config.json` 指向构建产物和云函数目录）。
+Open the **repository root** in WeChat DevTools (the root `project.config.json` points to the build output and the cloud function directory).
 
-## 目录约定
+## Layout
 
-- `src/`：小程序前端。三个 tab 在 `src/pages/index/tabs/`，其他页面放分包 `src/pkg-*/`
-- `src/components/sv-*/`：基础组件，easycom 自动注册；新增后必须登记到 `src/components.d.ts`
-- `cloud/src/functions/<name>/`：云函数源码，`index.ts` 是入口，业务写在 `handlers.ts`
-- `cloud/src/lib/`：云函数共享代码
-- `shared/`：前后端共用的类型与常量
-- `cloudfunctions/`、`dist/`：构建产物，不提交
+- `src/`: mini program frontend. The three tabs are in `src/pages/index/tabs/`; other pages go into subpackages `src/pkg-*/`
+- `src/components/sv-*/`: base components, auto-registered by easycom; register every new one in `src/components.d.ts`
+- `cloud/src/functions/<name>/`: cloud function source; `index.ts` is the entry, business logic goes in `handlers.ts`
+- `cloud/src/lib/`: code shared by cloud functions
+- `shared/`: types and constants shared by frontend and backend
+- `cloudfunctions/`, `dist/`: build output, not committed
 
-## 编码约定
+## Coding conventions
 
-- **新增云函数接口**：先在 `shared/api.ts` 登记 action 的入参和出参，再在对应函数的 `handlers.ts` 实现，前端用 `callCloud()` 调用
-- **新增云函数**：入口只写 `export const main = createFunction('<name>', handlers)`（`cloud/src/lib/cloud.ts`），不要在各函数里重复初始化 SDK
-- **错误**：可预期的业务错误抛 `AppError`（message 是给用户看的中文）；其他异常由路由统一转成 `INTERNAL`
-- **样式**：只用 `src/styles/tokens.scss` 里的变量，不写死颜色和动效参数；深浅色都要检查。图标方块用 `--sv-tint-*`，强调色上的文字和图标用 `--sv-text-on-accent`
-- **循环动画**：加上 `animation-play-state: var(--sv-play)`，切到后台的 tab 会自动暂停
-- **样式片段**（`src/styles/mixins.scss`）：小可点元素用 `sv-hit-area` 把点击区扩到 44px；骨架换成内容用 `sv-appear` 淡入；加载转圈用 `sv-spinning`。`@include` 写在普通声明之后（否则 Sass 报 mixed-decls 弃用警告）
-- **跳转**：用 `src/utils/nav.ts` 的 `navigateTo()`，自带防连点
-- **状态更新**：滚动、录音、播放等高频回调里，只在值真正变化时更新响应式状态（参考 `useCollapsingTitle`）
+- **New cloud function action**: declare its input and output in `shared/api.ts` first, implement it in that function's `handlers.ts`, and call it from the frontend with `callCloud()`
+- **New cloud function**: the entry is just `export const main = createFunction('<name>', handlers)` (`cloud/src/lib/cloud.ts`); never initialize the SDK in individual functions
+- **Errors**: throw `AppError` for expected business errors (its message is shown to the user, in Chinese); anything else is turned into `INTERNAL` by the router
+- **Styles**: use only the variables in `src/styles/tokens.scss`; no hard-coded colors or animation parameters; check both light and dark mode. Icon tiles use `--sv-tint-*`; text and icons on the accent color use `--sv-text-on-accent`
+- **Looping animations**: add `animation-play-state: var(--sv-play)` so tabs in the background pause automatically
+- **Style mixins** (`src/styles/mixins.scss`): `sv-hit-area` expands small tap targets to 44px; `sv-appear` fades content in when it replaces a skeleton; `sv-spinning` for loading spinners. Put `@include` after plain declarations (otherwise Sass emits the mixed-decls deprecation warning)
+- **Navigation**: use `navigateTo()` from `src/utils/nav.ts`, which guards against double taps
+- **State updates**: in high-frequency callbacks (scrolling, recording, playback), update reactive state only when the value actually changes (see `useCollapsingTitle`)
 
-## 安全红线
+## Security rules
 
-- 密钥只放云函数环境变量或加密存库；不进前端、仓库、日志
-- `.keys/` 里的文件（代码上传密钥、`cloud.env` 云函数密钥）**不要读取、打印或转存内容**，只通过脚本使用；脚本输出不能包含任何值
-- 新增云函数环境变量时：在 `cloud/src/function-config.ts` 声明，在 `cloud.env.example` 加说明，用 `pnpm cloud:config` 下发
-- 云函数日志不打印 payload
-- 所有数据访问都经云函数，并按 `OPENID` 校验归属
+- Secrets live only in cloud function environment variables or encrypted in the database; never in the frontend, the repository or logs
+- Files in `.keys/` (code-upload key, `cloud.env` with cloud function secrets): **never read, print or copy their contents**; use them only through scripts, and script output must never contain any value
+- New cloud function environment variable: declare it in `cloud/src/function-config.ts`, document it in `cloud.env.example`, and push it with `pnpm cloud:config`
+- Cloud function logs never print payloads
+- All data access goes through cloud functions and checks ownership by `OPENID`
+- The repository is public: never write environment IDs, OpenIDs, IP addresses or other deployment details into tracked files, commit messages or PRs
 
-## 已知的坑
+## Known pitfalls
 
-- uni-app 编译器依赖未声明的传递依赖，pnpm 需要 `shamefullyHoist: true`（见 `pnpm-workspace.yaml`）
-- `vue` 版本锁定在 uni-app 要求的 3.4.21，不要随意升级
-- `package.json` 不能设 `"type": "module"`，否则 uni 的 vite 插件加载失败
-- 小程序里对象写法的 `style` 会丢掉 `-webkit-` 前缀，需要前缀时拼字符串（见 `sv-icon`）
-- 组件里要用全局样式类（如 `.sv-headline`），需在 `defineOptions` 里设置 `styleIsolation: 'apply-shared'`
-- 云函数 SDK 要用 `import * as cloud from 'wx-server-sdk'`；`DYNAMIC_CURRENT_ENV` 的类型声明有误，已在 `lib/cloud.ts` 里统一断言
-- 原生 `button` 带 `disabled` 时会套用微信内置的灰色样式，优先级 (0,2,1)；`sv-button` 已覆盖，直接用原生按钮时要注意
-- 页面里的样式选择器进不了子组件（样式隔离），但 CSS 变量可以继承下去；需要跨组件控制样式时用变量
-- **不要给 `sv-*` 组件加 class 来排版**：class 虽然会传到子组件根节点，但父组件的样式管不到它。要在组件外或插槽内包一层自己的 `view`（`src/conventions.test.ts` 会检查）
-- 模板里的组件 `<word-picker>` 和脚本里同名（camelCase）的变量 `wordPicker` 会被 ESLint 对到一起，组件被误判为没用到；状态变量换个名字
-- 新增依赖 `position: fixed` 的面板（`sv-sheet` 等）放在页面的 scroll-view 外面
-- `wx.cloud.callFunction` 的 errMsg 都以 `cloud.callFunction:fail` 开头，按错误文案归类时正则不能宽松匹配 `function`
-- 云函数运行时是 Node.js 16.13（部署工具创建函数时的默认值，创建后改不了）：**没有全局 `fetch`**，发 HTTP 请求用 `cloud/src/lib/http.ts` 的 `defaultFetch`；打包目标是 node16，不要用 Node 18+ 才有的 API（`structuredClone`、`Array.prototype.findLast` 等）
-- 代码上传 IP 白名单已由使用者关闭（家用宽带 IP 会变）；因此 `.keys/` 里的代码上传密钥一旦泄露就能部署云函数，务必保护好，怀疑泄露时到公众平台重置
-- `miniprogram-ci` 任务完成后进程不会自己退出（留着网络连接），脚本结束时要主动 `process.exit`
-- 开发者工具命令行部分失败时退出码仍是 0，要看输出判断（`runDevtoolsCli` 的 `failIf`）
+- The uni-app compiler relies on undeclared transitive dependencies, so pnpm needs `shamefullyHoist: true` (see `pnpm-workspace.yaml`)
+- `vue` is pinned to 3.4.21 as required by uni-app; don't upgrade it casually
+- `package.json` must not set `"type": "module"`, or uni's Vite plugin fails to load
+- Object-syntax `style` in the mini program drops `-webkit-` prefixes; build a string when a prefix is needed (see `sv-icon`)
+- To use global style classes (such as `.sv-headline`) inside a component, set `styleIsolation: 'apply-shared'` in `defineOptions`
+- Import the cloud SDK as `import * as cloud from 'wx-server-sdk'`; the type declaration of `DYNAMIC_CURRENT_ENV` is wrong and is asserted once in `lib/cloud.ts`
+- A native `button` with `disabled` gets WeChat's built-in gray style with specificity (0,2,1); `sv-button` overrides it, so take care when using a native button directly
+- Page style selectors don't reach into child components (style isolation), but CSS variables are inherited; use variables to control styles across components
+- **Don't add a class to an `sv-*` component for layout**: the class is passed to the child's root node, but the parent's styles can't reach it. Wrap it in your own `view` outside the component or inside the slot (checked by `src/conventions.test.ts`)
+- ESLint matches a template component `<word-picker>` with a script variable of the same camelCase name `wordPicker` and reports the component as unused; give the state variable a different name
+- Put new panels that rely on `position: fixed` (`sv-sheet` etc.) outside the page's scroll-view
+- Every `wx.cloud.callFunction` errMsg starts with `cloud.callFunction:fail`, so regexes that classify errors by message must not loosely match `function`
+- The cloud function runtime is Node.js 16.13 (the default when the deploy tool created the functions; it can't be changed afterwards): **there is no global `fetch`**, so send HTTP requests with `defaultFetch` from `cloud/src/lib/http.ts`; the bundle targets node16, so don't use Node 18+ APIs (`structuredClone`, `Array.prototype.findLast`, etc.)
+- The code-upload key in `.keys/` can deploy cloud functions; guard it, and reset it in the WeChat MP console if you suspect a leak
+- `miniprogram-ci` tasks keep a network connection open and the process doesn't exit on its own; scripts must call `process.exit` when done
+- The DevTools CLI exits with 0 even when part of a command fails; judge by its output (`failIf` in `runDevtoolsCli`)

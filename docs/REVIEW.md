@@ -1,134 +1,136 @@
-# 开发与审查流程
+# Development and review process
 
-每个阶段（M0、M1……）都必须走完下面六步才能合并到 `main`。任何一步没通过，都回到开发继续改。
+Every stage (M0, M1, …) must go through the six steps below before it is merged into `main`. If any step fails, go back to development.
 
-## 流程
+## Process
 
-| 步骤        | 做什么                                                     | 产出            |
-| ----------- | ---------------------------------------------------------- | --------------- |
-| 1. 开工     | 在 `docs/stages/M<n>.md` 写任务清单和验收标准              | 阶段文档        |
-| 2. 开发     | 在 `stage/m<n>-<主题>` 分支上开发，按功能点小步提交        | 提交记录        |
-| 3. 自动检查 | 本地 `pnpm check` 全部通过；推送后 GitHub Actions 也要通过 | CI 绿灯         |
-| 4. 代码审查 | 独立审查代理检查本阶段全部改动，并按下方清单逐条过         | 审查记录        |
-| 5. 冒烟测试 | `pnpm smoke` 自动截图；再由使用者在真机上验收              | 截图 + 验收结论 |
-| 6. 合并     | 通过 PR 合并，升级版本号、打标签、更新 README 进度         | 版本标签        |
+| Step                | What happens                                                                          | Output                   |
+| ------------------- | ------------------------------------------------------------------------------------- | ------------------------ |
+| 1. Kickoff          | Write the task list and acceptance criteria in `docs/stages/M<n>.md`                  | Stage doc                |
+| 2. Development      | Develop on a `stage/m<n>-<topic>` branch in small commits, one feature at a time      | Commits                  |
+| 3. Automated checks | `pnpm check` passes locally; GitHub Actions passes after pushing                      | Green CI                 |
+| 4. Code review      | An independent review agent checks every change in the stage against the list below   | Review log               |
+| 5. Smoke test       | `pnpm smoke` takes screenshots automatically; the owner then accepts on a real device | Screenshots + acceptance |
+| 6. Merge            | Merge through a PR, bump the version, tag it, update the README progress              | Version tag              |
 
-## 第 3 步：自动检查
+## Step 3: automated checks
 
-`pnpm check` 依次执行：
+`pnpm check` runs, in order:
 
-1. `format:check`：Prettier 格式
-2. `lint`：ESLint（Vue、TypeScript 规则）
-3. `typecheck`：前端（vue-tsc，含模板）、云函数、脚本三套类型检查
-4. `test`：Vitest 单元测试
-5. `build`：构建微信小程序
-6. `build:cloud`：打包云函数
+1. `format:check`: Prettier formatting
+2. `lint`: ESLint (Vue and TypeScript rules)
+3. `typecheck`: three type checks: frontend (vue-tsc, including templates), cloud functions, scripts
+4. `test`: Vitest unit tests
+5. `build`: build the WeChat mini program
+6. `build:cloud`: bundle the cloud functions
 
-CI 在每次推送 `main` 和每个 PR 上运行同样的 `pnpm check`。
+CI runs the same `pnpm check` on every push to `main` and on every PR.
 
-## 第 4 步：代码审查
+## Step 4: code review
 
-- **独立审查**：由一个没有参与开发的审查代理，阅读本阶段相对 `main` 的完整改动（`git diff main...HEAD`），专门查找正确性问题，并对照下方清单逐条检查。
-- **处理每一条发现**：要么修复，要么在审查记录里写明不修的理由。修复后重新跑第 3 步。
-- **记录**：审查结论写进 `docs/stages/M<n>.md` 的"审查记录"，并在 PR 中留言汇总。
+- **Independent review**: a review agent that took no part in development reads the stage's full diff against `main` (`git diff main...HEAD`), looks specifically for correctness problems, and goes through the checklist below item by item.
+- **Handle every finding**: either fix it or record in the review log why it is not fixed. After fixing, run step 3 again.
+- **Record**: write the conclusions into the "Review log" of `docs/stages/M<n>.md` and summarize them in a PR comment.
 
-### 审查清单
+### Checklist
 
-**正确性**
+**Correctness**
 
-- [ ] 边界情况：空数据、超长输入、重复点击、网络中断、并发请求
-- [ ] 异步流程：竞态（旧请求晚于新请求返回）、页面卸载后回调仍在修改状态
-- [ ] 每个 `callCloud` 都处理了失败，并给用户可见的反馈
-- [ ] 云函数调用外部服务都设置了超时，失败时返回明确的错误码
+- [ ] Edge cases: empty data, very long input, repeated taps, network loss, concurrent requests
+- [ ] Async flows: races (an old request returning after a newer one), callbacks still changing state after the page is unloaded
+- [ ] Every `callCloud` handles failure and gives the user visible feedback
+- [ ] Every call from a cloud function to an external service has a timeout and returns a clear error code on failure
 
-**安全与隐私**
+**Security and privacy**
 
-- [ ] 密钥只出现在云函数环境变量或加密存储中，不进前端代码、不进仓库、不进日志
-- [ ] 云函数按 `OPENID` 校验数据归属，不能读写别人的数据
-- [ ] 数据库集合权限为"仅云函数可读写"
-- [ ] 大模型返回内容只当数据处理：做结构校验，不拼进代码或数据库查询
-- [ ] 分享接口只暴露快照里的必要字段
+- [ ] Secrets appear only in cloud function environment variables or encrypted storage; never in frontend code, the repository or logs
+- [ ] Cloud functions check data ownership by `OPENID`; nobody can read or write someone else's data
+- [ ] Database collections are "readable and writable by cloud functions only"
+- [ ] LLM output is treated as data only: its structure is validated, and it is never spliced into code or database queries
+- [ ] Share endpoints expose only the necessary snapshot fields
+- [ ] The repository is public: no environment IDs, OpenIDs, IP addresses or deployment details in tracked files, commit messages or PRs
 
-**接口约定**
+**API conventions**
 
-- [ ] 新增 action 先在 `shared/api.ts` 登记入参和出参
-- [ ] 云函数统一返回 `ApiResult`，错误信息是给用户看的中文
-- [ ] 前后端共用的类型和常量放在 `shared/`
+- [ ] New actions declare their input and output in `shared/api.ts` first
+- [ ] Cloud functions always return `ApiResult`; error messages are written for the user, in Chinese
+- [ ] Types and constants shared by frontend and backend live in `shared/`
 
-**小程序特性**
+**Mini program specifics**
 
-- [ ] 高频事件（滚动、录音帧、播放进度）做了节流，只在必要时更新状态
-- [ ] 包体积：主包保持精简，新页面优先放分包；构建后检查体积
-- [ ] 权限（录音等）有拒绝后的引导，隐私协议已声明
-- [ ] iOS 和 Android 的差异（毛玻璃、音频格式、安全区）已考虑
+- [ ] High-frequency events (scrolling, recording frames, playback progress) are throttled and update state only when needed
+- [ ] Package size: the main package stays lean, new pages go into subpackages first; check the size after building
+- [ ] Permissions (recording etc.) guide the user after a denial, and the privacy agreement declares them
+- [ ] iOS and Android differences (frosted glass, audio formats, safe areas) are handled
 
-**UI 与交互**
+**UI and interaction**
 
-- [ ] 颜色、圆角、动效全部使用 `src/styles/tokens.scss` 中的变量
-- [ ] 浅色、深色模式都检查过
-- [ ] 加载、空、出错三种状态都有设计
-- [ ] 可点区域不小于 44px，按下有反馈
-- [ ] 文案语气统一、简洁
+- [ ] Colors, radii and motion all use variables from `src/styles/tokens.scss`
+- [ ] Both light and dark mode are checked
+- [ ] Loading, empty and error states are all designed
+- [ ] Tap targets are at least 44px and give feedback when pressed
+- [ ] UI copy is consistent in tone and concise
 
-**代码质量**
+**Code quality**
 
-- [ ] 和周围代码的写法一致，没有死代码和调试输出
-- [ ] 新增的 `sv-*` 组件已登记到 `src/components.d.ts`
-- [ ] 纯逻辑（解析、计算、对齐算法等）有单元测试
+- [ ] Consistent with surrounding code; no dead code or debug output
+- [ ] New `sv-*` components are registered in `src/components.d.ts`
+- [ ] Pure logic (parsing, calculations, alignment algorithms, etc.) has unit tests
+- [ ] Comments, test titles, logs and script output are in English; UI text and LLM prompts stay Chinese
 
-**文档**
+**Docs**
 
-- [ ] README 的开发进度和仓库结构已更新
-- [ ] 阶段文档的任务清单已勾选
+- [ ] README progress and repository layout are updated
+- [ ] The stage doc's task list is checked off
 
-## 第 5 步：冒烟测试
+## Step 5: smoke test
 
-**先征得使用者同意**：运行冒烟测试会启动开发者工具，必须先完成静态检查、并得到使用者确认后再跑。
+**Ask the owner first**: the smoke test launches WeChat DevTools, so it runs only after static checks pass and the owner agrees.
 
-**自动部分**：`pnpm smoke`
+**Automated part**: `pnpm smoke`
 
-- 前置条件：微信开发者工具已登录，并在「设置 → 安全设置」中开启"服务端口"
-- 脚本会构建小程序，驱动开发者工具（没在运行时在后台启动，测完保持开着），逐个打开关键页面并截图到 `.smoke/`
-- **截图必须逐张人工检查**：自动化只能发现异常，发现不了布局错乱
-- 任何页面抛出未捕获异常或 `console.error`，脚本失败
-- 每个阶段要把新页面加进 `scripts/smoke.ts` 的 `ROUTES`
+- Prerequisites: WeChat DevTools is logged in, and the "service port" is enabled under Settings → Security
+- The script builds the mini program, drives DevTools (starting it in the background if it isn't running, and leaving it open afterwards), opens each key page and saves a screenshot to `.smoke/`
+- **Every screenshot must be checked by eye**: automation catches exceptions, not broken layouts
+- The script fails if any page throws an uncaught exception or logs `console.error`
+- Every stage adds its new pages to `ROUTES` in `scripts/smoke.ts`
 
-**人工部分**：使用者在真机上验收
+**Manual part**: the owner accepts the stage on a real device
 
-- `pnpm preview` 生成预览二维码（`.ci/preview.png`）扫码查看，或 `pnpm upload` 更新体验版
-- 按阶段文档的验收标准逐条确认，结论写进审查记录
+- Scan the QR code from `pnpm preview` (`.ci/preview.png`), or update the trial version with `pnpm upload`
+- Confirm each acceptance criterion in the stage doc and record the result in the review log
 
-## 第 6 步：合并
+## Step 6: merge
 
-1. PR 标题：`M<n>：<阶段名>`，描述里附上任务清单、审查记录摘要和截图
-2. CI 通过、审查发现全部处理、真机验收通过后，以 merge commit 方式合并
-3. 升级 `package.json` 版本号（M0 → 0.1.0，M1 → 0.2.0，依此类推），打标签 `v0.<n+1>.0`。M5 合并即完成 V1，版本定为 1.0.0（标签 `v1.0.0`）；V2 起每个阶段升次版本号（1.1.0、1.2.0……）
-4. **打标签前先确认合并真的完成**（`main` 最新提交是这次的合并提交），再在这个提交上打标签
-5. 更新 README 的开发进度
+1. PR title: `M<n>: <stage name>`; the description includes the task list, a summary of the review log, and screenshots
+2. After CI passes, every review finding is handled and real-device acceptance passes, merge with a merge commit
+3. Bump the version in `package.json` (M0 → 0.1.0, M1 → 0.2.0, and so on) and tag `v0.<n+1>.0`. Merging M5 completed V1 as version 1.0.0 (tag `v1.0.0`); from V2 on, each stage bumps the minor version (1.1.0, 1.2.0, …)
+4. **Before tagging, confirm the merge really happened** (the latest commit on `main` is this merge commit), then tag that commit
+5. Update the README progress and add the stage to `CHANGELOG.md`
 
-## 阶段文档模板
+## Stage doc template
 
 ```markdown
-# M<n> · <阶段名>
+# M<n> · <stage name>
 
-- **分支**：`stage/m<n>-<主题>`
-- **目标**：一句话
+- **Branch**: `stage/m<n>-<topic>`
+- **Goal**: one sentence
 
-## 任务清单
+## Tasks
 
-- [ ] ……
+- [ ] …
 
-## 验收标准
+## Acceptance criteria
 
-1. ……
+1. …
 
-## 审查记录
+## Review log
 
-### 自动检查
+### Automated checks
 
-### 代码审查（发现 → 处理）
+### Code review (finding → resolution)
 
-### 冒烟测试
+### Smoke test
 
-### 真机验收
+### Real-device acceptance
 ```
