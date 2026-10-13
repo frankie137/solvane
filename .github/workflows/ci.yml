@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   check:
-    name: 格式 · 规范 · 类型 · 测试 · 构建
+    name: Format · lint · types · tests · build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
