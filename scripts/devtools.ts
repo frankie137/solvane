@@ -1,8 +1,8 @@
 /**
- * 驱动微信开发者工具做自动化测试、部署。
+ * Drive WeChat DevTools for automated testing and deployment.
  *
- * 使用者同意后才能调用（见 CLAUDE.md）。开发者工具没在运行时在后台启动（`open -g`，不抢前台），
- * 用完不关闭、也不隐藏窗口，留着给下一次用。
+ * Only call this after the owner agrees (see CLAUDE.md). If WeChat DevTools isn't running, it is launched in the background (`open -g`, without taking focus);
+ * afterwards it is neither closed nor hidden, and stays open for next time.
  */
 import { execFileSync, spawn } from 'node:child_process'
 import { readdirSync, readFileSync } from 'node:fs'
@@ -38,7 +38,7 @@ async function waitFor(check: () => boolean, timeoutMs: number): Promise<boolean
   return check()
 }
 
-/** 开发者工具把服务端口写在 Default/.ide 里；退出后文件还在，所以只能用来知道端口号 */
+/** WeChat DevTools writes its service port to Default/.ide; the file remains after it quits, so it only tells us the port number */
 function idePort(): number | null {
   const base = join(homedir(), 'Library/Application Support/微信开发者工具')
   try {
@@ -47,11 +47,11 @@ function idePort(): number | null {
         const port = Number(readFileSync(join(base, dir, 'Default/.ide'), 'utf8').trim())
         if (Number.isInteger(port) && port > 0) return port
       } catch {
-        // 不是用户数据目录
+        // Not a user data directory
       }
     }
   } catch {
-    // 没找到目录时按默认流程走
+    // Fall back to the default flow when the directory isn't found
   }
   return null
 }
@@ -72,7 +72,7 @@ function portOpen(port: number): Promise<boolean> {
   })
 }
 
-/** 刚启动时进程已在但服务端口还没就绪，这时命令行会读到旧的端口文件、连不上就放弃 */
+/** Right after launch the process exists but the service port isn't ready; the CLI would then read the stale port file, fail to connect and give up */
 async function waitForPort(timeoutMs: number): Promise<void> {
   const port = idePort()
   if (!port) return
@@ -83,7 +83,7 @@ async function waitForPort(timeoutMs: number): Promise<void> {
   }
 }
 
-/** 确保开发者工具在运行、服务端口可以连接，再执行 fn；用完保持开着 */
+/** Make sure WeChat DevTools is running and its service port is reachable, then run fn; leave it open afterwards */
 export async function withDevtools<T>(fn: () => Promise<T>): Promise<T> {
   if (devtoolsPid() === null) {
     execFileSync('open', ['-g', '-a', APP_PATH])
@@ -93,7 +93,7 @@ export async function withDevtools<T>(fn: () => Promise<T>): Promise<T> {
   return fn()
 }
 
-/** 在开发者工具里打开项目并运行自动化测试；结束时只断开连接，不关闭项目 */
+/** Open the project in WeChat DevTools and run automation; when done, only disconnect, without closing the project */
 export function withAutomator<T>(
   projectPath: string,
   fn: (mp: MiniProgram) => Promise<T>,
@@ -109,8 +109,8 @@ export function withAutomator<T>(
 }
 
 /**
- * 调用开发者工具命令行，输出同时打印到终端。
- * 命令行在部分失败时退出码仍是 0，所以由 failIf 按输出内容判断是否失败。
+ * Run the WeChat DevTools CLI, echoing its output to the terminal.
+ * The CLI still exits with 0 on partial failure, so failIf decides from the output whether it failed.
  */
 export function runDevtoolsCli(args: string[], failIf?: RegExp): Promise<void> {
   return withDevtools(
@@ -126,8 +126,9 @@ export function runDevtoolsCli(args: string[], failIf?: RegExp): Promise<void> {
         child.stderr.on('data', (c: Buffer) => collect(c, process.stderr))
         child.on('error', reject)
         child.on('close', (code) => {
-          if (code !== 0) reject(new Error(`开发者工具命令行退出码 ${code}`))
-          else if (failIf?.test(output)) reject(new Error('开发者工具报告执行失败，详见上方输出'))
+          if (code !== 0) reject(new Error(`WeChat DevTools CLI exited with code ${code}`))
+          else if (failIf?.test(output))
+            reject(new Error('WeChat DevTools reported a failure; see the output above'))
           else resolve()
         })
       }),

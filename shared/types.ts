@@ -1,4 +1,4 @@
-/** 前后端共用的业务数据类型 */
+/** Domain data types shared by the frontend and the cloud */
 
 import type { ErrorCode } from './result'
 
@@ -10,18 +10,18 @@ export type TtsSpeed = 'normal' | 'slow'
 export interface UserSettings {
   level: EnglishLevel
   accent: Accent
-  /** 示范朗读的音色和语速 */
+  /** Voice and speed for demo reading */
   ttsVoice: TtsVoice
   ttsSpeed: TtsSpeed
 }
 
-/** 一句英文和它的中文 */
+/** An English sentence and its Chinese */
 export interface SentencePair {
   en: string
   zh: string
 }
 
-/** 另一种说法，label 描述语气，如"更随意""更礼貌" */
+/** An alternative wording; label describes the tone, e.g. "更随意" (more casual), "更礼貌" (more polite) */
 export interface Alternative {
   label: string
   en: string
@@ -37,9 +37,9 @@ export interface KeyPhrase {
 export interface SlangItem {
   phrase: string
   meaning: string
-  /** 语体：俚语 / 口语 / 中性 / 正式 */
+  /** Register: 俚语 / 口语 / 中性 / 正式 (slang / colloquial / neutral / formal) */
   register: string
-  /** 常用地区：美国 / 英国 / 通用 */
+  /** Where it is used: 美国 / 英国 / 通用 (US / UK / both) */
   region: string
 }
 
@@ -63,22 +63,22 @@ export interface Analysis {
 
 export interface Version {
   vid: string
-  /** 本次修改要求；第一版为 null */
+  /** Revision instruction for this version; null for the first version */
   instruction: string | null
   en: string
   sentences: SentencePair[]
   alternatives: Alternative[]
-  /** 解析单独生成，可能稍后才有 */
+  /** The analysis is generated separately and may arrive later */
   analysis: Analysis | null
   createdAt: number
 }
 
 export type JobKind = 'generate' | 'revise' | 'analyze'
 
-/** 正在运行的生成任务；同一对话同时只有一个 */
+/** The running generation job; at most one per session at a time */
 export interface Job {
   kind: JobKind
-  /** analyze 针对的版本；generate / revise 为 null */
+  /** Version targeted by analyze; null for generate / revise */
   vid: string | null
   startedAt: number
 }
@@ -86,7 +86,7 @@ export interface Job {
 export interface JobError {
   kind: JobKind
   vid: string | null
-  /** 与云函数返回的错误码一致，前端据此决定是否引导去配置 */
+  /** Same as the error code returned by the cloud function; the frontend uses it to decide whether to point to configuration */
   code: ErrorCode
   message: string
   at: number
@@ -103,7 +103,7 @@ export interface Session {
   currentVid: string | null
   job: Job | null
   lastError: JobError | null
-  /** 收藏状态：收藏时间（没收藏为 null）、所在文件夹（未归类为 null）、标签 */
+  /** Saved state: saved time (null if not saved), folder (null if unfiled), tags */
   starredAt: number | null
   folderId: string | null
   tags: string[]
@@ -114,10 +114,10 @@ export interface Session {
 export interface SessionSummary {
   id: string
   title: string
-  /** 列表里展示的一句话：优先英文，没有英文时用原文 */
+  /** One-line preview shown in lists: English if available, otherwise the original text */
   preview: string
   versionCount: number
-  /** pending：已新建，还没开始生成 */
+  /** pending: created, generation not started yet */
   state: 'ready' | 'running' | 'pending' | 'failed'
   starredAt: number | null
   folderId: string | null
@@ -125,7 +125,7 @@ export interface SessionSummary {
   updatedAt: number
 }
 
-/** 前端能看到的大模型配置（不含明文 Key）；只有管理员能看，所有人共用这一份 */
+/** LLM config as seen by the frontend (no plaintext key); visible to admins only, shared by everyone */
 export interface LlmConfigView {
   preset: LlmPresetId
   baseUrl: string
@@ -137,9 +137,9 @@ export interface LlmConfigView {
 export type LlmPresetId = 'deepseek' | 'qwen' | 'moonshot' | 'zhipu' | 'doubao' | 'custom'
 
 // ---------------------------------------------------------------------------
-// 示范朗读
+// Demo reading
 
-/** 一个词在音频里的位置；index 为这个词在句子文本里的字符范围 */
+/** A word's position in the audio; the index fields are its character range in the sentence text */
 export interface TimedText {
   text: string
   beginMs: number
@@ -150,13 +150,13 @@ export interface TimedText {
 
 export interface TtsSentence {
   index: number
-  /** 临时播放链接 */
+  /** Temporary playback URL */
   url: string
   words: TimedText[]
 }
 
 // ---------------------------------------------------------------------------
-// 背诵练习
+// Recitation practice
 
 export type PracticeStage = 'transcribe' | 'align' | 'score' | 'report' | 'done'
 
@@ -172,7 +172,7 @@ export interface PracticeError {
   at: number
 }
 
-/** 识别出的一个词和它在录音里的时间（毫秒） */
+/** A recognized word and its time in the recording (ms) */
 export interface SpokenWord {
   word: string
   startMs: number
@@ -183,27 +183,27 @@ export type DiffKind = 'mispronounced' | 'paraphrase' | 'missing' | 'extra' | 'g
 
 export interface PracticeDiff {
   kind: DiffKind
-  /** 原文第几句（从 0 开始） */
+  /** Sentence index in the original (0-based) */
   sentenceIndex: number
-  /** 原文里的说法 */
+  /** Wording in the original */
   target: string
-  /** 实际说的 */
+  /** What was actually said */
   said: string
   note: string
 }
 
 export interface AlignedSentence {
   index: number
-  /** 还原出的"想说的那句话"，没背出来时为空 */
+  /** The reconstructed "sentence they meant to say"; empty if not recited */
   intended: string
   startMs: number
   endMs: number
 }
 
 export interface PhoneScore {
-  /** 标准音素 */
+  /** Reference phoneme */
   refPhone: string
-  /** 实际发出的音素 */
+  /** Phoneme actually produced */
   phone: string
   accuracy: number
 }
@@ -215,7 +215,7 @@ export interface ScoredWord {
   sentenceIndex: number
   startMs: number
   endMs: number
-  /** 0～100；无法评测时为 -1 */
+  /** 0-100; -1 when it couldn't be assessed */
   accuracy: number
   match: WordMatch
   phones: PhoneScore[]
@@ -239,14 +239,14 @@ export interface Practice {
   id: string
   sessionId: string
   vid: string
-  /** 下一步要做的评测步骤；录好还没评分时停在 transcribe */
+  /** Next assessment stage to run; stays at transcribe after recording until scoring starts */
   stage: PracticeStage
-  /** 要不要评分（评分扣次数）；没评分的录音也能回放和分享 */
+  /** Whether to score (scoring uses a free use); unscored recordings can still be played back and shared */
   scoreRequested: boolean
   job: PracticeJob | null
   lastError: PracticeError | null
   durationMs: number
-  /** 录音的临时播放链接 */
+  /** Temporary playback URL of the recording */
   audioUrl: string | null
   transcript: { text: string; words: SpokenWord[] } | null
   alignment: {
@@ -260,7 +260,7 @@ export interface Practice {
     fluency: number
     completeness: number
     words: ScoredWord[]
-    /** 背了但没能评测的句子（评测服务出错或时间不够），报告里要和"没背出来"区分 */
+    /** Sentences recited but not assessed (assessment service error or out of time); the report must tell them apart from "not recited" */
     unscored: number[]
   } | null
   report: {
@@ -285,43 +285,43 @@ export interface PracticeSummary {
 }
 
 // ---------------------------------------------------------------------------
-// 收藏（M3）
+// Saved items (M3)
 
-/** 收藏页的两栏 */
+/** The two tabs of the library page */
 export type LibraryTab = 'expression' | 'session'
 
 export interface Folder {
   id: string
   name: string
   parentId: string | null
-  /** 1～3 级 */
+  /** Level 1-3 */
   depth: number
-  /** 同级之间的顺序，小的在前 */
+  /** Order among siblings, smallest first */
   order: number
   createdAt: number
 }
 
-/** 每个文件夹里直接放着的收藏数；键为文件夹 id，未归类的键为空字符串 */
+/** Number of saved items directly in each folder; keyed by folder id, with an empty string for unfiled */
 export type FolderCounts = Record<LibraryTab, Record<string, number>>
 
-/** phrase：解析里的关键表达；slang：俚语与习语；word：从句子或报告里收藏的词和短语 */
+/** phrase: key expression from the analysis; slang: slang and idioms; word: word or phrase saved from a sentence or report */
 export type ExpressionKind = 'phrase' | 'slang' | 'word'
 
-/** 从哪里收藏的：解析、英文句子、评分报告 */
+/** Where it was saved from: analysis, English sentence, scoring report */
 export type ExpressionOrigin = 'analysis' | 'sentence' | 'report'
 
 export interface ExpressionSource {
   sessionId: string
   vid: string
-  /** 在那个版本里是第几句；解析里的表达找不到所在句子时为 -1 */
+  /** Sentence index in that version; -1 when an analysis expression's sentence can't be found */
   sentenceIndex: number
-  /** 收藏时那句英文的原文（对话之后修改也不影响） */
+  /** The English sentence as it was when saved (unaffected by later revisions of the session) */
   sentence: string
   from: ExpressionOrigin
   savedAt: number
 }
 
-/** 释义的补全状态：从解析收藏的直接就绪，从句子或报告收藏的由大模型补全 */
+/** Fill state of the definition: ready right away when saved from the analysis, filled in by the LLM when saved from a sentence or report */
 export type ExpressionFill = 'ready' | 'pending' | 'failed'
 
 export interface Expression {
@@ -331,14 +331,14 @@ export interface Expression {
   meaning: string
   usage: string
   example: string
-  /** 自己写的备注 */
+  /** The user's own note */
   note: string
   fill: ExpressionFill
   folderId: string | null
   tags: string[]
   sources: ExpressionSource[]
   createdAt: number
-  /** 最近一次收藏的时间，列表按它倒序 */
+  /** Time of the latest save; lists sort by it, newest first */
   savedAt: number
 }
 
@@ -354,12 +354,12 @@ export interface ExpressionSummary {
   savedAt: number
 }
 
-/** 来源或用处所在对话的标题；对话不存在时为 null */
+/** Title of the session the source or usage belongs to; null if the session no longer exists */
 export interface SourceView extends ExpressionSource {
   sessionTitle: string | null
 }
 
-/** 「也出现在」：其他对话里用到这个表达的句子 */
+/** "Also appears in" (「也出现在」): sentences in other sessions that use this expression */
 export interface Usage {
   sessionId: string
   sessionTitle: string
@@ -375,9 +375,9 @@ export interface TagCount {
 }
 
 // ---------------------------------------------------------------------------
-// 分享（M4）
+// Sharing (M4)
 
-/** 分享和歌词页上显示的署名；头像为临时链接 */
+/** Byline shown on shares and the lyrics player; the avatar is a temporary URL */
 export interface Profile {
   nickname: string
   avatarUrl: string | null
@@ -386,10 +386,10 @@ export interface Profile {
 export interface ShareSentence {
   en: string
   zh: string
-  /** 这一句在录音里的起止时间；没背出来的句子为 -1 */
+  /** Start and end time of this sentence in the recording; -1 for sentences not recited */
   startMs: number
   endMs: number
-  /** 逐词时间，字符位置对应 en；没有单词时间时为空 */
+  /** Per-word timing, with character positions in en; empty when there is no word timing */
   words: TimedText[]
 }
 
@@ -397,47 +397,47 @@ export interface Share {
   id: string
   title: string
   sentences: ShareSentence[]
-  /** 录音的临时播放链接 */
+  /** Temporary playback URL of the recording */
   audioUrl: string
   durationMs: number
   author: Profile
   createdAt: number
-  /** 是不是自己分享的（决定显示「发给朋友」还是「我也来练」） */
+  /** Whether it is your own share: decides between showing "Send to a friend" (「发给朋友」) and "Let me try" (「我也来练」) */
   mine: boolean
 }
 
 export interface ShareSummary {
   id: string
   title: string
-  /** 第一句英文 */
+  /** First English sentence */
   preview: string
   durationMs: number
   createdAt: number
 }
 
 // ---------------------------------------------------------------------------
-// 会员（M6）
+// Membership (M6)
 
-/** 自己的会员状态 */
+/** Your own membership status */
 export interface Account {
-  /** 用户 ID：开通 Pro 时发给管理员 */
+  /** User ID (OpenID): sent to an admin to get Pro */
   openid: string
-  /** 管理员一直按 Pro 算 */
+  /** Admins always count as Pro */
   isAdmin: boolean
-  /** 现在是不是 Pro：管理员，或者开通了还没到期 */
+  /** Whether currently Pro: an admin, or granted and not yet expired */
   pro: boolean
-  /** 最近一次开通的到期时间；从没开通过为 null（已过期的也保留） */
+  /** Expiry of the latest grant; null if never granted (kept after it expires) */
   proUntil: number | null
-  /** 免费体验已用和剩余的次数 */
+  /** Free uses used and remaining */
   freeUsed: number
   freeLeft: number
 }
 
-/** 会员管理页里的一位成员 */
+/** A member on the membership management page */
 export interface Member extends Account {
-  /** 分享署名里的昵称和头像；没设置过为 null */
+  /** Nickname and avatar from the share byline; null if never set */
   nickname: string | null
   avatarUrl: string | null
-  /** 第一次使用的时间 */
+  /** Time of first use */
   createdAt: number
 }

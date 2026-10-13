@@ -1,4 +1,4 @@
-/** 云函数统一返回结构：前端只需判断 ok，不用猜测各种异常形态 */
+/** Uniform cloud function result: the frontend only checks ok instead of guessing at error shapes */
 
 export type ErrorCode =
   | 'BAD_REQUEST'
@@ -6,7 +6,7 @@ export type ErrorCode =
   | 'FORBIDDEN'
   | 'NOT_FOUND'
   | 'NOT_CONFIGURED'
-  /** 免费体验次数用完，前端据此弹出 Pro 介绍 */
+  /** Free uses exhausted; the frontend shows the Pro intro */
   | 'QUOTA_EXCEEDED'
   | 'UPSTREAM_ERROR'
   | 'TIMEOUT'
@@ -14,7 +14,7 @@ export type ErrorCode =
 
 export interface ApiError {
   code: ErrorCode
-  /** 可直接展示给用户的中文说明，不得包含密钥、堆栈等内部信息 */
+  /** Chinese message shown directly to the user; must not contain secrets, stack traces or other internals */
   message: string
 }
 

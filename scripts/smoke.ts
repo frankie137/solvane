@@ -1,10 +1,10 @@
 /**
- * 冒烟测试：通过微信开发者工具的自动化接口启动小程序，逐个打开关键页面并截图，
- * 页面抛出未捕获异常时失败。截图保存在 .smoke/ 目录。
+ * Smoke test: launch the mini program through the WeChat DevTools automation API, open each key page and take a screenshot;
+ * fails if a page throws an uncaught exception. Screenshots are saved to .smoke/.
  *
- * 前置条件：开发者工具已登录，并在「设置 → 安全设置」中开启服务端口。
- * 开发者工具没在运行时在后台启动，测完保持开着（见 scripts/devtools.ts）。
- * 运行：pnpm smoke（会先构建小程序）
+ * Prerequisites: WeChat DevTools is logged in, with the service port enabled under Settings → Security (「设置 → 安全设置」).
+ * If WeChat DevTools isn't running, it is launched in the background and stays open afterwards (see scripts/devtools.ts).
+ * Run: pnpm smoke (builds the mini program first)
  */
 import { mkdirSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -16,7 +16,7 @@ const outDir = join(root, '.smoke')
 interface Route {
   name: string
   url: string
-  /** 页面路径，用于确认确实打开了目标页 */
+  /** Page path, used to confirm the target page actually opened */
   path: string
 }
 
@@ -26,7 +26,7 @@ const ROUTES: Route[] = [
   { name: '03-me', url: '/pages/index/index?tab=me', path: 'pages/index/index' },
   { name: '04-gallery', url: '/pkg-dev/gallery/index', path: 'pkg-dev/gallery/index' },
   { name: '05-llm-settings', url: '/pkg-settings/llm/index', path: 'pkg-settings/llm/index' },
-  // 不存在的对话：检查加载失败状态的展示
+  // Nonexistent session: checks how the load-failure state is shown
   {
     name: '06-session-missing',
     url: '/pkg-session/session/index?id=smoke-missing',
@@ -59,11 +59,11 @@ const ROUTES: Route[] = [
     path: 'pkg-share/play/index',
   },
   { name: '13-my-shares', url: '/pkg-share/mine/index', path: 'pkg-share/mine/index' },
-  // 开发者工具里登录的是管理员时显示成员列表，否则显示「只有管理员可以管理会员」
+  // Shows the member list when WeChat DevTools is logged in as an admin, otherwise 「只有管理员可以管理会员」 (only admins can manage membership)
   { name: '14-members', url: '/pkg-admin/members/index', path: 'pkg-admin/members/index' },
 ]
 
-/** 等 tab 切换和入场动画结束 */
+/** Wait for the tab switch and entrance animation to finish */
 const SETTLE_MS = 900
 
 async function main(): Promise<void> {
@@ -83,7 +83,7 @@ async function main(): Promise<void> {
     for (const route of ROUTES) {
       const page = await mp.reLaunch(route.url)
       if (!page || page.path !== route.path) {
-        failures.push(`${route.name}: 期望打开 ${route.path}，实际是 ${page?.path ?? '无'}`)
+        failures.push(`${route.name}: expected ${route.path}, got ${page?.path ?? 'none'}`)
         continue
       }
       await page.waitFor(SETTLE_MS)
@@ -92,17 +92,17 @@ async function main(): Promise<void> {
     }
   })
 
-  failures.push(...exceptions.map((e) => `未捕获异常：${e}`))
-  failures.push(...consoleErrors.map((e) => `console.error：${e}`))
+  failures.push(...exceptions.map((e) => `Uncaught exception: ${e}`))
+  failures.push(...consoleErrors.map((e) => `console.error: ${e}`))
 
   if (failures.length > 0) {
-    console.error(`\n冒烟测试失败：\n${failures.map((f) => `  - ${f}`).join('\n')}`)
+    console.error(`\nSmoke test failed:\n${failures.map((f) => `  - ${f}`).join('\n')}`)
     process.exit(1)
   }
-  console.info(`\n全部通过，截图在 ${outDir}`)
+  console.info(`\nAll passed; screenshots are in ${outDir}`)
 }
 
-// 自动化连接断开后可能还留着句柄，结束时主动退出
+// Handles may linger after the automation connection closes, so exit explicitly when done
 main()
   .then(() => process.exit(0))
   .catch((err: unknown) => {

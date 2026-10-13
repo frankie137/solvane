@@ -1,6 +1,6 @@
 /**
- * 把 cloud/src/functions/<name>/index.ts 分别打包成可上传的云函数目录 cloudfunctions/<name>/。
- * 共享代码和第三方依赖都打进 index.js，云端只需安装 wx-server-sdk。
+ * Bundle each cloud/src/functions/<name>/index.ts into an uploadable cloud function directory cloudfunctions/<name>/.
+ * Shared code and third-party dependencies all go into index.js; the cloud only needs to install wx-server-sdk.
  */
 import {
   copyFileSync,
@@ -19,16 +19,16 @@ const root = resolve(__dirname, '..')
 const srcDir = join(root, 'cloud/src/functions')
 const outDir = join(root, 'cloudfunctions')
 
-/** 与云函数默认运行时 Node.js 16.13 保持一致（部署工具创建函数时用的就是它） */
+/** Matches the default cloud function runtime, Node.js 16.13 (what the deploy tool uses when creating functions) */
 const NODE_TARGET = 'node16'
 
-/** 云端安装的 wx-server-sdk 与本地类型检查用的版本保持一致 */
+/** The wx-server-sdk installed in the cloud matches the version used for local type checking */
 function wxServerSdkVersion(): string {
   const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
     devDependencies?: Record<string, string>
   }
   const version = pkg.devDependencies?.['wx-server-sdk']
-  if (!version) throw new Error('package.json 的 devDependencies 里缺少 wx-server-sdk')
+  if (!version) throw new Error('wx-server-sdk is missing from devDependencies in package.json')
   return version
 }
 
@@ -41,7 +41,7 @@ function listFunctions(): string[] {
 
 async function buildFunction(name: string, sdkVersion: string): Promise<void> {
   const fnOut = join(outDir, name)
-  // 每次都清空重建，避免源码里删掉的文件（如 config.json）残留在上传目录
+  // Always wipe and rebuild so files deleted from the source (such as config.json) don't linger in the upload directory
   rmSync(fnOut, { recursive: true, force: true })
   mkdirSync(fnOut, { recursive: true })
 
@@ -53,7 +53,7 @@ async function buildFunction(name: string, sdkVersion: string): Promise<void> {
     target: NODE_TARGET,
     format: 'cjs',
     tsconfig: join(root, 'cloud/tsconfig.json'),
-    // wx-server-sdk 在云端安装；bufferutil / utf-8-validate 是 ws 的可选原生加速，不打包
+    // wx-server-sdk is installed in the cloud; bufferutil / utf-8-validate are ws's optional native speedups, not bundled
     external: ['wx-server-sdk', 'bufferutil', 'utf-8-validate'],
     legalComments: 'none',
     logLevel: 'warning',
@@ -68,16 +68,16 @@ async function buildFunction(name: string, sdkVersion: string): Promise<void> {
   }
   writeFileSync(join(fnOut, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`)
 
-  // 函数自己的 config.json（权限、触发器）原样带上
+  // Copy the function's own config.json (permissions, triggers) as is
   const config = join(srcDir, name, 'config.json')
   if (existsSync(config)) copyFileSync(config, join(fnOut, 'config.json'))
 }
 
 async function main(): Promise<void> {
   const names = listFunctions()
-  if (names.length === 0) throw new Error(`没有在 ${srcDir} 找到云函数`)
+  if (names.length === 0) throw new Error(`No cloud functions found in ${srcDir}`)
 
-  // 清掉已经不存在的函数目录，避免上传过期代码
+  // Remove directories of functions that no longer exist, to avoid uploading stale code
   if (existsSync(outDir)) {
     for (const entry of readdirSync(outDir)) {
       if (!names.includes(entry)) rmSync(join(outDir, entry), { recursive: true, force: true })
