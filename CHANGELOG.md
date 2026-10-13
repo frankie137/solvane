@@ -124,7 +124,7 @@ M5 completes V1 (M0 to M5).
 **Shipped**
 
 - Voice input on the Practice tab: tap the mic to start (up to 60 seconds), with a live volume waveform, a timer, and Done and Cancel; the app warns when a recording is under 1 second and during the last 10 seconds. The recognized text opens in a confirm sheet for editing, and typed input uses the same sheet. Guidance is shown when microphone permission is denied.
-- Generation: tapping Generate opens the session page at once with a skeleton, which fills in with the polished Chinese, the recommended English, sentence-by-sentence Chinese and English pairs, alternatives and a title, then the analysis (key expressions and slang).
+- Generation: tapping Generate opens the session page at once with a skeleton, which fills in with the polished Chinese, the recommended English, sentence-by-sentence Chinese and English pairs, alternatives and a title, then the analysis (key expressions, slang, culture notes and a Chinglish comparison).
 - Revision: an input bar and quick requests (more casual, more formal, shorter, add slang). Each revision creates a new version, and the user can switch between versions.
 - Settings: English level and accent on the Me tab; an LLM configuration page with a per-user configuration and an admin-only global default; the user ID on the Me tab for admin setup.
 - Cloud functions: `compose` (`create`, `generate`, `revise`, `analyze`, and LLM configuration read, save and test), `speech` (`recognize`, using Tencent Cloud one-sentence Chinese ASR) and `data` (settings, sessions, recent sessions, current version). Only `compose` and `speech` need secrets.

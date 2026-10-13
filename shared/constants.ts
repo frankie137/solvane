@@ -125,7 +125,7 @@ export const PRO = {
   price: '9.9 元/月',
 } as const
 
-/** Scoring weights: pronunciation 40%, fluency 20%, content recall 25%, expression accuracy 15% */
+/** Scoring weights: pronunciation 40%, fluency 20%, content recall 25%, expression correctness 15% */
 export const SCORE_WEIGHTS = {
   pronunciation: 0.4,
   fluency: 0.2,

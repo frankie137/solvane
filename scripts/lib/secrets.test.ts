@@ -3,7 +3,7 @@ import { isPrivateMode, parseEnvFile, setEnvValue, validateSecrets } from './sec
 
 const VALID = new Map([
   ['KEY_ENCRYPTION_SECRET', 'x'.repeat(44)],
-  ['ADMIN_OPENIDS', 'o13Rf1abcdefghijklmnopqTSX8'],
+  ['ADMIN_OPENIDS', 'oFakE1abcdefghijklmnopqWXY8'],
   ['TENCENT_SECRET_ID', 'AKIDabcdefghijklmnop'],
   ['TENCENT_SECRET_KEY', 'k'.repeat(32)],
   ['SOE_APP_ID', '1300000000'],
@@ -21,9 +21,9 @@ describe('parseEnvFile', () => {
   })
 
   it('removes invisible characters brought in by copy-paste', () => {
-    const values = parseEnvFile('A=\u200B\nB=\uFEFFo13Rf1abc\u200D\n')
+    const values = parseEnvFile('A=\u200B\nB=\uFEFFoFakE1abc\u200D\n')
     expect(values.get('A')).toBe('')
-    expect(values.get('B')).toBe('o13Rf1abc')
+    expect(values.get('B')).toBe('oFakE1abc')
   })
 
   it('parses key-value pairs, skipping comments and blank lines and stripping quotes', () => {
@@ -54,15 +54,15 @@ describe('validateSecrets', () => {
   it.each([
     ['KEY_ENCRYPTION_SECRET', '留空', 'currently has 2 characters'],
     ['ADMIN_OPENIDS', '', 'ADMIN_OPENIDS must not be empty'],
-    ['ADMIN_OPENIDS', 'o13Rf1…TSX8', 'masked ID'],
+    ['ADMIN_OPENIDS', 'oFakE1…WXY8', 'masked ID'],
     [
       'ADMIN_OPENIDS',
-      'o13Rf1abcdefghijklmnopqTSX8，o13Rf1abcdefghijklmnopqTSX9',
+      'oFakE1abcdefghijklmnopqWXY8，oFakE1abcdefghijklmnopqWXY9',
       'full-width comma',
     ],
-    ['ADMIN_OPENIDS', 'o13Rf1abc defghijklmnopqTSX8', 'contains a space'],
-    ['ADMIN_OPENIDS', 'x13Rf1abcdefghijklmnopqTSX8', 'the first character is a lowercase letter'],
-    ['ADMIN_OPENIDS', '“o13Rf1abcdefghijklmnopqTSX8”', 'the first character is a quotation mark'],
+    ['ADMIN_OPENIDS', 'oFakE1abc defghijklmnopqWXY8', 'contains a space'],
+    ['ADMIN_OPENIDS', 'xFakE1abcdefghijklmnopqWXY8', 'the first character is a lowercase letter'],
+    ['ADMIN_OPENIDS', '“oFakE1abcdefghijklmnopqWXY8”', 'the first character is a quotation mark'],
     ['KEY_ENCRYPTION_SECRET', '“', 'the first character is a quotation mark'],
     ['SOE_APP_ID', '', 'SOE_APP_ID must not be empty'],
     ['SOE_APP_ID', 'wx46ecc9293eb0f276', 'not the WeChat AppID that starts with wx'],

@@ -132,7 +132,7 @@ function onTap() {
 }
 
 // WeChat's built-in button[disabled]:not([type]) style greys the text and sets the background to #f7f7f7,
-// with specificity (0,2,1); three class selectors (0,3,0) override it here
+// with specificity (0,2,1); two classes plus an attribute selector (0,3,0) override it here
 .sv-btn.sv-btn--primary[disabled] {
   color: var(--sv-text-on-accent);
   background-color: transparent;

@@ -161,7 +161,7 @@ export interface ShareDoc {
   /** First English sentence, shown in lists (lists don't fetch sentences) */
   preview: string
   sentences: ShareSentence[]
-  /** Copy of the recording, deleted when the share is withdrawn */
+  /** Copy of the recording, deleted when the share is revoked */
   audioFileID: string
   durationMs: number
   author: ProfileStored

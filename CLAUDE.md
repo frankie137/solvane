@@ -7,7 +7,12 @@ A WeChat mini program that helps people turn ideas they have in Chinese into idi
 - **Ask the owner before launching WeChat DevTools** (smoke tests, screenshots, deploying through DevTools), and finish static checks first. Once approved, drive it through `scripts/devtools.ts` (`withAutomator()` / `runDevtoolsCli()`). No need to hide the window or quit it afterwards; leave it open for next time. `pnpm preview` does not need DevTools and can be used directly for the owner's real-device acceptance
 
 - Language: chat with the owner in Chinese. Everything written into the repository is English: code comments, docs, stage docs, test titles, script output, commit messages, PR descriptions
-- Exceptions that stay Chinese: UI text the user sees (templates, toasts, `AppError` messages), because the product is for Chinese speakers; LLM prompts in `cloud/src/prompts/`; test fixtures that model Chinese input
+- Exceptions that stay Chinese:
+  - UI text the user sees (templates, toasts, `AppError` / `CloudError` messages, user-facing labels), because the product is for Chinese speakers
+  - Anything sent to the LLM: prompts in `cloud/src/prompts/` and the JSON-repair feedback in `cloud/src/lib/llm/json.ts`
+  - Strings that must match external Chinese text: WeChat and Tencent Cloud error messages (e.g. the regexes in `scripts/mp-ci.ts`), the DevTools data directory in `scripts/devtools.ts`
+  - Test fixtures that model Chinese input or output
+  - Chinese UI or console labels quoted after an English gloss so readers can find them, e.g. `Me → User ID (「我的 → 用户 ID」)`
 - Discuss new requirements and settle the details before writing code
 - Work in stages; every stage must go through all six steps of [docs/REVIEW.md](docs/REVIEW.md) before it is merged
 - Stage docs live in `docs/stages/`; start each stage by writing its task list and acceptance criteria. Earlier stages are summarized in [CHANGELOG.md](CHANGELOG.md)

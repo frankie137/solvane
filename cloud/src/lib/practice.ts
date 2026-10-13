@@ -192,7 +192,7 @@ const clamp100 = (v: number) => Math.round(Math.min(100, Math.max(0, v)))
 
 /**
  * The four scores and the weighted overall score (pronunciation 40%, fluency 20%,
- * content fidelity 25%, expression accuracy 15%)
+ * content recall 25%, expression correctness 15%)
  */
 export function computeScores(
   alignment: NonNullable<Practice['alignment']>,

@@ -76,7 +76,7 @@ CI runs the same `pnpm check` on every push to `main` and on every PR.
 - [ ] Consistent with surrounding code; no dead code or debug output
 - [ ] New `sv-*` components are registered in `src/components.d.ts`
 - [ ] Pure logic (parsing, calculations, alignment algorithms, etc.) has unit tests
-- [ ] Comments, test titles, logs and script output are in English; UI text and LLM prompts stay Chinese
+- [ ] Comments, test titles, logs and script output are in English; the exceptions listed in `CLAUDE.md` (UI text, anything sent to the LLM, strings matching external Chinese text, Chinese fixtures) stay Chinese
 
 **Docs**
 

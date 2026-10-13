@@ -2,7 +2,7 @@ const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
-/** Relative time for lists: just now / 5 minutes ago / 3 hours ago / yesterday / Oct 8 / Oct 8, 2025 */
+/** Relative time for lists: 刚刚 / 5 分钟前 / 3 小时前 / 昨天 / 10月8日 / 2025年10月8日 */
 export function formatRelative(ts: number, now = Date.now()): string {
   const diff = now - ts
   if (diff < MINUTE) return '刚刚'
@@ -17,7 +17,7 @@ export function formatRelative(ts: number, now = Date.now()): string {
   return d.getFullYear() === today.getFullYear() ? md : `${d.getFullYear()}年${md}`
 }
 
-/** Date: omits the year for this year (Nov 10) and includes it otherwise (Jan 3, 2027) */
+/** Date: omits the year for this year (11月10日) and includes it otherwise (2027年1月3日) */
 export function formatDate(ts: number, now = Date.now()): string {
   const d = new Date(ts)
   const md = `${d.getMonth() + 1}月${d.getDate()}日`

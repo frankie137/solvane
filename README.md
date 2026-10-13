@@ -67,13 +67,13 @@ flowchart TD
 
 ### 2. Reading aloud and recitation assessment (M2)
 
-| Feature               | Description                                                                                                                                                       |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Demo reading          | Tencent Cloud TTS with a male or female voice at 0.8x / 1.0x / 1.2x speed; each version is synthesized only once and cached                                       |
-| Recitation recording  | The text is hidden by default (tap to peek), up to 60 seconds, with a live waveform while recording; the recording can be replayed right after submitting (M6)    |
-| Recitation assessment | Optional (M6): runs only when you tap Score (「评分」) and consumes one use (see [Membership](#6-membership-m6)); four-step assessment that accepts rephrasing    |
-| Score report          | Overall score plus four sub-scores: pronunciation / fluency / content recall / correctness; color-coded words; pronunciation tips and recitation tips; replayable |
-| Practice records      | Each session keeps the 3 most recent; a 4th pushes out the oldest (recordings that have been shared are not affected)                                             |
+| Feature               | Description                                                                                                                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Demo reading          | Tencent Cloud TTS with a male or female voice at 0.8x / 1.0x / 1.2x speed; each version is synthesized only once and cached                                                  |
+| Recitation recording  | The text is hidden by default (tap to peek), up to 60 seconds, with a live waveform while recording; the recording can be replayed right after submitting (M6)               |
+| Recitation assessment | Optional (M6): runs only when you tap Score (「评分」) and consumes one use (see [Membership](#6-membership-m6)); four-step assessment that accepts rephrasing               |
+| Score report          | Overall score plus four sub-scores: pronunciation / fluency / content recall / expression correctness; color-coded words; pronunciation tips and recitation tips; replayable |
+| Practice records      | Each session keeps the 3 most recent; a 4th pushes out the oldest (recordings that have been shared are not affected)                                                        |
 
 ### 3. Saved items and history (M3)
 
