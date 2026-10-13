@@ -1,6 +1,22 @@
-# Solvane
+<div align="center">
 
-> A WeChat mini program that turns what you want to say in Chinese into idiomatic English, then helps you recite it and get the pronunciation right.
+# `🦜 solvane`
+
+**Say it in Chinese, learn to say it in English**
+
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue.svg)](LICENSE.md)
+[![CI](https://github.com/frankie137/solvane/actions/workflows/ci.yml/badge.svg)](https://github.com/frankie137/solvane/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/github/v/tag/frankie137/solvane?label=version&sort=semver)](CHANGELOG.md)
+[![WeChat Mini Program](https://img.shields.io/badge/WeChat-Mini%20Program-07C160.svg?logo=wechat&logoColor=white)](https://developers.weixin.qq.com/miniprogram/en/dev/framework/)
+[![uni-app](https://img.shields.io/badge/uni--app-3-2B9939.svg)](https://uniapp.dcloud.net.cn/)
+[![Vue](https://img.shields.io/badge/Vue-3.4-4FC08D.svg?logo=vuedotjs&logoColor=white)](https://vuejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![WeChat CloudBase](https://img.shields.io/badge/WeChat-CloudBase-07C160.svg?logo=wechat&logoColor=white)](https://developers.weixin.qq.com/miniprogram/en/dev/wxcloud/basis/getting-started.html)
+[![LLM: OpenAI-compatible](https://img.shields.io/badge/LLM-OpenAI--compatible-412991.svg)](#4-llm-configuration)
+
+</div>
+
+A WeChat mini program that turns what you want to say in Chinese into idiomatic English, then helps you recite it and get the pronunciation right.
 
 Solvane takes the scattered Chinese you want to say but can't yet say in English and turns it into a fluent Chinese passage and an idiomatic, everyday-tone English version, with an analysis of key expressions, slang and cultural background. You can then recite the English, get a pronunciation score and tips, save the whole session into nested folders, or turn your recording into a lyrics page to share with friends.
 
@@ -8,7 +24,7 @@ The app's interface is in Chinese, because it is built for Chinese speakers lear
 
 - **Form**: WeChat mini program (trial version, for a small circle of users)
 - **Tech stack**: uni-app (Vue 3 + Vite + TypeScript + Pinia) + WeChat CloudBase
-- **Status**: V1 (M0-M5) is complete; M6 (Pro membership, optional scoring) is complete as version 1.1.0; V2 is being planned (see [Development progress](#development-progress))
+- **Status**: V1 (M0-M5) is complete; M6 (Pro membership, optional scoring) shipped as 1.1.0 and M7 (public release preparation) as 1.2.0; V2 is being planned (see [Development progress](#development-progress))
 
 ---
 
@@ -26,6 +42,7 @@ The app's interface is in Chinese, because it is built for Chinese speakers lear
 - [Development and review process](#development-and-review-process)
 - [Local development](#local-development)
 - [Constraints and known limitations](#constraints-and-known-limitations)
+- [Contributing](#contributing)
 - [License](#license)
 
 ---
@@ -417,18 +434,18 @@ You also need to declare the personal information the app uses in the WeChat MP 
 
 ## Development progress
 
-| Stage  | Scope                                                                                                                     | Acceptance criteria                                                                     | Status         |
-| ------ | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------- |
-| Design | Requirements discussion, technology choices, this document                                                                | Design finalized                                                                        | ✅ Done        |
-| M0     | Environment, scaffolding, linting and tests, cloud function build, design tokens and base components, review process docs | A blank home page runs in WeChat DevTools and all checks pass                           | ✅ Done        |
-| M1     | Voice / typed input → polish → English + analysis → multi-round revision; settings page and LLM settings                  | Say some Chinese, get English and an analysis, and keep revising                        | ✅ Done        |
-| M2     | Demo reading, recitation recording, four-step assessment, score report, practice records                                  | After one recitation, see the sub-scores and pronunciation tips                         | ✅ Done        |
-| M3     | Saving sessions, saving expressions / words with source tracing, folders, tags, history and search                        | Save an expression and trace it to its sentence; create, move and find folders          | ✅ Done        |
-| M4     | Share card, lyrics player                                                                                                 | A trial member opens the card, hears the recording, and the lyrics scroll in sync       | ✅ Done        |
-| M5     | Motion polish, empty and error states, performance and package size, real-device acceptance                               | The full flow runs smoothly on a real device                                            | ✅ Done        |
-| M6     | Pro membership and free uses, manual activation by admins; optional scoring; LLM uses the global configuration only       | Playback and sharing work without scoring; the Pro intro appears when free uses run out | ✅ Done        |
-| M7     | Public release preparation: noncommercial license, English docs and comments, operational details removed                 | `pnpm check` passes and UI text and LLM prompts are unchanged                           | 🚧 In progress |
-| V2     | Review: flashcards from saved expressions and words, with reviews scheduled along the forgetting curve                    | -                                                                                       | 📋 Planned     |
+| Stage  | Scope                                                                                                                     | Acceptance criteria                                                                     | Status     |
+| ------ | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------- |
+| Design | Requirements discussion, technology choices, this document                                                                | Design finalized                                                                        | ✅ Done    |
+| M0     | Environment, scaffolding, linting and tests, cloud function build, design tokens and base components, review process docs | A blank home page runs in WeChat DevTools and all checks pass                           | ✅ Done    |
+| M1     | Voice / typed input → polish → English + analysis → multi-round revision; settings page and LLM settings                  | Say some Chinese, get English and an analysis, and keep revising                        | ✅ Done    |
+| M2     | Demo reading, recitation recording, four-step assessment, score report, practice records                                  | After one recitation, see the sub-scores and pronunciation tips                         | ✅ Done    |
+| M3     | Saving sessions, saving expressions / words with source tracing, folders, tags, history and search                        | Save an expression and trace it to its sentence; create, move and find folders          | ✅ Done    |
+| M4     | Share card, lyrics player                                                                                                 | A trial member opens the card, hears the recording, and the lyrics scroll in sync       | ✅ Done    |
+| M5     | Motion polish, empty and error states, performance and package size, real-device acceptance                               | The full flow runs smoothly on a real device                                            | ✅ Done    |
+| M6     | Pro membership and free uses, manual activation by admins; optional scoring; LLM uses the global configuration only       | Playback and sharing work without scoring; the Pro intro appears when free uses run out | ✅ Done    |
+| M7     | Public release preparation: noncommercial license, English docs and comments, operational details removed                 | `pnpm check` passes and UI text and LLM prompts are unchanged                           | ✅ Done    |
+| V2     | Review: flashcards from saved expressions and words, with reviews scheduled along the forgetting curve                    | -                                                                                       | 📋 Planned |
 
 Detailed notes for each stage are in [CHANGELOG.md](CHANGELOG.md).
 
@@ -505,6 +522,10 @@ If the IP whitelist blocks you (a home broadband public IP can change), use `pnp
 - **Network**: assessment and generation depend on cloud services and don't work offline.
 
 ---
+
+## Contributing
+
+Bug reports and suggestions are welcome in [Issues](https://github.com/frankie137/solvane/issues). Pull requests are not accepted for now.
 
 ## License
 

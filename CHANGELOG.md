@@ -2,6 +2,22 @@
 
 Notable changes to Solvane, one section per development stage, newest first.
 
+## 1.2.0 — M7: Public release preparation (2026-10-13)
+
+**Shipped**
+
+- The source is available under the PolyForm Noncommercial License 1.0.0 (`LICENSE.md`).
+- Everything written for developers is now English: README, docs, comments, test titles, script output and logs. UI text and LLM prompts stay Chinese.
+- The stage docs for M0 to M6 are condensed into this changelog.
+- README header with badges, and a Contributing section: issues are welcome, pull requests are not accepted for now.
+- Fix: the Me and Saved tabs scroll to the bottom again. The scroll-view height was only defined in the Practice tab, and component styles are isolated; every tab now defines it, and a convention test checks this.
+
+**Decisions**
+
+- A noncommercial license rather than an OSI license, so commercial licensing stays with the author.
+- Deployment details (environment IDs, how the upload key is protected) are kept out of tracked files.
+- The UI must not change: comparing the 1.1.0 build with this one shows identical templates and identical Chinese text, apart from one developer-only error message.
+
 ## 1.1.0 — M6: Pro membership (2026-10-11)
 
 **Shipped**
