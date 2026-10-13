@@ -1,6 +1,7 @@
 /**
- * Render docs/showcase/flow.html: an animated WebP per theme (the README shows the light one) and
- * an MP4 per theme for social posts, optionally with a music track mixed in.
+ * Render docs/showcase/flow.html to an animated WebP and an MP4 per theme, optionally with a music
+ * track mixed in. The README plays the light MP4, uploaded to GitHub as an attachment, since GitHub
+ * doesn't play committed videos inline; re-upload it there after rendering a new one.
  *
  * The render tools are not project dependencies. Install them once in any directory and point
  * SHOWCASE_TOOLS at it:
