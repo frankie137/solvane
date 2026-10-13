@@ -1,11 +1,11 @@
 import { ref } from 'vue'
 
-/** 大标题收起的滚动阈值，约等于大标题的高度 */
+/** Scroll threshold for collapsing the large title, roughly the large title's height */
 const COLLAPSE_AT = 36
 
 /**
- * 跟踪滚动位置决定大标题是否收起。
- * 只在越过阈值时更新状态，避免每次滚动事件都触发 setData。
+ * Track the scroll position to decide whether the large title is collapsed.
+ * Update state only when crossing the threshold, so not every scroll event triggers setData.
  */
 export function useCollapsingTitle() {
   const collapsed = ref(false)

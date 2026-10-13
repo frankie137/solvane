@@ -13,8 +13,8 @@ export interface OrganizeTarget {
 }
 
 /**
- * 整理收藏：移动到文件夹、编辑标签，以及收藏成功后的提示。
- * 页面里放一个 folder-picker、一个 tag-editor 和一个 saved-toast，绑定这里的状态。
+ * Organize saved items: move to a folder, edit tags, and the notice after saving.
+ * The page places a folder-picker, a tag-editor and a saved-toast bound to this state.
  */
 export function useOrganizer(onChanged?: (target: OrganizeTarget) => void) {
   const store = useLibraryStore()
@@ -60,7 +60,7 @@ export function useOrganizer(onChanged?: (target: OrganizeTarget) => void) {
     try {
       tagger.known = await listTags(t.tab)
     } catch {
-      // 常用标签只是提示，取不到不影响编辑
+      // Frequent tags are only suggestions; failing to load them doesn't block editing
     }
   }
 
@@ -81,7 +81,7 @@ export function useOrganizer(onChanged?: (target: OrganizeTarget) => void) {
     }
   }
 
-  /** 收藏成功的提示，带「选文件夹」入口 */
+  /** Saved notice with a "choose folder" (选文件夹) action */
   function notifySaved(t: OrganizeTarget, text = '已收藏') {
     target = t
     saved.text = text
@@ -99,7 +99,7 @@ export function useOrganizer(onChanged?: (target: OrganizeTarget) => void) {
     if (target) move(target)
   }
 
-  /** 取消收藏：表达卡片会删除（先确认），对话只是取消收藏 */
+  /** Unsave: an expression card is deleted (after confirmation); a session is just unsaved */
   async function unstar(t: OrganizeTarget, label = ''): Promise<boolean> {
     try {
       if (t.tab === 'expression') {
@@ -122,7 +122,7 @@ export function useOrganizer(onChanged?: (target: OrganizeTarget) => void) {
     }
   }
 
-  /** 收藏列表里长按一项 */
+  /** Long press on an item in the saved list */
   async function itemMore(t: OrganizeTarget, label = '') {
     const index = await chooseAction(['移动到…', '编辑标签', '取消收藏'])
     if (index === 0) move(t)

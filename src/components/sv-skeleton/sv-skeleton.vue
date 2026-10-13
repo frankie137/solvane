@@ -20,7 +20,7 @@ const props = withDefaults(defineProps<{ rows?: number; title?: boolean }>(), {
   title: false,
 })
 
-// 行宽错落，最后一行短一些，看起来更像真实段落
+// Vary line widths and keep the last line shorter so it looks more like a real paragraph
 const PATTERN = ['100%', '92%', '96%', '84%']
 const widths = computed(() =>
   Array.from({ length: props.rows }, (_, i) =>

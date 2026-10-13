@@ -42,7 +42,7 @@ const props = withDefaults(
   defineProps<{
     show: boolean
     sentence: string
-    /** 已收藏表达的合并键 → id */
+    /** Merge key of saved expressions → id */
     savedKeys: Record<string, string>
     saving?: boolean
   }>(),
@@ -54,7 +54,7 @@ const emit = defineEmits<{ 'update:show': [value: boolean]; save: [text: string]
 const start = ref(-1)
 const end = ref(-1)
 
-/** 按词切分，保留原句里的写法（含撇号、大小写） */
+/** Split into words, keeping the original spelling (apostrophes, capitalization) */
 const tokens = computed(() =>
   tokenizeWords(props.sentence).map((t) => ({ ...t, text: props.sentence.slice(t.start, t.end) })),
 )
@@ -79,7 +79,10 @@ const selected = computed(() => {
 
 const alreadySaved = computed(() => Boolean(props.savedKeys[expressionKey(selected.value)]))
 
-/** 第一次点选一个词；再点另一个词定下范围；点已选的首词取消 */
+/**
+ * The first tap selects a word; tapping another word sets the range; tapping the selected first
+ * word cancels
+ */
 function tapToken(i: number) {
   if (start.value < 0 || end.value >= 0) {
     start.value = i

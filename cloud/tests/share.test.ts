@@ -18,7 +18,7 @@ const word = (w: string, startMs: number, patch: Partial<ScoredWord> = {}): Scor
 })
 
 describe('mapWordTimings', () => {
-  it('按顺序对到原句的词上，字符位置以原句为准', () => {
+  it('maps words onto the original sentence in order, taking character positions from the original', () => {
     const sentence = "I'm at work, right now."
     const timed = mapWordTimings(sentence, [
       word("i'm", 100),
@@ -36,7 +36,7 @@ describe('mapWordTimings', () => {
     ])
   })
 
-  it('漏读、多读和换了说法的词跳过，不影响后面的词', () => {
+  it('skips missing, extra and paraphrased words without affecting later ones', () => {
     const timed = mapWordTimings('Catch you later today.', [
       word('catch', 100),
       word('ya', 300, { match: 'wrong' }),
@@ -48,14 +48,14 @@ describe('mapWordTimings', () => {
     expect(timed.map((t) => t.text)).toEqual(['Catch', 'later', 'today'])
   })
 
-  it('乱序的时间先按时间排好', () => {
+  it('sorts out-of-order timings first', () => {
     const timed = mapWordTimings('see you', [word('you', 500), word('see', 100)])
     expect(timed.map((t) => t.text)).toEqual(['see', 'you'])
   })
 })
 
 describe('buildShareSentences', () => {
-  it('没背出来的句子没有时间', () => {
+  it('sentences not recited get no timings', () => {
     const out = buildShareSentences(
       [
         { en: 'Hi there.', zh: '你好。' },
@@ -74,7 +74,7 @@ describe('buildShareSentences', () => {
 })
 
 describe('wordsFromTranscript', () => {
-  it('识别出的词按句子时间范围分句；句子之间的杂音不要', () => {
+  it('splits recognized words by sentence time range and drops noise between sentences', () => {
     const spoken = [
       { word: 'Hi', startMs: 100, endMs: 300 },
       { word: 'there', startMs: 400, endMs: 900 },
@@ -191,8 +191,8 @@ async function donePractice(ctx: ReturnType<typeof setup>, patch: Partial<Practi
   return { sessionId, practiceId }
 }
 
-describe('资料', () => {
-  it('昵称必填、有长度限制；头像只接受 avatars/ 下的文件', async () => {
+describe('profile', () => {
+  it('nickname is required and length-limited; avatars must be under avatars/', async () => {
     const { data } = setup()
     await expect(data.getProfile({}, ME)).resolves.toEqual({ profile: null })
     await expect(data.updateProfile({ nickname: '  ' }, ME)).rejects.toThrow('昵称不能为空')
@@ -202,20 +202,20 @@ describe('资料', () => {
     ).rejects.toThrow('头像文件不正确')
     const { profile } = await data.updateProfile({ nickname: ' 小明 ', avatarFileID: AVATAR }, ME)
     expect(profile).toEqual({ nickname: '小明', avatarUrl: `https://tmp/${AVATAR}` })
-    // 只改昵称时保留头像
+    // Changing only the nickname keeps the avatar
     const next = await data.updateProfile({ nickname: '明明' }, ME)
     expect(next.profile.avatarUrl).toBe(`https://tmp/${AVATAR}`)
   })
 })
 
-describe('分享', () => {
-  it('没设置署名时不能分享', async () => {
+describe('sharing', () => {
+  it('cannot share without an author profile', async () => {
     const ctx = setup()
     const { practiceId } = await donePractice(ctx)
     await expect(ctx.data.createShare({ practiceId }, ME)).rejects.toThrow('头像和昵称')
   })
 
-  it('复制录音生成快照，同一次练习只生成一个；好友能读，看不到别的字段', async () => {
+  it('copies the recording into a snapshot, one per practice; friends can read it but see no other fields', async () => {
     const ctx = setup()
     await ctx.data.updateProfile({ nickname: '小明', avatarFileID: AVATAR }, ME)
     const { practiceId } = await donePractice(ctx)
@@ -242,7 +242,7 @@ describe('分享', () => {
     expect(mine.share.mine).toBe(true)
   })
 
-  it('同时发起两次只留一个分享，多余的录音副本删掉', async () => {
+  it('two concurrent shares leave a single share and delete the extra recording copy', async () => {
     const ctx = setup()
     await ctx.data.updateProfile({ nickname: '小明' }, ME)
     const { practiceId } = await donePractice(ctx)
@@ -256,7 +256,7 @@ describe('分享', () => {
     expect(ctx.storage.removed).toHaveLength(1)
   })
 
-  it('录音暂时取不到时不说成已撤回', async () => {
+  it('does not report revoked when the recording is temporarily unavailable', async () => {
     const ctx = setup()
     await ctx.data.updateProfile({ nickname: '小明' }, ME)
     const { practiceId } = await donePractice(ctx)
@@ -267,7 +267,7 @@ describe('分享', () => {
     })
   })
 
-  it('练习被清理后分享仍然能听', async () => {
+  it('a share stays playable after the practice is cleaned up', async () => {
     const ctx = setup()
     await ctx.data.updateProfile({ nickname: '小明' }, ME)
     const { practiceId } = await donePractice(ctx)
@@ -277,7 +277,7 @@ describe('分享', () => {
     await expect(ctx.data.getShare({ shareId }, FRIEND)).resolves.toBeTruthy()
   })
 
-  it('没评分的录音用识别结果的逐词时间', async () => {
+  it('unscored recordings use per-word timings from recognition', async () => {
     const ctx = setup()
     await ctx.data.updateProfile({ nickname: '小明' }, ME)
     const { practiceId } = await donePractice(ctx, {
@@ -301,7 +301,7 @@ describe('分享', () => {
     ])
   })
 
-  it('歌词时间还没准备好、别人的练习都不能分享', async () => {
+  it("cannot share before lyric timings are ready, nor someone else's practice", async () => {
     const ctx = setup()
     await ctx.data.updateProfile({ nickname: '小明' }, ME)
     await ctx.data.updateProfile({ nickname: '好友' }, FRIEND)
@@ -316,7 +316,7 @@ describe('分享', () => {
     await expect(ctx.data.createShare({ practiceId }, FRIEND)).rejects.toThrow('不存在')
   })
 
-  it('我的分享按时间倒序；撤回后链接失效、副本删除，别人不能撤回', async () => {
+  it('my shares are newest first; revoking invalidates the link and deletes the copy; others cannot revoke', async () => {
     const ctx = setup()
     await ctx.data.updateProfile({ nickname: '小明' }, ME)
     const { practiceId } = await donePractice(ctx)

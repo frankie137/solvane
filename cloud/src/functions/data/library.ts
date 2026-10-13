@@ -1,6 +1,7 @@
 /**
- * 收藏与历史：文件夹、收藏对话和表达、溯源、历史分页。
- * 收藏量不大（小圈子使用），列表、计数、标签和搜索都取全部后在函数里筛选。
+ * Saved items and history: folders, saved sessions and expressions, source tracing, history paging.
+ * There aren't many saved items (a small circle of users), so listing, counts, tags and search load
+ * everything and filter in the function.
  */
 import { z } from 'zod'
 import { LIMITS } from '@shared/constants'
@@ -44,18 +45,18 @@ type LibraryActions =
   | 'expressionKeys'
   | 'findUsages'
 
-/** 一个人最多建多少个文件夹 */
+/** Max folders per user */
 const MAX_FOLDERS = 200
-/** 一张卡片最多记多少条来源，超过时丢掉最早的 */
+/** Max sources kept per card; the oldest are dropped beyond that */
 const MAX_SOURCES = 30
-/** 「也出现在」最多翻多少个对话 */
+/** Max sessions scanned for "Also appears in" */
 const USAGE_SCAN_SESSIONS = 300
 const SCAN_PAGE = 100
 
 const id = z.string().min(1).max(64)
 const tabSchema = z.enum(['expression', 'session'])
 const folderIdSchema = id.nullable()
-/** 文件夹名在函数里检查，报错能说清楚原因 */
+/** Folder names are checked in the function so the error can say exactly what's wrong */
 const folderName = z
   .string()
   .max(200)
@@ -73,7 +74,7 @@ const keywordSchema = z
   .max(50)
   .transform((s) => s || undefined)
 
-/** 标签：去掉 # 和多余空格，去重；超长、太多时报错 */
+/** Tags: strip # and extra spaces, dedupe; error if a tag is too long or there are too many */
 function normalizeTags(raw: string[]): string[] {
   const tags: string[] = []
   for (const t of raw) {
@@ -90,7 +91,7 @@ function normalizeTags(raw: string[]): string[] {
   return tags
 }
 
-/** 文本字段：去掉首尾空白，超长截断 */
+/** Text field: trim surrounding whitespace, truncate if too long */
 const clip = (max: number) =>
   z
     .string()
@@ -108,7 +109,7 @@ function toFolder(doc: FolderDoc): Folder {
   }
 }
 
-/** 某个文件夹和它下面的所有文件夹 */
+/** A folder and all folders beneath it */
 function subtree(folders: FolderDoc[], rootId: string): FolderDoc[] {
   const out: FolderDoc[] = []
   const queue = [rootId]
@@ -122,7 +123,7 @@ function subtree(folders: FolderDoc[], rootId: string): FolderDoc[] {
   return out
 }
 
-/** 和已有名字重复时加序号：工作 → 工作 2 → 工作 3 */
+/** Append a number when the name is taken: Work -> Work 2 -> Work 3 */
 function freeName(taken: Set<string>, name: string): string {
   if (!taken.has(name)) return name
   for (let n = 2; ; n++) {
@@ -147,7 +148,7 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
     return { all, folder }
   }
 
-  /** 目标文件夹必须存在；null 表示未归类 */
+  /** The target folder must exist; null means unfiled */
   async function checkTarget(openid: string, folderId: string | null | undefined) {
     if (folderId) await requireFolder(openid, folderId)
   }
@@ -166,7 +167,7 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
   const nextOrder = (all: FolderDoc[], parentId: string | null) =>
     Math.max(-1, ...all.filter((f) => f.parentId === parentId).map((f) => f.order)) + 1
 
-  /** 文件夹已被删掉、但收藏还指着它时，按未归类处理 */
+  /** Treat a saved item as unfiled when its folder was deleted but it still points there */
   function inFolder(itemFolder: string | null, folderId: string | null, existing: Set<string>) {
     const effective = itemFolder && existing.has(itemFolder) ? itemFolder : null
     return effective === folderId
@@ -180,7 +181,10 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
   }
 
-  /** 来源所在的那一句：传了有效序号就用它，否则在这个版本里找表达出现的第一句 */
+  /**
+   * The source sentence: use the given index if valid, otherwise the first sentence in this version
+   * containing the expression
+   */
   function locateSentence(doc: SessionDoc, vid: string, index: number, text: string) {
     const version = doc.versions.find((v) => v.vid === vid)
     if (!version) throw new AppError('BAD_REQUEST', '找不到这个版本')
@@ -204,7 +208,7 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
         payload,
       )
       const limit = LIMITS.historyPage
-      // 多取一条用来判断还有没有下一页
+      // Fetch one extra to tell whether there's another page
       const docs = await sessions.listPage(ctx.openid, {
         offset: offset ?? 0,
         limit: limit + 1,
@@ -213,7 +217,7 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
       return { items: docs.slice(0, limit).map(toSummary), hasMore: docs.length > limit }
     },
 
-    // --- 文件夹 -------------------------------------------------------------
+    // --- Folders -------------------------------------------------------------
 
     async listFolders(_payload, ctx) {
       const [all, exprs, starred] = await Promise.all([
@@ -339,10 +343,12 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
       )
       const { all, folder } = await requireFolder(ctx.openid, folderId)
       if (mode === 'moveUp') {
-        // 子文件夹和收藏都移到上一级；子树整体上移一级，深度只会变小
+        // Move subfolders and saved items up one level. The whole subtree moves up a level,
+        // so depth can only decrease
         const parentId = folder.parentId
         let order = nextOrder(all, parentId)
-        // 上一级已有同名文件夹时，移上去的改名为「名字 2」，保持同一层不重名
+        // If the parent level already has a folder with the same name, rename the moved one to
+        // "Name 2" so names stay unique per level
         const taken = new Set(
           all.filter((f) => f.parentId === parentId && f._id !== folderId).map((f) => f.name),
         )
@@ -362,7 +368,7 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
         await folders.remove([folderId], ctx.openid)
         return {}
       }
-      // 一起删除：表达卡片删掉；对话只是取消收藏，对话本身还在历史里
+      // Delete all: expression cards are deleted; sessions are only unsaved and stay in history
       const ids = subtree(all, folderId).map((f) => f._id)
       await expressions.removeInFolders(ctx.openid, ids)
       await sessions.updateInFolders(ctx.openid, ids, { starredAt: null, folderId: null, tags: [] })
@@ -370,7 +376,7 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
       return {}
     },
 
-    // --- 收藏 ---------------------------------------------------------------
+    // --- Saved items ---------------------------------------------------------
 
     async listFavorites(payload, ctx) {
       const { tab, folderId, tag, keyword } = parsePayload(
@@ -383,7 +389,7 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
         payload,
       )
       const existing = new Set((await folders.list(ctx.openid)).map((f) => f._id))
-      // 关键词优先，其次标签（不看文件夹），否则按文件夹
+      // Keyword first, then tag (ignoring folders), otherwise by folder
       const pick = (item: { folderId: string | null; tags: string[] }, texts: string[]) => {
         if (keyword) return contains(keyword, ...texts)
         if (tag) return item.tags.includes(tag)
@@ -437,7 +443,7 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
       }
       const doc = await requireSession(sessions, input.id, ctx.openid)
       const fields = favoriteFields(doc)
-      // 还没收藏的对话，移动或打标签时一并收藏
+      // A session that isn't saved yet gets saved when it's moved or tagged
       await sessions.update(input.id, ctx.openid, {
         ...(fields.starredAt === null ? { folderId: null, tags: [] } : {}),
         ...patch,
@@ -453,16 +459,16 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
       )
       const doc = await requireSession(sessions, sessionId, ctx.openid)
       const fields = favoriteFields(doc)
-      // 取消收藏同时清掉文件夹和标签；重复收藏保持原来的文件夹和标签
+      // Unsaving also clears folder and tags; saving again keeps the existing folder and tags
       const next = star
         ? { ...fields, starredAt: fields.starredAt ?? deps.now() }
         : { starredAt: null, folderId: null, tags: [] }
-      // 收藏不算内容更新，不改 updatedAt
+      // Saving isn't a content update; leave updatedAt alone
       await sessions.update(sessionId, ctx.openid, next)
       return next
     },
 
-    // --- 表达 ---------------------------------------------------------------
+    // --- Expressions ---------------------------------------------------------
 
     async saveExpression(payload, ctx) {
       const input = parsePayload(
@@ -492,7 +498,8 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
         from: input.source.from,
         savedAt: now,
       }
-      // 解析里带了释义的直接就绪；从句子、报告里收藏的等大模型补全
+      // Saved from the analysis with a meaning: ready right away; saved from a sentence or the
+      // report: wait for the LLM to fill it in
       const provided = input.meaning
         ? { meaning: input.meaning, usage: input.usage ?? '', example: input.example ?? '' }
         : null
@@ -542,7 +549,7 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
       const ids = [...new Set(doc.sources.map((s) => s.sessionId))]
       const found = await sessions.listTitles(ctx.openid, ids)
       const titles = new Map(found.map((d) => [d._id, sessionTitle(d)]))
-      // 最近收藏的来源在前
+      // Most recently saved sources first
       const sources: SourceView[] = [...doc.sources]
         .reverse()
         .map((s) => ({ ...s, sessionTitle: titles.get(s.sessionId) ?? null }))
@@ -574,13 +581,14 @@ export function createLibraryHandlers(deps: LibraryDeps): Pick<Handlers<'data'>,
     async findUsages(payload, ctx) {
       const { expressionId } = parsePayload(z.object({ expressionId: id }), payload)
       const doc = await requireExpression(expressions, expressionId, ctx.openid)
-      // 已经在「收藏自」里的句子不再列出；同一个对话里重复的句子（不同版本常有）只列一次
+      // Skip sentences already under "Saved from"; list a sentence repeated within a session
+      // (common across versions) only once
       const seen = new Set(doc.sources.map((s) => `${s.sessionId}\n${s.sentence}`))
       const usages: Usage[] = []
       for (let offset = 0; offset < USAGE_SCAN_SESSIONS; offset += SCAN_PAGE) {
         const page = await sessions.listPage(ctx.openid, { offset, limit: SCAN_PAGE })
         for (const s of page) {
-          // 新版本在前
+          // Newer versions first
           for (const v of [...s.versions].reverse()) {
             for (const [i, sentence] of v.sentences.entries()) {
               const k = `${s._id}\n${sentence.en}`

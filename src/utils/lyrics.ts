@@ -1,6 +1,6 @@
-/** 歌词页和分享封面用到的纯函数 */
+/** Pure functions used by the lyrics player and the share cover */
 
-/** 当前播放到的句子：开始时间不晚于当前时间的最后一句；没有时间的句子跳过 */
+/** The sentence now playing: the last one starting no later than the current time; sentences without timings are skipped */
 export function currentLine(sentences: { startMs: number }[], positionMs: number): number {
   let current = -1
   for (const [i, s] of sentences.entries()) {
@@ -11,12 +11,12 @@ export function currentLine(sentences: { startMs: number }[], positionMs: number
   return current
 }
 
-/** 让某一行垂直居中需要的滚动位置；top 为这一行在滚动内容里的位置 */
+/** Scroll position that vertically centers a line; top is the line's position within the scroll content */
 export function centerScrollTop(top: number, height: number, viewport: number): number {
   return Math.max(0, Math.round(top + height / 2 - viewport / 2))
 }
 
-/** 0:07、1:23 */
+/** 0:07, 1:23 */
 export function formatClock(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000))
   const minutes = Math.floor(total / 60)
@@ -25,8 +25,8 @@ export function formatClock(ms: number): string {
 }
 
 /**
- * 按宽度折行：英文按单词断，中文按字断；超过 maxLines 行时最后一行加省略号。
- * measure 返回一段文字的绘制宽度（画布上用 ctx.measureText）。
+ * Wrap text to a width: English breaks at words, Chinese at any character; past maxLines the last line gets an ellipsis.
+ * measure returns the rendered width of a piece of text (ctx.measureText on a canvas).
  */
 export function wrapText(
   text: string,

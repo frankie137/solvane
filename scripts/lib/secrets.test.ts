@@ -3,14 +3,14 @@ import { isPrivateMode, parseEnvFile, setEnvValue, validateSecrets } from './sec
 
 const VALID = new Map([
   ['KEY_ENCRYPTION_SECRET', 'x'.repeat(44)],
-  ['ADMIN_OPENIDS', 'o13Rf1abcdefghijklmnopqTSX8'],
+  ['ADMIN_OPENIDS', 'oFakE1abcdefghijklmnopqWXY8'],
   ['TENCENT_SECRET_ID', 'AKIDabcdefghijklmnop'],
   ['TENCENT_SECRET_KEY', 'k'.repeat(32)],
   ['SOE_APP_ID', '1300000000'],
 ])
 
 describe('parseEnvFile', () => {
-  it('不带引号的值去掉行尾注释，带引号的保留 #', () => {
+  it('strips trailing comments from unquoted values and keeps # in quoted ones', () => {
     const values = parseEnvFile('A= # 留空\nB=abc # 注释\nC="x # y"\nD=a#b\n')
     expect([...values]).toEqual([
       ['A', ''],
@@ -20,13 +20,13 @@ describe('parseEnvFile', () => {
     ])
   })
 
-  it('去掉复制粘贴带进来的不可见字符', () => {
-    const values = parseEnvFile('A=\u200B\nB=\uFEFFo13Rf1abc\u200D\n')
+  it('removes invisible characters brought in by copy-paste', () => {
+    const values = parseEnvFile('A=\u200B\nB=\uFEFFoFakE1abc\u200D\n')
     expect(values.get('A')).toBe('')
-    expect(values.get('B')).toBe('o13Rf1abc')
+    expect(values.get('B')).toBe('oFakE1abc')
   })
 
-  it('解析键值，忽略注释和空行，去掉引号', () => {
+  it('parses key-value pairs, skipping comments and blank lines and stripping quotes', () => {
     const values = parseEnvFile('# 注释\n\nA=1\n B = two \nC="three=3"\nD=\nbad line\n')
     expect([...values]).toEqual([
       ['A', '1'],
@@ -38,39 +38,43 @@ describe('parseEnvFile', () => {
 })
 
 describe('setEnvValue', () => {
-  it('替换已有的行，其他内容不变', () => {
+  it('replaces the existing line and leaves the rest unchanged', () => {
     expect(setEnvValue('# c\nA=\nB=2\n', 'A', 'x$1y')).toBe('# c\nA=x$1y\nB=2\n')
   })
-  it('没有这一行时追加', () => {
+  it('appends the line when it is missing', () => {
     expect(setEnvValue('B=2', 'A', 'v')).toBe('B=2\nA=v\n')
   })
 })
 
 describe('validateSecrets', () => {
-  it('完整有效的配置没有问题', () => {
+  it('reports no problems for a complete, valid config', () => {
     expect(validateSecrets(VALID)).toEqual([])
   })
 
   it.each([
-    ['KEY_ENCRYPTION_SECRET', '留空', '现在有 2 个字符'],
-    ['ADMIN_OPENIDS', '', 'ADMIN_OPENIDS 不能为空'],
-    ['ADMIN_OPENIDS', 'o13Rf1…TSX8', '打码显示'],
-    ['ADMIN_OPENIDS', 'o13Rf1abcdefghijklmnopqTSX8，o13Rf1abcdefghijklmnopqTSX9', '中文逗号'],
-    ['ADMIN_OPENIDS', 'o13Rf1abc defghijklmnopqTSX8', '空格'],
-    ['ADMIN_OPENIDS', 'x13Rf1abcdefghijklmnopqTSX8', '第一个字符是小写字母'],
-    ['ADMIN_OPENIDS', '“o13Rf1abcdefghijklmnopqTSX8”', '第一个字符是引号'],
-    ['KEY_ENCRYPTION_SECRET', '“', '第一个字符是引号'],
-    ['SOE_APP_ID', '', 'SOE_APP_ID 不能为空'],
-    ['SOE_APP_ID', 'wx46ecc9293eb0f276', '不是 wx 开头的微信 AppID'],
-    ['SOE_APP_ID', '100012345678', '看起来是账号 ID'],
+    ['KEY_ENCRYPTION_SECRET', '留空', 'currently has 2 characters'],
+    ['ADMIN_OPENIDS', '', 'ADMIN_OPENIDS must not be empty'],
+    ['ADMIN_OPENIDS', 'oFakE1…WXY8', 'masked ID'],
+    [
+      'ADMIN_OPENIDS',
+      'oFakE1abcdefghijklmnopqWXY8，oFakE1abcdefghijklmnopqWXY9',
+      'full-width comma',
+    ],
+    ['ADMIN_OPENIDS', 'oFakE1abc defghijklmnopqWXY8', 'contains a space'],
+    ['ADMIN_OPENIDS', 'xFakE1abcdefghijklmnopqWXY8', 'the first character is a lowercase letter'],
+    ['ADMIN_OPENIDS', '“oFakE1abcdefghijklmnopqWXY8”', 'the first character is a quotation mark'],
+    ['KEY_ENCRYPTION_SECRET', '“', 'the first character is a quotation mark'],
+    ['SOE_APP_ID', '', 'SOE_APP_ID must not be empty'],
+    ['SOE_APP_ID', 'wx46ecc9293eb0f276', 'not the WeChat AppID that starts with wx'],
+    ['SOE_APP_ID', '100012345678', 'looks like the account ID'],
     ['TENCENT_SECRET_ID', 'abc', 'TENCENT_SECRET_ID'],
     ['TENCENT_SECRET_KEY', '', 'TENCENT_SECRET_KEY'],
-  ])('%s=%j 报错', (key, value, text) => {
+  ])('%s=%j is reported', (key, value, text) => {
     const problems = validateSecrets(new Map([...VALID, [key, value]]))
     expect(problems.join('\n')).toContain(text)
   })
 
-  it('问题描述里不包含任何值', () => {
+  it('never includes any value in problem descriptions', () => {
     const secretish = new Map([...VALID, ['TENCENT_SECRET_ID', 'sk-leaky-value']])
     expect(validateSecrets(secretish).join('\n')).not.toContain('sk-leaky-value')
   })

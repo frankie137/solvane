@@ -7,9 +7,9 @@ const AsrClient = tencentcloud.asr.v20190614.Client
 export type Credential = { secretId: string; secretKey: string }
 
 export interface RecognizeOptions {
-  /** 16k_zh 中文、16k_en 英文 */
+  /** 16k_zh for Chinese, 16k_en for English */
   engine: '16k_zh' | '16k_en'
-  /** 返回每个词的时间位置 */
+  /** Return the timing of each word */
   words?: boolean
 }
 
@@ -18,7 +18,10 @@ export interface RecognizeResult {
   words: SpokenWord[]
 }
 
-/** 腾讯云一句话识别（≤60 秒，16kHz 单声道 PCM）；fn 为配置密钥的云函数名，用于报错提示 */
+/**
+ * Tencent Cloud short-sentence recognition (up to 60 s of 16 kHz mono PCM); fn is the cloud
+ * function that holds the credentials, used in error messages
+ */
 export function createSentenceRecognizer(getCredential: () => Credential, fn: string) {
   let client: InstanceType<typeof AsrClient> | null = null
 

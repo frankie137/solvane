@@ -79,8 +79,8 @@ export async function deleteFolder(folderId: string, mode: FolderDeleteMode): Pr
 }
 
 /**
- * 补全表达的释义：调用云端补全；等不到返回、或别人正在补全时，轮询直到出结果。
- * 返回最新的表达；补全失败时 fill 为 failed，不抛错（未配置大模型等错误除外）。
+ * Fill in an expression's definition in the cloud; if the call doesn't return in time or another request is already filling it, poll until there's a result.
+ * Returns the latest expression; if filling fails, fill is failed and nothing is thrown (except for errors such as no LLM configured).
  */
 export async function explainExpression(
   expressionId: string,

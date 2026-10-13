@@ -1,138 +1,158 @@
-# Solvane
+<div align="center">
 
-> 用母语说出想法，学会地道的英文表达，再背出来、练准发音的微信小程序。
+# `🦜 solvane`
 
-Solvane 把"想说但不会说"的零碎中文，变成一段流畅的中文、一段日常口吻的地道英文，并附带关键表达、俚语和文化背景的解析。之后你可以背诵这段英文、拿到发音评分和建议，把整个对话收藏进分级文件夹，或者把录音做成歌词页分享给朋友。
+**Say it in Chinese, learn to say it in English**
 
-- **形态**：微信小程序（体验版，仅供小圈子使用）
-- **技术栈**：uni-app（Vue 3 + Vite + TypeScript + Pinia）+ 微信云开发
-- **状态**：V1（M0～M5）已完成；M6（Pro 会员、评分改为可选）已完成，版本 1.1.0；V2 规划中（见 [开发进度](#开发进度)）
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-blue.svg)](LICENSE.md)
+[![CI](https://github.com/frankie137/solvane/actions/workflows/ci.yml/badge.svg)](https://github.com/frankie137/solvane/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/github/v/tag/frankie137/solvane?label=version&sort=semver)](CHANGELOG.md)
+[![WeChat Mini Program](https://img.shields.io/badge/WeChat-Mini%20Program-07C160.svg?logo=wechat&logoColor=white)](https://developers.weixin.qq.com/miniprogram/en/dev/framework/)
+[![uni-app](https://img.shields.io/badge/uni--app-3-2B9939.svg)](https://uniapp.dcloud.net.cn/)
+[![Vue](https://img.shields.io/badge/Vue-3.4-4FC08D.svg?logo=vuedotjs&logoColor=white)](https://vuejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![WeChat CloudBase](https://img.shields.io/badge/WeChat-CloudBase-07C160.svg?logo=wechat&logoColor=white)](https://developers.weixin.qq.com/miniprogram/en/dev/wxcloud/basis/getting-started.html)
+[![LLM: OpenAI-compatible](https://img.shields.io/badge/LLM-OpenAI--compatible-412991.svg)](#4-llm-configuration)
+
+</div>
+
+A WeChat mini program that turns what you want to say in Chinese into idiomatic English, then helps you recite it and get the pronunciation right.
+
+Solvane takes the scattered Chinese you want to say but can't yet say in English and turns it into a fluent Chinese passage and an idiomatic, everyday-tone English version, with an analysis of key expressions, slang and cultural background. You can then recite the English, get a pronunciation score and tips, save the whole session into nested folders, or turn your recording into a lyrics page to share with friends.
+
+The app's interface is in Chinese, because it is built for Chinese speakers learning English.
+
+- **Form**: WeChat mini program (trial version, for a small circle of users)
+- **Tech stack**: uni-app (Vue 3 + Vite + TypeScript + Pinia) + WeChat CloudBase
+- **Status**: V1 (M0-M5) is complete; M6 (Pro membership, optional scoring) shipped as 1.1.0 and M7 (public release preparation) as 1.2.0; V2 is being planned (see [Development progress](#development-progress))
 
 ---
 
-## 目录
+## Contents
 
-- [核心流程](#核心流程)
-- [功能模块](#功能模块)
-- [技术架构](#技术架构)
-- [仓库结构](#仓库结构)
-- [关键设计](#关键设计)
-- [数据模型](#数据模型)
-- [设计规范](#设计规范)
-- [外部服务与配置](#外部服务与配置)
-- [开发进度](#开发进度)
-- [开发与审查流程](#开发与审查流程)
-- [本地开发](#本地开发)
-- [约束与已知限制](#约束与已知限制)
+- [Core flow](#core-flow)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Repository layout](#repository-layout)
+- [Key design decisions](#key-design-decisions)
+- [Data model](#data-model)
+- [Design guidelines](#design-guidelines)
+- [External services and configuration](#external-services-and-configuration)
+- [Development progress](#development-progress)
+- [Development and review process](#development-and-review-process)
+- [Local development](#local-development)
+- [Constraints and known limitations](#constraints-and-known-limitations)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
-## 核心流程
+## Core flow
 
 ```mermaid
 flowchart TD
-    A[点按说中文 ≤60s / 打字输入] -->|腾讯云一句话识别| B[中文原文<br/>可手动修改]
-    B -->|大模型 · 第一段| C[流畅的中文 + 地道英文<br/>中英逐句对应]
-    C -->|大模型 · 第二段| D[解析<br/>关键表达 / 俚语 / 文化 / 中式英语对比]
-    D --> E{继续修改?}
-    E -->|"提要求：更随意点 / 对老板说"| C
-    E -->|满意| F[听示范朗读 TTS]
-    F --> G[遮住原文背诵录音 ≤60s]
-    G --> R[练习记录<br/>马上回放自己的录音]
-    R -->|"评分（可选）· 四步评测"| H[评分报告 + 发音 / 背诵建议]
-    R --> J[分享录音<br/>网易云式歌词页]
+    A[Tap and speak Chinese ≤60s / type] -->|Tencent Cloud sentence recognition| B[Original Chinese<br/>editable]
+    B -->|LLM · stage one| C[Fluent Chinese + idiomatic English<br/>aligned sentence by sentence]
+    C -->|LLM · stage two| D[Analysis<br/>key expressions / slang / culture / Chinglish comparison]
+    D --> E{Revise further?}
+    E -->|"Ask: more casual / say it to my boss"| C
+    E -->|Happy with it| F[Listen to the demo reading, TTS]
+    F --> G[Recite with the text hidden, record ≤60s]
+    G --> R[Practice record<br/>replay your recording right away]
+    R -->|"Score (optional) · four-step assessment"| H[Score report + pronunciation / recitation tips]
+    R --> J[Share the recording<br/>NetEase Cloud Music-style lyrics page]
     H --> J
-    H --> I[收藏整个对话<br/>文件夹 ≤3 级 + 标签]
+    H --> I[Save the whole session<br/>folders up to 3 levels + tags]
 ```
 
 ---
 
-## 功能模块
+## Features
 
-### 1. 表达生成（M1）
+### 1. Expression generation (M1)
 
-| 功能     | 说明                                                                                           |
-| -------- | ---------------------------------------------------------------------------------------------- |
-| 语音输入 | 点一下开始说话，单次最长 60 秒；说完点「完成」转文字（可手动修改后再提交），点「取消」直接丢弃 |
-| 打字输入 | 不方便说话时用，和语音输入可随时切换                                                           |
-| 中文润色 | 把零碎、口语化的中文整理成一段流畅表达，保留原意，顺带纠正识别错误                             |
-| 地道英文 | 日常对话口吻，主推一版 + 1～2 个备选说法；中英按句一一对应                                     |
-| 英语水平 | 初中 / 高中 / 四级 / 六级 / 雅思 / 托福，只调整用词和句式难度，口吻始终是日常对话              |
-| 口音偏好 | 默认美式，可在设置里切换英式                                                                   |
-| 解析     | 关键表达拆解、俚语与习语（标注语体和地域）、文化背景、中式英语对比、每个关键表达一个例句       |
-| 多轮修改 | 对话式提要求；每次修改生成一个新版本，可切回历史版本                                           |
+| Feature              | Description                                                                                                                                                                       |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Voice input          | Tap once and start talking, up to 60 seconds per take; tap Done (「完成」) to transcribe (you can edit the text before submitting), or Cancel (「取消」) to discard the recording |
+| Typed input          | For when speaking isn't convenient; switch between voice and typing at any time                                                                                                   |
+| Chinese polish       | Turns scattered, colloquial Chinese into one fluent passage, keeping the original meaning and fixing recognition errors along the way                                             |
+| Idiomatic English    | Everyday conversational tone: one main version plus 1-2 alternatives; Chinese and English aligned sentence by sentence                                                            |
+| English level        | Middle school / high school / CET-4 / CET-6 / IELTS / TOEFL; only vocabulary and sentence complexity change, the tone stays conversational                                        |
+| Accent               | American by default; switch to British in settings                                                                                                                                |
+| Analysis             | Breakdown of key expressions, slang and idioms (with register and region), cultural background, Chinglish comparison, and one example sentence per key expression                 |
+| Multi-round revision | Ask for changes conversationally; each revision creates a new version, and you can switch back to earlier versions                                                                |
 
-### 2. 朗读与背诵评测（M2）
+### 2. Reading aloud and recitation assessment (M2)
 
-| 功能     | 说明                                                                                     |
-| -------- | ---------------------------------------------------------------------------------------- |
-| 示范朗读 | 腾讯云语音合成，可选男声/女声、0.8x / 1.0x / 1.2x 语速；同一版本只合成一次并缓存         |
-| 背诵录音 | 默认遮住原文（可点按偷看），最长 60 秒，录音时显示实时波形；提交后马上能回放（M6）       |
-| 背诵评测 | 可选（M6）：点「评分」才做，扣一次次数（见 [会员](#6-会员m6)）；四步评测，允许换说法     |
-| 评分报告 | 总分 + 发音 / 流利度 / 内容还原度 / 表达正确性四项；逐词标色；发音建议和背诵建议；可回放 |
-| 练习记录 | 每个对话保留最近 3 次，第 4 次挤掉最旧的一次（已分享的录音不受影响）                     |
+| Feature               | Description                                                                                                                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Demo reading          | Tencent Cloud TTS with a male or female voice at 0.8x / 1.0x / 1.2x speed; each version is synthesized only once and cached                                                  |
+| Recitation recording  | The text is hidden by default (tap to peek), up to 60 seconds, with a live waveform while recording; the recording can be replayed right after submitting (M6)               |
+| Recitation assessment | Optional (M6): runs only when you tap Score (「评分」) and consumes one use (see [Membership](#6-membership-m6)); four-step assessment that accepts rephrasing               |
+| Score report          | Overall score plus four sub-scores: pronunciation / fluency / content recall / expression correctness; color-coded words; pronunciation tips and recitation tips; replayable |
+| Practice records      | Each session keeps the 3 most recent; a 4th pushes out the oldest (recordings that have been shared are not affected)                                                        |
 
-### 3. 收藏与历史（M3）
+### 3. Saved items and history (M3)
 
-| 功能            | 说明                                                                                                                                                             |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 收藏对话        | 整个对话：中文原文、润色中文、所有英文版本和修改要求、解析、练习记录                                                                                             |
-| 收藏表达 / 单词 | 解析里的关键表达、俚语旁一键收藏；对话页长按英文句子挑词、评分报告里点单词也能收藏，释义由大模型按原句补全。同一个表达多次收藏合并为一张卡片，来源累加           |
-| 溯源            | 打开表达卡片，能看到「收藏自」：当时所在的那句英文（高亮）、对话和日期，点进去定位到那个版本的那一句；以及「也出现在」：在你所有对话的英文里自动查找到的其他用处 |
-| 收藏页          | 分「表达」和「对话」两栏，共用同一套文件夹和标签                                                                                                                 |
-| 文件夹          | 最多 3 级，可新建、重命名、移动、删除，支持排序                                                                                                                  |
-| 标签            | 跨文件夹打标签，按标签筛选                                                                                                                                       |
-| 历史            | 所有对话自动保存，可搜索；收藏 = 放进某个文件夹                                                                                                                  |
-| 复习            | V2 再做：基于收藏的表达和单词做闪卡、按遗忘规律安排复习                                                                                                          |
+| Feature                  | Description                                                                                                                                                                                                                                                                                                           |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Save sessions            | The whole session: original Chinese, polished Chinese, every English version and revision request, analysis, practice records                                                                                                                                                                                         |
+| Save expressions / words | Save with one tap next to key expressions and slang in the analysis; on the session page, long-press an English sentence to pick words, or tap a word in the score report. The LLM fills in the meaning based on the original sentence. Saving the same expression again merges into one card and adds the new source |
+| Source tracing           | An expression card shows "Saved from" (「收藏自」): the English sentence it came from (highlighted), the session and the date; tap it to jump to that sentence in that version. It also shows "Also appears in" (「也出现在」): other uses found automatically in the English of all your sessions                    |
+| Saved tab                | Split into Expressions (「表达」) and Sessions (「对话」), which share the same folders and tags                                                                                                                                                                                                                      |
+| Folders                  | Up to 3 levels; create, rename, move, delete and reorder                                                                                                                                                                                                                                                              |
+| Tags                     | Tag across folders and filter by tag                                                                                                                                                                                                                                                                                  |
+| History                  | Every session is saved automatically and is searchable; saving a session means putting it in a folder                                                                                                                                                                                                                 |
+| Review                   | Planned for V2: flashcards from saved expressions and words, with reviews scheduled along the forgetting curve                                                                                                                                                                                                        |
 
-### 4. 分享（M4）
+### 4. Sharing (M4)
 
-| 功能       | 说明                                                                               |
-| ---------- | ---------------------------------------------------------------------------------- |
-| 分享卡片   | 选一次练习录音（评没评分都行），以小程序卡片发给微信好友或群                       |
-| 歌词播放页 | 仿网易云：英文一行、中文一行；播放到哪句哪句高亮并平滑滚到中间；点某句跳到那里播放 |
-| 分享内容   | 只包含录音和中英原文，不含分数和解析                                               |
-| 可见范围   | 接收人需是小程序的体验成员                                                         |
+| Feature        | Description                                                                                                                                                                              |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Share card     | Pick one practice recording (scored or not) and send it as a mini program card to a WeChat friend or group                                                                               |
+| Lyrics player  | Modeled on NetEase Cloud Music: one line of English, one line of Chinese; the sentence being played is highlighted and scrolls smoothly to the center; tap a sentence to play from there |
+| Shared content | Only the recording and the Chinese and English text, without scores or analysis                                                                                                          |
+| Visibility     | Recipients must be trial members of the mini program                                                                                                                                     |
 
-### 5. 设置（M1 起逐步完善）
+### 5. Settings (refined from M1 onward)
 
-- 英语水平、口音、示范朗读的音色和语速
-- 大模型配置（**仅管理员**）：服务商预设（DeepSeek / 通义千问 / Kimi / 智谱 / 豆包 / 自定义）、接口地址、API Key、模型名，带"测试连接"
-- 只有一份全局配置，所有成员共用；M6 起成员不能再填自己的配置
+- English level, accent, and the voice and speed of the demo reading
+- LLM settings (**admins only**): provider presets (DeepSeek / Qwen / Kimi / Zhipu / Doubao / Custom), API endpoint, API key, model name, with a Test connection button (「测试连接」)
+- There is a single global configuration shared by all members; since M6, members can no longer enter their own
 
-### 6. 会员（M6）
+### 6. Membership (M6)
 
-| 功能     | 说明                                                                                                   |
-| -------- | ------------------------------------------------------------------------------------------------------ |
-| Pro      | 9.9 元/月：不限次数新建对话和评分                                                                      |
-| 免费体验 | 每人一共 5 次，不重置：新建对话（生成第一版）和评分各扣 1 次；多轮修改、录音、回放、分享不扣；失败不扣 |
-| 开通     | 暂由管理员在「我的 → 会员管理」手动开通，每次 30 天，没到期时往后顺延；以后接小程序虚拟支付            |
-| 次数用完 | 发起新对话或评分时弹出 Pro 介绍，可复制用户 ID 发给管理员；已有的对话和报告照常能看                    |
-| 管理员   | `ADMIN_OPENIDS` 里的人一直按 Pro 算，能看所有成员的剩余次数和到期日                                    |
+| Feature     | Description                                                                                                                                                                                                |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pro         | CNY 9.9/month: unlimited new sessions and scoring                                                                                                                                                          |
+| Free uses   | 5 per person in total, never reset: creating a session (generating the first version) and scoring each use 1; revisions, recording, playback and sharing are free; failures don't count                    |
+| Activation  | For now an admin grants it manually in Me → Membership management (「我的 → 会员管理」), 30 days at a time, extending the current expiry if it hasn't passed; mini program virtual payment will come later |
+| Out of uses | Starting a new session or scoring shows the Pro intro, where you can copy your user ID to send to an admin; existing sessions and reports stay viewable                                                    |
+| Admins      | Users listed in `ADMIN_OPENIDS` always count as Pro and can see every member's remaining uses and expiry date                                                                                              |
 
 ---
 
-## 技术架构
+## Architecture
 
 ```mermaid
 flowchart LR
-    subgraph MP[微信小程序 · uni-app]
-        UI[页面与组件] --> Store[Pinia]
-        Store --> SDK[services/ 云函数调用封装]
-        Rec[RecorderManager] --> Upload[上传云存储]
+    subgraph MP[WeChat mini program · uni-app]
+        UI[Pages and components] --> Store[Pinia]
+        Store --> SDK[services/ cloud function wrappers]
+        Rec[RecorderManager] --> Upload[Upload to cloud storage]
     end
 
-    subgraph Cloud[微信云开发]
-        FN[云函数]
-        DB[(云数据库)]
-        ST[(云存储<br/>录音 / TTS 缓存)]
+    subgraph Cloud[WeChat CloudBase]
+        FN[Cloud functions]
+        DB[(Cloud database)]
+        ST[(Cloud storage<br/>recordings / TTS cache)]
     end
 
-    subgraph Ext[外部服务]
-        LLM[国内大模型<br/>OpenAI 兼容接口]
-        ASR[腾讯云 一句话识别]
-        SOE[腾讯云 智聆口语评测 新版]
-        TTS[腾讯云 语音合成]
+    subgraph Ext[External services]
+        LLM[Chinese LLM provider<br/>OpenAI-compatible API]
+        ASR[Tencent Cloud sentence recognition]
+        SOE[Tencent Cloud SOE, new version]
+        TTS[Tencent Cloud TTS]
     end
 
     SDK -->|wx.cloud.callFunction| FN
@@ -145,201 +165,201 @@ flowchart LR
     FN --> TTS
 ```
 
-**要点**
+**Key points**
 
-- 所有密钥（腾讯云密钥、大模型 Key）只存在于云函数环境变量或加密后存入数据库，**前端永远拿不到明文**。
-- 数据库所有集合禁止客户端直接读写，一律经云函数访问，云函数按 `OPENID` 做权限校验。
-- 云函数用 TypeScript 编写，共享代码放在 `cloud/src/lib`，用 esbuild 按函数分别打包，便于复用和单元测试。
-- 前后端共用的接口类型放在 `shared/`，两边都从这里引用，避免接口漂移。
+- All secrets (Tencent Cloud keys, LLM API keys) live only in cloud function environment variables or are encrypted before being stored in the database; **the frontend never sees them in plaintext**.
+- Clients cannot read or write any database collection directly. All access goes through cloud functions, which check permissions by `OPENID`.
+- Cloud functions are written in TypeScript, with shared code in `cloud/src/lib`, and each function is bundled separately with esbuild, which makes the code easy to reuse and unit test.
+- API types shared by the frontend and backend live in `shared/`, and both sides import them from there to keep the API from drifting.
 
-### 云函数划分
+### Cloud functions
 
-| 云函数    | 职责                                                                                             | 超时 | 状态  |
-| --------- | ------------------------------------------------------------------------------------------------ | ---- | ----- |
-| `compose` | 新建对话、生成（第一版扣免费次数）、修改、解析、补全收藏表达的释义；大模型配置（仅管理员）       | 60s  | ✅ M6 |
-| `speech`  | 中文语音识别（识别后删除录音）；示范朗读按句合成并缓存；单词和短语的标准发音                     | 20s  | ✅ M3 |
-| `data`    | 学习偏好、对话读取、最近对话、切换版本；文件夹、收藏、标签、溯源、历史与搜索；署名与分享；会员   | 10s  | ✅ M6 |
-| `assess`  | 保存背诵录音；按需评分（识别 → 对照 → 评测 → 报告，扣次数）；为分享只做识别和对照；保留最近 3 次 | 60s  | ✅ M6 |
+| Cloud function | Responsibilities                                                                                                                                                                    | Timeout | Status |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------ |
+| `compose`      | Create sessions, generate (the first version consumes a free use), revise, analyze, fill in meanings for saved expressions; LLM settings (admins only)                              | 60s     | ✅ M6  |
+| `speech`       | Chinese speech recognition (the recording is deleted after recognition); demo reading synthesized per sentence and cached; reference pronunciation of words and phrases             | 20s     | ✅ M3  |
+| `data`         | Learning preferences, reading sessions, recent sessions, switching versions; folders, saved items, tags, source tracing, history and search; sharer profile and sharing; membership | 10s     | ✅ M6  |
+| `assess`       | Store recitation recordings; on-demand scoring (recognize → align → assess → report, consumes a use); recognition and alignment only, for sharing; keep the latest 3                | 60s     | ✅ M6  |
 
-函数内部按 `action` 字段分发，所有 action 的入参和出参登记在 `shared/api.ts`。
+Each function dispatches on an `action` field, and the input and output of every action are registered in `shared/api.ts`.
 
 ---
 
-## 仓库结构
-
-> 标注"规划"的目录会在对应阶段创建。
+## Repository layout
 
 ```
 solvane/
-├── src/                          # 小程序前端（uni-app）
-│   ├── pages/index/              # 主包：应用外壳，单页承载三个 tab
-│   │   ├── index.vue             #   tab 切换与过渡动画，支持 ?tab= 直达
-│   │   └── tabs/                 #   练习 / 收藏 / 我的
-│   ├── pkg-dev/                  # 分包：组件预览（仅开发版可见）
-│   ├── pkg-session/              # 分包：对话详情（逐句对照、解析、版本切换、修改栏）
-│   ├── pkg-settings/             # 分包：大模型配置（仅管理员）
-│   ├── pkg-admin/                # 分包：会员管理（仅管理员）
-│   ├── pkg-recite/               # 分包：背诵（遮挡与逐级提示、示范朗读、录音）、练习记录与评分报告
-│   ├── pkg-library/              # 分包：文件夹、表达卡片与溯源、全部对话（历史与搜索）
-│   ├── pkg-share/                # 分包：歌词播放页（逐句 + 逐词高亮、分享卡片封面）、我的分享
-│   ├── components/sv-*/          # 基础组件：导航栏、tab 栏、按钮、卡片、列表、骨架屏、图标
-│   ├── components/profile/       # 头像昵称面板（「我的」页和分享入口共用）
-│   ├── components/pro/           # Pro 介绍面板（「我的」页、新建对话、评分共用）
-│   ├── components/library/       # 收藏公共组件：文件夹选择、标签编辑、收藏列表、收藏提示（多个分包共用，放主包）
-│   ├── components.d.ts           # sv-* 组件的全局类型登记
-│   ├── composables/              # 组合式函数
-│   ├── services/                 # 云函数调用封装（callCloud）
-│   ├── stores/                   # Pinia 状态
-│   ├── styles/                   # 设计变量（浅色 / 深色）与全局样式
-│   ├── utils/                    # 纯函数工具
+├── src/                          # Mini program frontend (uni-app)
+│   ├── pages/index/              # Main package: app shell, one page hosting the three tabs
+│   │   ├── index.vue             #   Tab switching and transitions, ?tab= opens a tab directly
+│   │   └── tabs/                 #   Practice / Saved / Me
+│   ├── pkg-dev/                  # Subpackage: component preview (development version only)
+│   ├── pkg-session/              # Subpackage: session detail (sentence pairs, analysis, version switching, revision bar)
+│   ├── pkg-settings/             # Subpackage: LLM settings (admins only)
+│   ├── pkg-admin/                # Subpackage: membership management (admins only)
+│   ├── pkg-recite/               # Subpackage: recitation (masking and progressive hints, demo reading, recording), practice records and score reports
+│   ├── pkg-library/              # Subpackage: folders, expression cards and source tracing, all sessions (history and search)
+│   ├── pkg-share/                # Subpackage: lyrics player (sentence and word highlighting, share card cover), my shares
+│   ├── components/sv-*/          # Base components: nav bar, tab bar, button, card, list, skeleton, icon
+│   ├── components/profile/       # Avatar and nickname sheet (shared by the Me tab and the share entry)
+│   ├── components/pro/           # Pro intro sheet (shared by the Me tab, new session and scoring)
+│   ├── components/library/       # Shared library components: folder picker, tag editor, saved lists, saved toast (used by several subpackages, so kept in the main package)
+│   ├── components.d.ts           # Global type registrations for sv-* components
+│   ├── composables/              # Composables
+│   ├── services/                 # Cloud function call wrapper (callCloud)
+│   ├── stores/                   # Pinia stores
+│   ├── styles/                   # Design tokens (light / dark) and global styles
+│   ├── utils/                    # Pure utility functions
 │   └── App.vue / main.ts / pages.json / manifest.json / theme.json
-├── cloud/                        # 云函数源码（TypeScript）
-│   ├── src/functions/<name>/     #   index.ts 入口（接线真实依赖）+ handlers.ts 业务
-│   ├── src/lib/                  #   路由、数据访问、大模型、加密、音频、腾讯云（识别 / 合成 / 口语评测）
-│   ├── src/prompts/              #   提示词模板
-│   └── tests/                    #   单元测试（内存数据库 + 假大模型）
-├── shared/                       # 前后端共用：接口约定、业务类型、常量、统一返回结构、表达匹配
+├── cloud/                        # Cloud function source (TypeScript)
+│   ├── src/functions/<name>/     #   index.ts entry (wires real dependencies) + handlers.ts business logic
+│   ├── src/lib/                  #   Routing, data access, LLM, encryption, audio, Tencent Cloud (ASR / TTS / SOE)
+│   ├── src/prompts/              #   Prompt templates
+│   └── tests/                    #   Unit tests (in-memory database + fake LLM)
+├── shared/                       # Shared by frontend and backend: API contracts, domain types, constants, response envelope, expression matching
 ├── scripts/
-│   ├── build-cloud.ts            #   用 esbuild 把云函数打包到 cloudfunctions/
-│   ├── mp-ci.ts                  #   预览二维码、上传体验版、部署云函数（miniprogram-ci）
-│   └── smoke.ts                  #   冒烟测试：驱动开发者工具逐页截图
+│   ├── build-cloud.ts            #   Bundles cloud functions into cloudfunctions/ with esbuild
+│   ├── mp-ci.ts                  #   Preview QR code, trial version upload, cloud function deployment (miniprogram-ci)
+│   └── smoke.ts                  #   Smoke test: drives WeChat DevTools and screenshots each page
 ├── docs/
-│   ├── REVIEW.md                 #   开发与审查流程、审查清单
-│   └── stages/                   #   各阶段的任务清单与审查记录
-├── .github/workflows/ci.yml      # 推送和 PR 时运行 pnpm check
-├── project.config.json           # 开发者工具配置：打开仓库根目录即可
-├── CLAUDE.md                     # 协作约定
+│   ├── REVIEW.md                 #   Development and review process, review checklist
+│   └── stages/                   #   Per-stage task lists and review records
+├── .github/workflows/ci.yml      # Runs pnpm check on push and PR
+├── project.config.json           # WeChat DevTools config: just open the repository root
+├── CHANGELOG.md                  # Per-stage change notes
+├── CLAUDE.md                     # Collaboration conventions
+├── LICENSE.md                    # PolyForm Noncommercial License 1.0.0
 └── README.md
 ```
 
-构建产物 `dist/`（小程序）和 `cloudfunctions/`（云函数）不提交。
+Build output in `dist/` (mini program) and `cloudfunctions/` (cloud functions) is not committed.
 
 ---
 
-## 关键设计
+## Key design decisions
 
-### 1. 背诵评测流水线
+### 1. Recitation assessment pipeline
 
-背诵时说出来的内容可能和原文不同（换了说法、漏了半句），所以既不能拿原文硬比，也不能只看转写文本。评测分四步，每步写库、由前端依次推进（单次云函数放不下整个流程）：
+What you say while reciting can differ from the original (a rephrasing, half a sentence left out), so the assessment can neither compare rigidly against the original nor rely on the transcript alone. It runs in four steps. Each step writes its result to the database and the frontend advances them one at a time, because a single cloud function call can't fit the whole flow:
 
-| 步骤   | 做什么                                                                 | 产出                                                       |
-| ------ | ---------------------------------------------------------------------- | ---------------------------------------------------------- |
-| ① 识别 | 录音转 WAV 存档；英文一句话识别（`16k_en`，带词级时间戳）              | 实际说出的词和每个词的时间                                 |
-| ② 对照 | 大模型对照"实际说的"和原文，逐句还原"你想说的那句话"，给每处差异分类   | 每句的还原文本和时间范围、差异列表、内容还原度、表达正确性 |
-| ③ 评测 | 按句切出录音片段，以还原文本为参考，用口语评测（新版）句子模式并行评测 | 每个词的精准度和音素问题，整体精准度、流利度、完整度       |
-| ④ 报告 | 大模型综合以上结果                                                     | 总分、一句话总结、发音建议、背诵建议                       |
+| Step         | What it does                                                                                                                                                                  | Output                                                                                            |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 1. Recognize | Convert the recording to WAV and archive it; English sentence recognition (`16k_en`, with word-level timestamps)                                                              | The words actually spoken and the time of each word                                               |
+| 2. Align     | The LLM compares "what you said" with the original, reconstructs "the sentence you meant to say" for each sentence, and classifies every difference                           | Per sentence: reconstructed text and time range; list of differences; content recall; correctness |
+| 3. Assess    | Cut the recording into per-sentence clips and assess them in parallel with pronunciation assessment (new version) in sentence mode, using the reconstructed text as reference | Accuracy and phoneme issues for each word; overall accuracy, fluency and completeness             |
+| 4. Report    | The LLM combines all of the above                                                                                                                                             | Overall score, one-line summary, pronunciation tips, recitation tips                              |
 
-> 最初设计用口语评测的"自由说"模式做第 ① 步，调研发现它不返回时间戳和音素，改为英文语音识别；口语评测只有句子模式（≤30 词）返回音素和时间，所以第 ③ 步按句切分。
+> The original design used the free-speech mode of pronunciation assessment for step 1. Testing showed that mode returns neither timestamps nor phonemes, so English speech recognition is used instead. Only the sentence mode of pronunciation assessment (≤30 words) returns phonemes and timing, which is why step 3 splits the recording by sentence.
 
-第 ② 步的差异分类：
+How step 2 classifies differences:
 
-- **读错了**：识别结果和原文的词读音相近（如 think → sink），按发音问题处理，不算内容错误
-- **换了说法**：意思正确、表达地道，不扣内容分
-- **漏说 / 多说**：计入内容还原度
-- **语法错误**：计入表达正确性
+- **Misread**: the recognized word sounds close to the word in the original (e.g. think → sink); treated as a pronunciation problem, not a content error
+- **Rephrased**: the meaning is right and the wording is idiomatic; no content penalty
+- **Omitted / added**: counts against content recall
+- **Grammar error**: counts against correctness
 
-评分权重（实测后再调）：
+Scoring weights (to be tuned after real-world testing):
 
-| 维度       | 权重 | 来源                                    |
-| ---------- | ---- | --------------------------------------- |
-| 发音       | 40%  | 第 ③ 步的精准度                         |
-| 流利度     | 20%  | 第 ③ 步的流利度                         |
-| 内容还原度 | 25%  | 第 ② 步：关键表达是否背出、漏说比例     |
-| 表达正确性 | 15%  | 第 ② 步：换的说法是否地道、有无语法错误 |
+| Dimension      | Weight | Source                                                                      |
+| -------------- | ------ | --------------------------------------------------------------------------- |
+| Pronunciation  | 40%    | Accuracy from step 3                                                        |
+| Fluency        | 20%    | Fluency from step 3                                                         |
+| Content recall | 25%    | Step 2: whether the key expressions were recited, share of omissions        |
+| Correctness    | 15%    | Step 2: whether rephrasings are idiomatic, whether there are grammar errors |
 
-第 ① 步的词级时间同时用于报告里"听自己的这一段"和分享页的歌词同步。
+The word-level timings from step 1 also power "listen to this part of your recording" in the report and the lyric sync on the share page.
 
-**评分可选（M6）**：提交录音时只把 PCM 转成 WAV 存好（马上能回放），不识别也不评分。每条练习按目标推进（`practiceGoal`）：
+**Optional scoring (M6)**: when a recording is submitted, the PCM is only converted to WAV and stored (so it can be replayed right away); nothing is recognized or scored. Each practice record moves toward a goal (`practiceGoal`):
 
-- 点「评分」：占用一次免费次数，做完四步；失败时撤回评分请求、退回次数，回到「录好了」
-- 只分享、不评分：只做 ① 识别和 ② 对照，得到歌词时间，不扣次数；逐词点亮用识别结果的词时间
-- 先分享后评分：从 ③ 接着做，不重复识别
+- Tap Score (「评分」): consumes one free use and runs all four steps; on failure the scoring request is withdrawn, the use is refunded, and the record goes back to Recorded (「录好了」)
+- Share without scoring: runs only step 1 (recognize) and step 2 (align) to get the lyric timings, without consuming a use; word-by-word highlighting uses the word timings from recognition
+- Share first, score later: picks up from step 3 without recognizing again
 
-### 2. 两段式生成
+### 2. Two-stage generation
 
-大模型生成拆成两次调用，页面逐段呈现，缩短体感等待，也避开云函数超时：
+LLM generation is split into two calls and the page shows each part as it arrives, which shortens the perceived wait and stays clear of cloud function timeouts:
 
-1. **第一段**：润色后的中文 + 英文主推版 + 备选说法 + 中英逐句对应
-2. **第二段**：解析（关键表达、俚语、文化、中式英语对比、例句）
+1. **Stage one**: polished Chinese + main English version + alternatives + sentence-by-sentence Chinese/English alignment
+2. **Stage two**: analysis (key expressions, slang, culture, Chinglish comparison, example sentences)
 
-两段都要求大模型输出 JSON，云函数用 schema 校验；解析失败自动重试一次，仍失败则返回可读错误。
+Both stages require the LLM to output JSON, which the cloud function validates against a schema. A parse failure is retried once automatically; if it still fails, a readable error is returned.
 
-多轮修改时，把当前版本和修改要求一起发给大模型，生成新版本后同样再补一次解析。
+For a revision, the current version and the revision request are sent to the LLM together, and once the new version is generated its analysis is filled in the same way.
 
-### 3. 生成任务与超时
+### 3. Generation jobs and timeouts
 
-小程序端调用云函数大约 15 秒就不再等待，而大模型生成可能更久，因此：
+The mini program stops waiting for a cloud function call after about 15 seconds, while LLM generation can take longer. So:
 
-- 生成类请求（生成 / 修改 / 解析）的结果**先写入数据库**；前端等不到返回时，改为每 2 秒查询一次对话状态，最多等 70 秒。
-- 每个对话同时只运行一个任务，用数据库的条件更新加锁；运行超过 70 秒的任务视为中断，允许重新发起。
-- 任务失败时把错误码和提示写进对话的 `lastError`，轮询的一方也能拿到同样的错误。
-- 单个任务的预算是 55 秒（云函数超时 60 秒，留 5 秒读写数据库），大模型请求和重试都在预算内完成。
+- The results of generation requests (generate / revise / analyze) are **written to the database first**. If the frontend gets no response in time, it polls the session state every 2 seconds, for up to 70 seconds.
+- Each session runs only one job at a time, locked with a conditional update in the database (job lock). A job that has run for more than 70 seconds is treated as interrupted and can be started again.
+- When a job fails, its error code and message are written to the session's `lastError`, so the polling side gets the same error.
+- Each job has a 55-second budget (the cloud function timeout is 60 seconds, leaving 5 seconds for database reads and writes), and LLM requests and retries all finish within it.
 
-### 4. 大模型配置
+### 4. LLM configuration
 
-- 所有国内主流服务商都提供 OpenAI 兼容接口，因此只实现一个通用客户端，靠"接口地址 + 模型名"切换服务商。
-- 只有一份全局配置，由管理员设置，所有成员共用（M6 起）。没配置时管理员看到去配置的提示，成员看到"管理员还没有配置"。成员以前存的配置在管理员打开配置页时清除。
-- API Key 用 AES-256-GCM 加密后存库，加密密钥放在云函数环境变量；前端只能看到 `sk-****abcd` 这样的打码值。
-- 接口地址只允许 https 的公网域名，避免云函数被用来访问内网。
-- 服务商不支持 JSON 模式时自动去掉该参数重试；返回结果用 schema 校验，不合格时把问题反馈给模型修正一次。
-- 用户输入在提示词里明确标注为"待处理的内容"，不当作指令执行。
-- 管理员身份由云函数环境变量 `ADMIN_OPENIDS` 指定。
+- All major Chinese providers offer OpenAI-compatible APIs, so there is a single generic client, and switching providers is just a matter of "endpoint + model name".
+- There is one global configuration, set by an admin and shared by all members (since M6). When it isn't configured, admins see a prompt to set it up and members see "the admin hasn't configured it yet" (「管理员还没有配置」). Configurations that members saved earlier are cleared when an admin opens the settings page.
+- API keys are encrypted with AES-256-GCM before being stored, with the encryption key in a cloud function environment variable; the frontend only sees a masked value such as `sk-****abcd`.
+- The endpoint must be a public https domain, so the cloud function can't be used to reach internal networks.
+- If a provider doesn't support JSON mode, the request is retried automatically without that parameter. Responses are validated against a schema; if one fails, the problems are fed back to the model for one round of correction.
+- User input is explicitly marked in the prompt as "content to process" and is never followed as instructions.
+- Admins are listed in the cloud function environment variable `ADMIN_OPENIDS`.
 
-### 5. 歌词播放页
+### 5. Lyrics player
 
-- 每句的中英对应在生成英文时就由大模型按句给出，存在版本数据里。
-- 时间轴：用评测第 ③ 步的单词时间位置，按第 ② 步的对齐结果映射到每句原文，得到每句的起止时间；映射失败时按词数比例估算。没评分的录音用第 ① 步识别出的词，按句子时间范围分到各句。
-- 分享时生成一份**快照**（句子、时间轴、录音、分享者昵称头像），之后修改对话不影响已分享的内容。
-- 录音文件存私有云存储，打开分享页时由云函数换取临时链接。
+- The Chinese/English sentence pairs are produced by the LLM, sentence by sentence, when it generates the English, and are stored in the version data.
+- Timeline: the word timings from step 3 of the assessment are mapped onto the original sentences through the alignment from step 2, which gives each sentence a start and end time; if the mapping fails, times are estimated in proportion to word counts. For unscored recordings, the words recognized in step 1 are assigned to sentences by the sentences' time ranges.
+- Sharing creates a **snapshot** (sentences, timeline, recording, the sharer's nickname and avatar), so later changes to the session don't affect what was shared.
+- Recordings are kept in private cloud storage; when the share page opens, a cloud function exchanges them for temporary URLs.
 
-### 6. 免费次数的占用与退回
+### 6. Reserving and refunding free uses
 
-- 发起时用数据库条件更新占用（`freeUsed < 5` 才加 1），并发请求也不会多扣；占用记在对话或练习记录上（`freeCharged`）。
-- 任务失败时清掉标记并退回；任务中断（超时）后重试时标记还在，不再占用。
-- 新建对话时只检查、不占用（次数用完就不建空对话），真正占用在生成第一版；评分在点「评分」时占用。
-- Pro 和管理员不占用。Pro 到期后回到免费状态，剩余次数接着用。
+- A use is reserved at the start with a conditional database update (incremented only if `freeUsed < 5`), so concurrent requests can't take more than one; the reservation is recorded on the session or practice record (`freeCharged`).
+- If the job fails, the flag is cleared and the use refunded. If a job is interrupted (timed out) and retried, the flag is still set and no new use is taken.
+- Creating a session only checks the balance without reserving (so no empty session is created when uses have run out); the use is actually reserved when the first version is generated. Scoring reserves a use when Score (「评分」) is tapped.
+- Pro users and admins never consume uses. When Pro expires, the user goes back to the free tier and continues with whatever uses remain.
 
-### 7. 录音文件的清理规则
+### 7. Recording cleanup rules
 
-- 语音输入的录音只用于识别，识别后立即删除。
-- 练习记录满 3 条后，最旧的一条被删除；如果它的录音没有被任何分享快照引用，录音文件一起删除，否则保留。
-- 删除分享时，若录音已不被任何练习记录或分享引用，则删除录音文件。
+- Voice input recordings are only used for recognition and are deleted right after it.
+- Once a session has 3 practice records, adding another deletes the oldest; its recording file is deleted too unless a share snapshot references it, in which case the file is kept.
+- When a share is deleted, its recording file is deleted if no practice record or other share references it anymore.
 
 ---
 
-## 数据模型
+## Data model
 
-所有集合的权限均为"仅云函数可读写"。`_openid` 为数据所属用户。
+Every collection is readable and writable only by cloud functions. `_openid` is the user who owns the data.
 
-| 集合          | 主要字段                                                                                                                                                                                                                               | 状态  |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| `settings`    | `_id`(openid 或 `__global__`)、`level`、`accent`、`ttsVoice`、`ttsSpeed`、`llm{preset, baseUrl, model, apiKeyCipher, apiKeyMask, updatedAt}`（只在 `__global__` 上）、`profile{nickname, avatarFileID}`                                | ✅ M6 |
-| `sessions`    | `_openid`、`title`、`input{mode, rawText}`、`polishedZh`、`versions[]`、`currentVid`、`job`、`lastError`、`starredAt`、`folderId`、`tags[]`、`freeCharged`、`createdAt`、`updatedAt`                                                   | ✅ M6 |
-| `practices`   | `_openid`、`sessionId`、`vid`、`stage`、`scoreRequested`、`timingRequested`、`freeCharged`、`job`、`lastError`、`pcmFileID`、`wavFileID`、`durationMs`、`transcript`、`alignment`、`pronunciation`、`report`、`createdAt`、`updatedAt` | ✅ M6 |
-| `folders`     | `_openid`、`name`、`parentId`、`depth`(1–3)、`order`、`createdAt`                                                                                                                                                                      | ✅ M3 |
-| `expressions` | `_openid`、`text`、`key`(合并键)、`kind`(phrase / slang / word)、`meaning`、`usage`、`example`、`note`、`fill`、`fillStartedAt`、`folderId`、`tags[]`、`sources[]`、`createdAt`、`savedAt`、`updatedAt`                                | ✅ M3 |
-| `shares`      | `_openid`、`sessionId`、`practiceId`、`title`、`sentences[]{en, zh, startMs, endMs, words[]}`、`audioFileID`(录音副本)、`durationMs`、`author{nickname, avatarFileID}`、`createdAt`                                                    | ✅ M4 |
-| `accounts`    | `_id`(openid)、`freeUsed`、`proUntil`、`grants[]{action, until, by, at}`、`createdAt`、`updatedAt`                                                                                                                                     | ✅ M6 |
+| Collection    | Main fields                                                                                                                                                                                                                            | Status |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| `settings`    | `_id` (openid or `__global__`), `level`, `accent`, `ttsVoice`, `ttsSpeed`, `llm{preset, baseUrl, model, apiKeyCipher, apiKeyMask, updatedAt}` (only on `__global__`), `profile{nickname, avatarFileID}`                                | ✅ M6  |
+| `sessions`    | `_openid`, `title`, `input{mode, rawText}`, `polishedZh`, `versions[]`, `currentVid`, `job`, `lastError`, `starredAt`, `folderId`, `tags[]`, `freeCharged`, `createdAt`, `updatedAt`                                                   | ✅ M6  |
+| `practices`   | `_openid`, `sessionId`, `vid`, `stage`, `scoreRequested`, `timingRequested`, `freeCharged`, `job`, `lastError`, `pcmFileID`, `wavFileID`, `durationMs`, `transcript`, `alignment`, `pronunciation`, `report`, `createdAt`, `updatedAt` | ✅ M6  |
+| `folders`     | `_openid`, `name`, `parentId`, `depth` (1-3), `order`, `createdAt`                                                                                                                                                                     | ✅ M3  |
+| `expressions` | `_openid`, `text`, `key` (merge key), `kind` (phrase / slang / word), `meaning`, `usage`, `example`, `note`, `fill`, `fillStartedAt`, `folderId`, `tags[]`, `sources[]`, `createdAt`, `savedAt`, `updatedAt`                           | ✅ M3  |
+| `shares`      | `_openid`, `sessionId`, `practiceId`, `title`, `sentences[]{en, zh, startMs, endMs, words[]}`, `audioFileID` (copy of the recording), `durationMs`, `author{nickname, avatarFileID}`, `createdAt`                                      | ✅ M4  |
+| `accounts`    | `_id` (openid), `freeUsed`, `proUntil`, `grants[]{action, until, by, at}`, `createdAt`, `updatedAt`                                                                                                                                    | ✅ M6  |
 
-集合在第一次写入时由云函数自动创建。建议在云开发控制台把集合权限设为"所有用户不可读写"，所有访问都经云函数。
+Collections are created automatically by the cloud functions on first write. We recommend setting every collection's permission in the CloudBase console to "no user can read or write" (「所有用户不可读写」), so that all access goes through cloud functions.
 
-`sessions` 另有服务端专用的 `tts` 字段（版本 → 音色语速 → 每句的音频文件和逐词时间），不发给前端。
+`sessions` also has a server-only `tts` field (version → voice and speed → audio file and word timings for each sentence), which is never sent to the frontend.
 
-`sessions` 的任务字段：
+Job fields on `sessions`:
 
-- `job`：正在运行的任务 `{ kind: 'generate' | 'revise' | 'analyze', vid, startedAt }`，没有任务时为 `null`
-- `lastError`：最近一次失败 `{ kind, vid, code, message, at }`，成功后清空
+- `job`: the running job `{ kind: 'generate' | 'revise' | 'analyze', vid, startedAt }`, or `null` when no job is running
+- `lastError`: the most recent failure `{ kind, vid, code, message, at }`, cleared on success
 
-`sessions.versions[]` 的每一项（类型定义见 `shared/types.ts`）：
+Each entry of `sessions.versions[]` (type definitions in `shared/types.ts`):
 
 ```ts
 {
-  vid: string                     // v1、v2……
-  instruction: string | null      // 本次修改要求，第一版为 null
-  en: string                      // 英文主推版全文
+  vid: string                     // v1, v2, ...
+  instruction: string | null      // revision request for this version; null for the first version
+  en: string                      // full text of the main English version
   sentences: { en: string; zh: string }[]
-  alternatives: { label: string; en: string }[]   // 其他说法，label 描述语气
-  analysis: {                     // 第二段生成，生成前为 null
+  alternatives: { label: string; en: string }[]   // alternative phrasings; label describes the tone
+  analysis: {                     // generated in stage two; null until then
     keyPhrases: { phrase: string; meaning: string; usage: string; example: string }[]
     slang: { phrase: string; meaning: string; register: string; region: string }[]
     culture: { topic: string; note: string }[]
@@ -351,149 +371,162 @@ solvane/
 
 ---
 
-## 设计规范
+## Design guidelines
 
-风格关键词：**科技、简洁、干净**，参考 Apple 的视觉和交互。
+Style keywords: **techy, minimal, clean**, taking Apple's visual and interaction design as the reference.
 
-| 项目   | 规范                                                                           |
-| ------ | ------------------------------------------------------------------------------ |
-| 主题   | 浅色 / 深色跟随系统，全部颜色用 CSS 变量定义                                   |
-| 背景   | 浅色 `#F5F5F7` 底 + 白色卡片；深色 `#000000` 底 + `#1C1C1E` 卡片               |
-| 强调色 | 蓝紫渐变，用于主按钮、录音按钮、高亮歌词                                       |
-| 字体   | 系统字体（PingFang SC / SF Pro），英文正文略大于中文                           |
-| 圆角   | 12 / 16 / 24 三档                                                              |
-| 导航   | 自定义导航栏，大标题随滚动收起；tab 栏毛玻璃                                   |
-| 动效   | 时长 200 / 300 / 450ms；主曲线 `cubic-bezier(0.32, 0.72, 0, 1)`；按下缩放 0.97 |
-| 加载   | 骨架屏 + 微光扫过，不用菊花                                                    |
-| 反馈   | 关键操作轻微震动（录音开始 / 结束、收藏成功）                                  |
+| Item          | Guideline                                                                                         |
+| ------------- | ------------------------------------------------------------------------------------------------- |
+| Theme         | Light / dark follows the system; every color is defined as a CSS variable                         |
+| Background    | Light: `#F5F5F7` base with white cards; dark: `#000000` base with `#1C1C1E` cards                 |
+| Accent        | Blue-purple gradient for primary buttons, the record button and highlighted lyrics                |
+| Typography    | System fonts (PingFang SC / SF Pro); English body text slightly larger than Chinese               |
+| Corner radius | Three sizes: 12 / 16 / 24                                                                         |
+| Navigation    | Custom nav bar with a large title that collapses on scroll; frosted-glass tab bar                 |
+| Motion        | Durations 200 / 300 / 450ms; main easing `cubic-bezier(0.32, 0.72, 0, 1)`; scale to 0.97 on press |
+| Loading       | Skeleton with a shimmer sweep, no spinners                                                        |
+| Feedback      | Light haptics on key actions (recording start / stop, successful save)                            |
 
 ---
 
-## 外部服务与配置
+## External services and configuration
 
-### 需要开通的服务
+### Services to enable
 
-| 服务                        | 用途                             | 计费   |
-| --------------------------- | -------------------------------- | ------ |
-| 微信云开发                  | 云函数、数据库、存储             | 按套餐 |
-| 腾讯云 一句话识别           | 中文语音转文字（≤60s）           | 按量   |
-| 腾讯云 智聆口语评测（新版） | 背诵发音评测                     | 按量   |
-| 腾讯云 语音合成             | 示范朗读                         | 按量   |
-| 国内大模型（任选）          | 润色、翻译、解析、修改、评测分析 | 按量   |
+| Service                                                   | Purpose                                                      | Billing       |
+| --------------------------------------------------------- | ------------------------------------------------------------ | ------------- |
+| WeChat CloudBase                                          | Cloud functions, database, storage                           | Plan-based    |
+| Tencent Cloud sentence recognition (「一句话识别」)       | Chinese speech to text (≤60s)                                | Pay-as-you-go |
+| Tencent Cloud SOE, new version (「智聆口语评测（新版）」) | Pronunciation assessment for recitation                      | Pay-as-you-go |
+| Tencent Cloud TTS (「语音合成」)                          | Demo reading                                                 | Pay-as-you-go |
+| A Chinese LLM provider (your choice)                      | Polish, translation, analysis, revision, assessment analysis | Pay-as-you-go |
 
-### 云函数配置
+### Cloud function configuration
 
-每个云函数的超时和所需环境变量定义在 `cloud/src/function-config.ts`：
+Each cloud function's timeout and required environment variables are defined in `cloud/src/function-config.ts`:
 
-| 云函数    | 超时 | 环境变量                                                                                                                                   |
-| --------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `compose` | 60s  | `KEY_ENCRYPTION_SECRET`（加密 API Key，留空自动生成）、`ADMIN_OPENIDS`（管理员用户 ID）                                                    |
-| `speech`  | 20s  | `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY`（腾讯云子账号密钥：语音识别、语音合成）                                                         |
-| `data`    | 10s  | `ADMIN_OPENIDS`（会员管理）                                                                                                                |
-| `assess`  | 60s  | `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY`（还需口语评测权限）、`SOE_APP_ID`（腾讯云账号 AppID）、`KEY_ENCRYPTION_SECRET`、`ADMIN_OPENIDS` |
+| Cloud function | Timeout | Environment variables                                                                                                                                       |
+| -------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `compose`      | 60s     | `KEY_ENCRYPTION_SECRET` (encrypts API keys; generated automatically if left empty), `ADMIN_OPENIDS` (admin user IDs)                                        |
+| `speech`       | 20s     | `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY` (Tencent Cloud sub-account keys: speech recognition, TTS)                                                        |
+| `data`         | 10s     | `ADMIN_OPENIDS` (membership management)                                                                                                                     |
+| `assess`       | 60s     | `TENCENT_SECRET_ID` / `TENCENT_SECRET_KEY` (also need SOE permission), `SOE_APP_ID` (Tencent Cloud account AppID), `KEY_ENCRYPTION_SECRET`, `ADMIN_OPENIDS` |
 
-**设置方式**：填写本地文件 `.keys/cloud.env`（模板见 `cloud.env.example`），然后运行：
+**How to set them**: fill in the local file `.keys/cloud.env` (template in `cloud.env.example`), then run:
 
 ```bash
 pnpm cloud:config
 ```
 
-脚本会给每个函数设置超时，并且只下发它需要的变量，写入后读回核对。安全措施：
+The script sets each function's timeout, pushes only the variables that function needs, and reads them back to verify. Safety measures:
 
-- `.keys/` 不进入 git；推送前钩子发现密钥文件被纳入版本控制会直接阻止推送
-- 文件权限必须是 600（仅本人可读写），否则脚本拒绝运行；首次运行会自动以 600 权限创建空模板
-- 脚本不打印任何值，只报告"已核对"
-- `KEY_ENCRYPTION_SECRET` 生成后不要修改或删除，否则已保存的 API Key 无法解密，需要重新填写
-- 用户 ID 可以在小程序「我的 → 用户 ID」点一下复制，也可以运行 `pnpm cloud:fill-admin` 自动写入
+- `.keys/` is not tracked by git; a pre-push hook blocks the push if a key file has been added to version control
+- The file must have mode 600 (read and write by its owner only), or the script refuses to run; the first run creates an empty template with mode 600
+- The script never prints any values; it only reports that they were verified
+- Once `KEY_ENCRYPTION_SECRET` has been generated, don't change or delete it, or saved API keys can no longer be decrypted and have to be entered again
+- You can copy a user ID by tapping Me → User ID (「我的 → 用户 ID」) in the mini program, or run `pnpm cloud:fill-admin` to fill it in automatically
 
-`pnpm cloud:config` 通过代码上传密钥鉴权。本项目已关闭代码上传 IP 白名单（家用宽带 IP 会变），因此代码上传密钥一旦泄露就能部署云函数：它只存在 `.keys/`（权限 600、不进 git），怀疑泄露时立即到公众平台重置。也可以在云开发控制台里给每个函数手动设置超时和环境变量。
+`pnpm cloud:config` authenticates with the code upload key. The upload key can deploy cloud functions; keep it in `.keys/` (mode 600, not in git) and reset it in the WeChat MP console if you suspect a leak. You can also set each function's timeout and environment variables by hand in the CloudBase console.
 
-另外需要在公众平台「设置 → 服务内容声明 → 用户隐私保护指引」中声明用到的个人信息，否则对应的功能会被微信拦截：麦克风（语音输入、背诵）、用户信息里的头像和昵称（分享署名）、剪切板（复制英文、复制用户 ID）。
-
----
-
-## 开发进度
-
-| 阶段 | 内容                                                                       | 验收标准                                       | 状态      |
-| ---- | -------------------------------------------------------------------------- | ---------------------------------------------- | --------- |
-| 设计 | 需求讨论、技术选型、本文档                                                 | 设计定稿                                       | ✅ 完成   |
-| M0   | 环境、脚手架、代码检查与测试、云函数构建、设计变量与基础组件、审查流程文档 | 开发者工具中跑起空白首页，所有检查通过         | ✅ 完成   |
-| M1   | 语音 / 打字输入 → 润色 → 英文 + 解析 → 多轮修改；设置页与大模型配置        | 说一段中文，得到英文和解析，并能继续修改       | ✅ 完成   |
-| M2   | 示范朗读、背诵录音、四步评测、评分报告、练习记录                           | 背一遍后看到分项分数和发音建议                 | ✅ 完成   |
-| M3   | 收藏对话、收藏表达 / 单词与溯源、文件夹、标签、历史与搜索                  | 能收藏表达并溯源到原句，能建文件夹、移动、查找 | ✅ 完成   |
-| M4   | 分享卡片、歌词播放页                                                       | 体验成员打开卡片能听录音，歌词同步滚动         | ✅ 完成   |
-| M5   | 动效打磨、空状态与错误状态、性能与包体积、真机验收                         | 真机全流程顺畅                                 | ✅ 完成   |
-| M6   | Pro 会员与免费体验次数、管理员手动开通；评分改为可选；大模型只用全局配置   | 不评分也能回放和分享；免费次数用完弹出 Pro     | ✅ 完成   |
-| V2   | 复习：基于收藏的表达和单词做闪卡、按遗忘规律安排复习                       | —                                              | 📋 规划中 |
+You also need to declare the personal information the app uses in the WeChat MP console under Settings → Service declarations → User privacy protection guidelines (「设置 → 服务内容声明 → 用户隐私保护指引」), otherwise WeChat blocks the corresponding features: microphone (voice input, recitation), avatar and nickname from the user's profile (sharer attribution), clipboard (copying English, copying the user ID).
 
 ---
 
-## 开发与审查流程
+## Development progress
 
-每个阶段都走同一套流程（完整清单见 [docs/REVIEW.md](docs/REVIEW.md)）：
+| Stage  | Scope                                                                                                                     | Acceptance criteria                                                                     | Status     |
+| ------ | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------- |
+| Design | Requirements discussion, technology choices, this document                                                                | Design finalized                                                                        | ✅ Done    |
+| M0     | Environment, scaffolding, linting and tests, cloud function build, design tokens and base components, review process docs | A blank home page runs in WeChat DevTools and all checks pass                           | ✅ Done    |
+| M1     | Voice / typed input → polish → English + analysis → multi-round revision; settings page and LLM settings                  | Say some Chinese, get English and an analysis, and keep revising                        | ✅ Done    |
+| M2     | Demo reading, recitation recording, four-step assessment, score report, practice records                                  | After one recitation, see the sub-scores and pronunciation tips                         | ✅ Done    |
+| M3     | Saving sessions, saving expressions / words with source tracing, folders, tags, history and search                        | Save an expression and trace it to its sentence; create, move and find folders          | ✅ Done    |
+| M4     | Share card, lyrics player                                                                                                 | A trial member opens the card, hears the recording, and the lyrics scroll in sync       | ✅ Done    |
+| M5     | Motion polish, empty and error states, performance and package size, real-device acceptance                               | The full flow runs smoothly on a real device                                            | ✅ Done    |
+| M6     | Pro membership and free uses, manual activation by admins; optional scoring; LLM uses the global configuration only       | Playback and sharing work without scoring; the Pro intro appears when free uses run out | ✅ Done    |
+| M7     | Public release preparation: noncommercial license, English docs and comments, operational details removed                 | `pnpm check` passes and UI text and LLM prompts are unchanged                           | ✅ Done    |
+| V2     | Review: flashcards from saved expressions and words, with reviews scheduled along the forgetting curve                    | -                                                                                       | 📋 Planned |
 
-1. **开工前**：在 `docs/stages/` 写下本阶段的任务清单与验收标准
-2. **开发**：在独立分支 `stage/m<n>-<主题>` 上进行
-3. **自动检查**（必须全部通过）：`pnpm check`，包括格式、ESLint、TypeScript 类型检查（含模板）、Vitest 单元测试、小程序构建、云函数构建；GitHub Actions 同步运行
-4. **代码审查**：独立的审查代理检查本阶段全部改动，查正确性问题，并按项目清单逐条过（密钥与日志、数据库权限、超时与错误处理、包体积、UI 规范）；每条发现要么修复，要么写明不修的理由
-5. **冒烟测试**：用开发者工具自动化接口跑关键流程并截图；再由你在真机体验版验收
-6. **合并**：通过 GitHub PR 合并到 `main`，打版本标签，更新本文档的开发进度
+Detailed notes for each stage are in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
-## 本地开发
+## Development and review process
 
-**环境要求**：Node.js 24 LTS、pnpm 12、微信开发者工具
+Every stage follows the same process (full checklist in [docs/REVIEW.md](docs/REVIEW.md)):
 
-**首次准备**
+1. **Before starting**: write the stage's task list and acceptance criteria in `docs/stages/M<n>.md`
+2. **Development**: on a dedicated branch `stage/m<n>-<topic>`
+3. **Automated checks** (all must pass): `pnpm check`, which covers formatting, ESLint, TypeScript type checking (templates included), Vitest unit tests, the mini program build and the cloud function build; GitHub Actions runs the same checks
+4. **Code review**: an independent review agent goes over every change in the stage, looks for correctness problems, and works through the project checklist item by item (secrets and logs, database permissions, timeouts and error handling, package size, UI guidelines); every finding is either fixed or given a written reason for not fixing it
+5. **Smoke test**: run the key flows through the WeChat DevTools automation API and take screenshots; then the owner does acceptance testing with the trial version on a real device
+6. **Merge**: merge into `main` through a GitHub PR, tag a version, update the development progress in this document, and add the stage to [CHANGELOG.md](CHANGELOG.md)
+
+---
+
+## Local development
+
+**Requirements**: Node.js 24 LTS, pnpm 12, WeChat DevTools
+
+**First-time setup**
 
 ```bash
 pnpm install
 ```
 
-如需指定云开发环境，复制 `.env.example` 为 `.env.local` 并填写 `VITE_CLOUD_ENV`；不填则使用小程序的默认环境。
+To use a specific CloudBase environment, copy `.env.example` to `.env.local` and set `VITE_CLOUD_ENV`; if it's left empty, the mini program's default environment is used.
 
-**日常开发**
+**Day-to-day development**
 
 ```bash
 pnpm dev
 ```
 
-然后用微信开发者工具打开**仓库根目录**（不是 `dist/`）。修改代码后自动重新编译。
+Then open the **repository root** (not `dist/`) in WeChat DevTools. Code changes are recompiled automatically.
 
-**上传、预览、部署云函数（不用打开开发者工具）**
+**Upload, preview and deploy cloud functions (without opening WeChat DevTools)**
 
-通过微信官方的 [miniprogram-ci](https://developers.weixin.qq.com/miniprogram/dev/devtools/ci.html) 完成，需要先准备代码上传密钥：
+This uses WeChat's official [miniprogram-ci](https://developers.weixin.qq.com/miniprogram/dev/devtools/ci.html), which needs a code upload key:
 
-1. 公众平台「管理 → 开发管理 → 开发设置 → 小程序代码上传」生成并下载密钥
-2. 放到 `.keys/private.<appid>.key`（已被 git 忽略），或用环境变量 `WX_PRIVATE_KEY_PATH` 指定
-3. 在同一处把本机公网 IP 加入白名单
+1. In the WeChat MP console, generate and download the key under Management → Development management → Development settings → Mini program code upload (「管理 → 开发管理 → 开发设置 → 小程序代码上传」)
+2. Put it at `.keys/private.<appid>.key` (ignored by git), or point to it with the `WX_PRIVATE_KEY_PATH` environment variable
+3. In the same place, add your machine's public IP to the whitelist
 
-部署工具创建的云函数运行时是 Node.js 16.13，代码按 Node 16 打包；部署时依赖在云端安装。
+Cloud functions created by the deploy tool run on Node.js 16.13, so the code is bundled for Node 16; dependencies are installed in the cloud at deploy time.
 
-IP 白名单拦截时（家用宽带的公网 IP 会变），可以改用 `pnpm deploy:cloud:devtools`：通过开发者工具部署，不需要上传密钥，也不受白名单限制。开发者工具没在运行时会在后台启动，用完保持开着。
+If the IP whitelist blocks you (a home broadband public IP can change), use `pnpm deploy:cloud:devtools` instead: it deploys through WeChat DevTools, needs no upload key and is not subject to the whitelist. If WeChat DevTools isn't running, it is started in the background; leave it open afterward.
 
-**常用命令**
+**Common commands**
 
-| 命令                          | 作用                                                                       |
-| ----------------------------- | -------------------------------------------------------------------------- |
-| `pnpm dev`                    | 开发构建（监听），输出到 `dist/mp-weixin`                                  |
-| `pnpm build`                  | 生产构建                                                                   |
-| `pnpm build:cloud`            | 打包云函数到 `cloudfunctions/`                                             |
-| `pnpm test`                   | 单元测试                                                                   |
-| `pnpm check`                  | 提交前必跑：格式、规范、类型、测试、构建                                   |
-| `pnpm smoke`                  | 冒烟测试（开发者工具需已登录，并在「设置 → 安全设置」开启服务端口）        |
-| `pnpm preview`                | 生成预览二维码 `.ci/preview.png`，手机扫码查看（管理员和开发者可用）       |
-| `pnpm upload`                 | 上传为开发版；首次在公众平台设为体验版，之后再上传会自动更新体验版         |
-| `pnpm deploy:cloud:devtools`  | 通过开发者工具部署全部云函数，不受 IP 白名单限制                           |
-| `pnpm deploy:cloud [函数名…]` | 打包并部署云函数，环境 ID 取自 `--env` 或 `.env.local` 的 `VITE_CLOUD_ENV` |
+| Command                       | Purpose                                                                                                                                                             |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                    | Development build (watch mode), output to `dist/mp-weixin`                                                                                                          |
+| `pnpm build`                  | Production build                                                                                                                                                    |
+| `pnpm build:cloud`            | Bundle cloud functions into `cloudfunctions/`                                                                                                                       |
+| `pnpm test`                   | Unit tests                                                                                                                                                          |
+| `pnpm check`                  | Required before committing: formatting, linting, types, tests, builds                                                                                               |
+| `pnpm smoke`                  | Smoke test (WeChat DevTools must be logged in, with the service port enabled under Settings → Security (「设置 → 安全设置」))                                       |
+| `pnpm preview`                | Generate a preview QR code at `.ci/preview.png` to scan with a phone (works for the mini program's admins and developers)                                           |
+| `pnpm upload`                 | Upload as the development version; the first time, set it as the trial version in the WeChat MP console, after which uploads update the trial version automatically |
+| `pnpm deploy:cloud:devtools`  | Deploy all cloud functions through WeChat DevTools, not subject to the IP whitelist                                                                                 |
+| `pnpm deploy:cloud [name...]` | Bundle and deploy cloud functions; the environment ID comes from `--env` or from `VITE_CLOUD_ENV` in `.env.local`                                                   |
 
 ---
 
-## 约束与已知限制
+## Constraints and known limitations
 
-- **仅体验版**：使用者和分享接收人都必须是小程序的体验成员（个人主体上限约 15 人，以公众平台后台为准）。不计划提交审核上线。
-- **语音输入和背诵录音**：单次最长 60 秒。
-- **大模型**：暂时只支持提供 OpenAI 兼容接口的国内服务商。
-- **收费**：会员属于虚拟商品，只能接「小程序虚拟支付」，不能用普通微信支付；个人主体要先完成认证和备案，类目里要有「工具」。目前由管理员手动开通。
-- **网络**：评测和生成都依赖云端服务，离线不可用。
+- **Trial version only**: users and share recipients must all be trial members of the mini program (an individually registered mini program allows about 15; the WeChat MP console has the exact limit). There are no plans to submit it for review and public release.
+- **Voice input and recitation recordings**: up to 60 seconds per take.
+- **LLM**: for now only Chinese providers with an OpenAI-compatible API are supported.
+- **Payments**: membership is a virtual good, so it can only use mini program virtual payment (「小程序虚拟支付」), not regular WeChat Pay; an individually registered mini program must first complete verification and ICP filing, and its service categories must include Tools (「工具」). For now admins grant membership manually.
+- **Network**: assessment and generation depend on cloud services and don't work offline.
+
+---
+
+## Contributing
+
+Bug reports and suggestions are welcome in [Issues](https://github.com/frankie137/solvane/issues). Pull requests are not accepted for now.
+
+## License
+
+Solvane is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE.md). Personal, research, educational and nonprofit use is allowed; commercial use is not. For a commercial license, contact the author via [GitHub](https://github.com/frankie137).

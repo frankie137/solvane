@@ -23,7 +23,7 @@ const doc = (patch: Partial<Parameters<typeof toAccount>[1] & object> = {}) => (
 })
 
 describe('toAccount', () => {
-  it('新用户有 5 次免费体验，不是 Pro', () => {
+  it('a new user has 5 free uses and is not Pro', () => {
     expect(toAccount(ME.openid, null, false, NOW)).toEqual({
       openid: ME.openid,
       isAdmin: false,
@@ -34,26 +34,26 @@ describe('toAccount', () => {
     })
   })
 
-  it('没到期是 Pro，到期后不是；剩余次数不小于 0', () => {
+  it('is Pro until expiry and not after; free uses left never drop below 0', () => {
     expect(toAccount(ME.openid, doc({ proUntil: NOW + 1 }), false, NOW).pro).toBe(true)
     expect(toAccount(ME.openid, doc({ proUntil: NOW }), false, NOW).pro).toBe(false)
     expect(toAccount(ME.openid, doc({ freeUsed: 7 }), false, NOW).freeLeft).toBe(0)
   })
 
-  it('管理员一直是 Pro', () => {
+  it('admins are always Pro', () => {
     expect(toAccount(ME.openid, doc(), true, NOW).pro).toBe(true)
   })
 })
 
 describe('extendedUntil', () => {
-  it('没开通或已过期的从现在起算，没到期的往后加', () => {
+  it('counts from now if never granted or expired, and extends if still active', () => {
     expect(extendedUntil(null, NOW)).toBe(NOW + 30 * DAY)
     expect(extendedUntil(NOW - DAY, NOW)).toBe(NOW + 30 * DAY)
     expect(extendedUntil(NOW + 5 * DAY, NOW)).toBe(NOW + 35 * DAY)
   })
 })
 
-describe('免费次数的占用和退回', () => {
+describe('charging and refunding free uses', () => {
   function setup() {
     const repos = createMemoryRepos()
     const accounts = createAccounts({
@@ -64,7 +64,7 @@ describe('免费次数的占用和退回', () => {
     return { repos, accounts }
   }
 
-  it('第一次用到时建档；用完 5 次后报 QUOTA_EXCEEDED', async () => {
+  it('creates the account on first use; throws QUOTA_EXCEEDED after 5 uses', async () => {
     const { repos, accounts } = setup()
     for (let i = 0; i < PRO.freeTrials; i++) {
       await expect(accounts.consume(ME.openid)).resolves.toBe(true)
@@ -78,7 +78,7 @@ describe('免费次数的占用和退回', () => {
     await expect(accounts.assertAvailable(ME.openid)).resolves.toBeUndefined()
   })
 
-  it('并发占用最后一次时只有一个成功', async () => {
+  it('only one of two concurrent charges for the last use succeeds', async () => {
     const { repos, accounts } = setup()
     await repos.accounts.create(doc({ freeUsed: PRO.freeTrials - 1 }))
     const results = await Promise.allSettled([
@@ -89,14 +89,14 @@ describe('免费次数的占用和退回', () => {
     expect(repos.accountDocs.get(ME.openid)!.freeUsed).toBe(PRO.freeTrials)
   })
 
-  it('退回不会让已用次数小于 0', async () => {
+  it('refunds never take the used count below 0', async () => {
     const { repos, accounts } = setup()
     await repos.accounts.create(doc())
     await accounts.refund(ME.openid)
     expect(repos.accountDocs.get(ME.openid)!.freeUsed).toBe(0)
   })
 
-  it('Pro 和管理员不占用', async () => {
+  it('does not charge Pro users or admins', async () => {
     const { repos, accounts } = setup()
     await repos.accounts.create(doc({ freeUsed: PRO.freeTrials, proUntil: NOW + DAY }))
     await expect(accounts.consume(ME.openid)).resolves.toBe(false)
@@ -105,7 +105,7 @@ describe('免费次数的占用和退回', () => {
   })
 })
 
-describe('会员接口', () => {
+describe('membership API', () => {
   function setup() {
     const repos = createMemoryRepos()
     const storage = createMemoryStorage()
@@ -120,7 +120,7 @@ describe('会员接口', () => {
     return { repos, data, clock }
   }
 
-  it('查看自己的状态时建档', async () => {
+  it('creates the account when viewing own status', async () => {
     const { repos, data } = setup()
     const { account } = await data.getAccount({}, ME)
     expect(account).toMatchObject({ pro: false, freeLeft: PRO.freeTrials, isAdmin: false })
@@ -128,7 +128,7 @@ describe('会员接口', () => {
     expect((await data.getAccount({}, ADMIN)).account).toMatchObject({ pro: true, isAdmin: true })
   })
 
-  it('只有管理员能管理会员', async () => {
+  it('only admins can manage membership', async () => {
     const { data } = setup()
     await data.getAccount({}, ME)
     await expect(data.listMembers({}, ME)).rejects.toMatchObject({ code: 'FORBIDDEN' })
@@ -140,7 +140,7 @@ describe('会员接口', () => {
     })
   })
 
-  it('成员列表带上昵称和头像', async () => {
+  it('member list includes nickname and avatar', async () => {
     const { data, clock } = setup()
     await data.updateProfile({ nickname: '小明', avatarFileID: AVATAR }, ME)
     await data.getAccount({}, ADMIN)
@@ -157,7 +157,7 @@ describe('会员接口', () => {
     expect(members[0]).toMatchObject({ nickname: null, avatarUrl: null, isAdmin: true })
   })
 
-  it('开通 30 天、再开通往后加；结束后立即回到免费状态，记录操作', async () => {
+  it('grants 30 days and extends on a second grant; revoking returns to free immediately; logs each action', async () => {
     const { repos, data, clock } = setup()
     await data.getAccount({}, ME)
     const first = await data.grantPro({ openid: ME.openid }, ADMIN)
@@ -176,12 +176,12 @@ describe('会员接口', () => {
       ['revoke', ADMIN.openid],
     ])
 
-    // 已经不是 Pro 时再结束不留记录
+    // Revoking when already not Pro leaves no record
     await data.revokePro({ openid: ME.openid }, ADMIN)
     expect(repos.accountDocs.get(ME.openid)!.grants).toHaveLength(3)
   })
 
-  it('过期后再开通从当天起算', async () => {
+  it('a grant after expiry counts from today', async () => {
     const { data, clock } = setup()
     await data.getAccount({}, ME)
     await data.grantPro({ openid: ME.openid }, ADMIN)
@@ -191,7 +191,7 @@ describe('会员接口', () => {
     expect(member.proUntil).toBe(clock.now + 30 * DAY)
   })
 
-  it('同时开通两次各加 30 天', async () => {
+  it('two concurrent grants each add 30 days', async () => {
     const { data } = setup()
     await data.getAccount({}, ME)
     await Promise.all([
@@ -201,7 +201,7 @@ describe('会员接口', () => {
     expect((await data.getAccount({}, ME)).account.proUntil).toBe(NOW + 60 * DAY)
   })
 
-  it('没有档案的人不能开通', async () => {
+  it('cannot grant Pro to a user without an account', async () => {
     const { data } = setup()
     await expect(data.grantPro({ openid: 'o_nobody' }, ADMIN)).rejects.toMatchObject({
       code: 'NOT_FOUND',

@@ -38,13 +38,13 @@ export interface AssessDeps {
   now(): number
 }
 
-/** 前端上传的背诵录音 */
+/** Recitation recording uploaded by the frontend */
 const RECITE_FILE = /^cloud:\/\/[^/]+\/recite-input\/[\w-]+\.pcm$/
-/** 60 秒 16kHz 单声道 PCM 约 1.92 MB，留一点余量 */
+/** 60 s of 16 kHz mono PCM is about 1.92 MB; leave some headroom */
 const MAX_AUDIO_BYTES = 2_100_000
-/** 云函数超时 60 秒，留 5 秒读写数据库 */
+/** The cloud function times out at 60 s; leave 5 s for database reads and writes */
 const BUDGET_MS = 55_000
-/** 开始某一步之前至少要剩这么多时间，否则留给下一次调用 */
+/** Minimum time left to start a step; otherwise leave it for the next call */
 const MIN_BUDGET: Record<Exclude<PracticeStage, 'done'>, number> = {
   transcribe: 20_000,
   align: 35_000,
@@ -57,12 +57,12 @@ const NEXT: Record<Exclude<PracticeStage, 'done'>, PracticeStage> = {
   score: 'report',
   report: 'done',
 }
-/** 同时评测的句子数（腾讯云默认并发上限 50 路） */
+/** Sentences assessed concurrently (Tencent Cloud's default concurrency limit is 50 streams) */
 const SOE_CONCURRENCY = 6
-/** 一句发送完以后，等待评测结果的余量 */
+/** Time allowed for the assessment result after a sentence has been sent */
 const SOE_RESULT_MS = 10_000
 
-/** 一步的结果：要写入的字段，以及写入成功后才能删除的文件 */
+/** Result of a step: fields to write, and files that can only be deleted once the write succeeds */
 interface StageResult {
   patch: PracticePatch
   cleanup?: string[]
@@ -107,18 +107,21 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
     for (const fileID of [doc.pcmFileID, doc.wavFileID]) {
       if (!fileID) continue
       await deps.storage.remove(fileID).catch((err: unknown) => {
-        console.error('[assess] 删除录音失败', err instanceof Error ? err.message : err)
+        console.error(
+          '[assess] Failed to delete recording',
+          err instanceof Error ? err.message : err,
+        )
       })
     }
   }
 
-  // --- 四个步骤，每步返回要写入的字段 ---------------------------------------
+  // --- Four steps, each returning the fields to write ------------------------
 
-  /** 录音存成 WAV（回放和评测都用它） */
+  /** The recording is stored as WAV (used for both playback and assessment) */
   const wavPath = (openid: string, practiceId: string) => `recordings/${openid}/${practiceId}.wav`
 
   async function transcribe(doc: PracticeDoc, ctx: RequestContext): Promise<StageResult> {
-    // M6 起提交时就转成了 WAV；之前提交、还没评测的练习仍是 PCM
+    // Since M6, submit converts to WAV; older practices not yet assessed are still PCM
     const fileID = doc.wavFileID ?? doc.pcmFileID
     if (!fileID) throw new AppError('INTERNAL', '找不到录音，请重新背一遍')
     const raw = await deps.storage.download(fileID)
@@ -135,7 +138,8 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
     const wavFileID = await deps.storage.upload(wavPath(ctx.openid, doc._id), pcmToWav(pcm))
     return {
       patch: { wavFileID, pcmFileID: null, durationMs: pcmDurationMs(pcm), transcript },
-      // 原始 PCM 等结果写入成功后再删，否则写入失败时重试就找不到录音了
+      // Delete the raw PCM only after the result is written, or a retry after a failed write can't
+      // find the recording
       cleanup: [fileID],
     }
   }
@@ -182,7 +186,8 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
 
     const outcomes = await mapLimit(segments, SOE_CONCURRENCY, async (segment: Segment) => {
       const audio = slicePcm(pcm, segment.startMs, segment.endMs)
-      // 按实时率发送，一句多长就要发多久；剩余时间不够评完这一句就不开始，记为没能评测
+      // Audio is sent in real time, so sending takes as long as the sentence; if there isn't time
+      // to finish it, don't start and mark it as not assessed
       const needed = streamDurationMs(audio) + SOE_RESULT_MS
       const remaining = deadline - deps.now()
       if (remaining < needed) return { segment, error: new AppError('TIMEOUT', '时间不够') }
@@ -207,12 +212,15 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
       if (o.result) succeeded.push({ segment: o.segment, result: o.result })
       else if (o.error) failed.push({ segment: o.segment, error: o.error })
     }
-    // 配置类问题直接报错；全部失败也报错；个别句子失败时用其余句子的结果，并标出没能评测的句子
+    // Config errors fail outright, as does every sentence failing; if only some fail, use the rest
+    // and mark the ones not assessed
     const config = failed.find((f) => f.error.code === 'NOT_CONFIGURED')
     if (config) throw config.error
     if (succeeded.length === 0) throw failed[0]!.error
     for (const f of failed) {
-      console.error(`[assess.score] 第 ${f.segment.sentenceIndex} 句没能评测：${f.error.message}`)
+      console.error(
+        `[assess.score] Sentence ${f.segment.sentenceIndex} not assessed: ${f.error.message}`,
+      )
     }
     return {
       patch: {
@@ -269,8 +277,9 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
   }
 
   /**
-   * 推进评测，直到这条练习的目标（见 practiceGoal）。
-   * 时间够就连着往下做，减少前端来回调用的次数；已有步骤在运行时直接返回当前状态，由前端再来推进。
+   * Advance the assessment until this practice reaches its goal (see practiceGoal).
+   * Keep going while time allows to cut frontend round trips; if a step is already running, return
+   * the current state and let the frontend advance it again.
    */
   async function drive(practiceId: string, ctx: RequestContext): Promise<{ practice: Practice }> {
     const doc = await requirePractice(practiceId, ctx.openid)
@@ -290,7 +299,7 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
     let current = await requirePractice(practiceId, ctx.openid)
     const goal = practiceGoal(current)
     try {
-      // 第一步总是执行
+      // The first step always runs
       let first = true
       while (!reachedStage(current.stage, goal) && current.stage !== 'done') {
         const stage = current.stage
@@ -305,7 +314,8 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
           lastError: null,
           updatedAt: deps.now(),
         })
-        // 锁已被接管（本次运行超时后有人重新发起），停止并以数据库为准
+        // The lock was taken over (someone restarted after this run timed out); stop and defer to
+        // the database
         if (!written) break
         for (const fileID of cleanup ?? []) {
           await deps.storage.remove(fileID).catch(() => {})
@@ -321,7 +331,8 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
       if (!(err instanceof AppError)) {
         console.error(`[assess.${current.stage}]`, err instanceof Error ? err.stack : String(err))
       }
-      // 评分失败不扣次数：撤回评分请求并退回占用的次数，用户再点评分时重新占用
+      // Failed scoring doesn't use up a free use: withdraw the scoring request and refund the use;
+      // it's charged again when the user requests scoring again
       const latest = await practices.get(practiceId, ctx.openid).catch(() => null)
       const scoring = latest?.scoreRequested === true
       const written = await practices.updateIfJob(practiceId, ctx.openid, startedAt, {
@@ -365,7 +376,8 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
       if (!session.versions.some((v) => v.vid === vid)) {
         throw new AppError('BAD_REQUEST', '找不到要背诵的版本')
       }
-      // 上次提交等不到返回、其实已经建好：重新提交同一个文件时直接返回，不重复建
+      // The last submit never returned but the record was created: resubmitting the same file
+      // returns it instead of creating another
       const existing = await practices.findBySource(ctx.openid, fileID)
       if (existing) return { practiceId: existing._id }
       const pcm = await deps.storage.download(fileID)
@@ -394,7 +406,8 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
         createdAt: now,
         updatedAt: now,
       })
-      // 马上转成 WAV，提交完就能回放；转换失败时撤掉这条记录，原始录音留着可以重新提交
+      // Convert to WAV right away so it can be played back after submit; if that fails, remove the
+      // record and keep the raw recording for resubmission
       let wavFileID: string | null = null
       try {
         wavFileID = await deps.storage.upload(wavPath(ctx.openid, practiceId), pcmToWav(pcm))
@@ -406,9 +419,9 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
       }
       await deps.storage.remove(fileID).catch(() => {})
 
-      // 每个对话只保留最近几次练习，更早的连同录音一起删除
+      // Keep only the latest few practices per session; delete older ones with their recordings
       const all = await practices.listBySession(ctx.openid, sessionId, 20)
-      // 还在评测中的先不动，下次再清理
+      // Leave ones still being assessed; clean them up next time
       const running = (d: PracticeDoc) => !!d.job && d.job.startedAt >= now - JOB_STALE_MS
       for (const old of all.slice(LIMITS.practicesPerSession)) {
         if (running(old)) continue
@@ -421,14 +434,14 @@ export function createAssessHandlers(deps: AssessDeps): Handlers<'assess'> {
     async score(payload, ctx) {
       const { practiceId } = parsePayload(practiceIdSchema, payload)
       const doc = await requirePractice(practiceId, ctx.openid)
-      // 已经要求过评分（或 M6 之前的练习）：不再占用次数，接着推进
+      // Scoring already requested (or a pre-M6 practice): don't charge again, just keep advancing
       if (doc.scoreRequested === false) {
         const charged = await accounts.consume(ctx.openid)
         let marked = false
         try {
           marked = await practices.requestScore(practiceId, ctx.openid, charged)
         } finally {
-          // 同一条录音并发点了两次评分：只算一次
+          // Scoring requested twice concurrently for the same recording: charge only once
           if (!marked && charged) await accounts.refund(ctx.openid)
         }
       }

@@ -20,13 +20,13 @@ const FOLDERS = [
   f('a', null, 1, 0),
 ]
 
-describe('文件夹树', () => {
-  it('按顺序取某一层，按树的顺序展开', () => {
+describe('folder tree', () => {
+  it('lists one level in order and flattens in tree order', () => {
     expect(childrenOf(FOLDERS, null).map((x) => x.id)).toEqual(['a', 'e'])
     expect(flattenTree(FOLDERS).map((x) => x.id)).toEqual(['a', 'b', 'c', 'd', 'e'])
   })
 
-  it('路径和子树', () => {
+  it('path and subtree', () => {
     expect(folderPath(FOLDERS, 'c').map((x) => x.id)).toEqual(['a', 'b', 'c'])
     expect(folderPath(FOLDERS, null)).toEqual([])
     expect(
@@ -36,13 +36,13 @@ describe('文件夹树', () => {
     ).toEqual(['a', 'b', 'c', 'd'])
   })
 
-  it('三级以内才能新建子文件夹', () => {
+  it('allows new subfolders only within three levels', () => {
     expect(canCreateIn(null)).toBe(true)
     expect(canCreateIn(FOLDERS.find((x) => x.id === 'b')!)).toBe(true)
     expect(canCreateIn(FOLDERS.find((x) => x.id === 'c')!)).toBe(false)
   })
 
-  it('移动不能进自己的子树，也不能超过三级', () => {
+  it('cannot move into its own subtree or deeper than three levels', () => {
     const byId = (id: string) => FOLDERS.find((x) => x.id === id)!
     expect(canMoveInto(FOLDERS, 'a', byId('c'))).toBe(false)
     expect(canMoveInto(FOLDERS, 'b', byId('e'))).toBe(true)

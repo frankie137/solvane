@@ -1,12 +1,12 @@
 /**
- * 收藏表达的规范化与匹配，前后端共用：
- * - expressionKey：合并卡片用，只忽略大小写、首尾标点和多余空格
- * - findOccurrence：溯源用，在一句英文里找表达出现的位置，认常见词形变化和 sb / sth 之类的占位词
+ * Normalization and matching of saved expressions, shared by the frontend and the cloud:
+ * - expressionKey: for merging cards; ignores only case, leading/trailing punctuation and extra spaces
+ * - findOccurrence: for tracing sources; finds where an expression occurs in an English sentence, handling common inflections and placeholders like sb / sth
  */
 
 const APOSTROPHES = /[’‘`]/g
 
-/** 合并键：同一个表达多次收藏合并为一张卡片 */
+/** Merge key: the same expression saved multiple times merges into one card */
 export function expressionKey(text: string): string {
   return text
     .replace(APOSTROPHES, "'")
@@ -17,13 +17,13 @@ export function expressionKey(text: string): string {
 }
 
 export interface Token {
-  /** 小写、撇号统一后的词 */
+  /** The word, lowercased with apostrophes normalized */
   word: string
   start: number
   end: number
 }
 
-/** 按词切分（连字符、空格和标点都是分隔），保留在原文里的位置 */
+/** Split into words (hyphens, spaces and punctuation all separate), keeping positions in the original text */
 export function tokenizeWords(text: string): Token[] {
   const normalized = text.replace(APOSTROPHES, "'")
   return [...normalized.matchAll(/[\p{L}\p{N}]+(?:'[\p{L}]+)*/gu)].map((m) => ({
@@ -33,7 +33,7 @@ export function tokenizeWords(text: string): Token[] {
   }))
 }
 
-/** 短语里表示"某人 / 某事"的占位词，匹配 1～3 个任意词 */
+/** Placeholders for "someone / something" in a phrase; each matches 1-3 arbitrary words */
 const PLACEHOLDERS = new Set([
   'sb',
   "sb's",
@@ -48,7 +48,7 @@ const PLACEHOLDERS = new Set([
 ])
 const PLACEHOLDER_MAX = 3
 
-/** 常用不规则动词：原形 → 过去式、过去分词（多个写法用 / 分隔） */
+/** Common irregular verbs: base form → past tense and past participle (multiple forms separated by /) */
 const IRREGULAR: Record<string, string> = {
   be: 'was/were/been/am/is/are',
   bear: 'bore/born/borne',
@@ -163,7 +163,7 @@ const IRREGULAR: Record<string, string> = {
   write: 'wrote/written',
 }
 
-/** 不规则形式 → 原形 */
+/** Irregular form → base form */
 const IRREGULAR_BASE = new Map<string, string>()
 for (const [base, forms] of Object.entries(IRREGULAR)) {
   for (const form of forms.split('/')) {
@@ -172,12 +172,12 @@ for (const [base, forms] of Object.entries(IRREGULAR)) {
 }
 
 const VOWELS = /[aeiou]/
-/** 词干至少 3 个字母才去词尾，避免 bed → b、sing → s 这类误判 */
+/** Only strip a suffix when the stem has at least 3 letters, avoiding false matches like bed → b, sing → s */
 const MIN_STEM = 3
 
 /**
- * 一个词可能的原形（含它自己）。两边都还原后有交集就算同一个词，
- * 所以 catch up / caught up / catching up 能互相匹配。
+ * Possible base forms of a word (including itself). Two words are the same if their base forms overlap,
+ * so catch up / caught up / catching up all match each other.
  */
 export function baseForms(word: string): Set<string> {
   const w = word.toLowerCase()
@@ -190,12 +190,12 @@ export function baseForms(word: string): Set<string> {
   const irregular = IRREGULAR_BASE.get(w)
   if (irregular) out.add(irregular)
 
-  // 所有格：friend's → friend
+  // Possessive: friend's → friend
   if (w.endsWith("'s")) add(w.slice(0, -2))
 
-  // -ies / -ied → -y（tries / tried → try）
+  // -ies / -ied → -y (tries / tried → try)
   if (/[^aeiou](ies|ied)$/.test(w)) add(`${w.slice(0, -3)}y`)
-  // -ying 保留 y（trying → try），-ying 也可能来自 -ie（lying → lie）
+  // -ying keeps the y (trying → try); -ying may also come from -ie (lying → lie)
   if (w.endsWith('ying')) {
     add(w.slice(0, -3))
     add(`${w.slice(0, -4)}ie`)
@@ -206,9 +206,9 @@ export function baseForms(word: string): Set<string> {
     const stem = w.slice(0, -suffix.length)
     if (suffix === 's' && /(ss|us|is)$/.test(w)) continue
     add(stem)
-    // 双写辅音：stopped → stop、running → run
+    // Doubled consonant: stopped → stop, running → run
     if ((suffix === 'ed' || suffix === 'ing') && /([^aeiou])\1$/.test(stem)) add(stem.slice(0, -1))
-    // 去掉的 e：making → make、hoped → hope
+    // Dropped e: making → make, hoped → hope
     if ((suffix === 'ing' || suffix === 'ed') && VOWELS.test(stem)) add(`${stem}e`)
   }
   return out
@@ -227,13 +227,13 @@ function toPattern(phrase: string): Part[] {
   const parts: Part[] = tokenizeWords(phrase).map((t) =>
     PLACEHOLDERS.has(t.word) ? { kind: 'slot' } : { kind: 'word', word: t.word },
   )
-  // 首尾的占位词不参与定位（"sb's call" 找的是 call）
+  // Leading and trailing placeholders are ignored when locating ("sb's call" looks for call)
   while (parts[0]?.kind === 'slot') parts.shift()
   while (parts[parts.length - 1]?.kind === 'slot') parts.pop()
   return parts
 }
 
-/** 从第 i 个词开始能否匹配 pattern；返回结束的词序号（不含） */
+/** Whether pattern matches starting at word i; returns the end word index (exclusive) */
 function matchAt(tokens: Token[], i: number, pattern: Part[], p: number): number | null {
   if (p === pattern.length) return i
   const part = pattern[p]!
@@ -250,12 +250,12 @@ function matchAt(tokens: Token[], i: number, pattern: Part[], p: number): number
 }
 
 export interface Occurrence {
-  /** 在原句里的字符位置，用于高亮 */
+  /** Character position in the original sentence, for highlighting */
   start: number
   end: number
 }
 
-/** 在一句英文里找表达第一次出现的位置；找不到返回 null */
+/** Find the first occurrence of an expression in an English sentence; null if not found */
 export function findOccurrence(sentence: string, phrase: string): Occurrence | null {
   const pattern = toPattern(phrase)
   if (pattern.length === 0) return null

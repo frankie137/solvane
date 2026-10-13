@@ -78,7 +78,8 @@ export function createDataHandlers(deps: DataDeps): Handlers<'data'> {
       if (!doc.versions.some((v) => v.vid === vid)) {
         throw new AppError('BAD_REQUEST', '找不到这个版本')
       }
-      // 切换版本不算内容更新，不改 updatedAt，避免打乱"最近对话"的顺序
+      // Switching versions isn't a content update; leave updatedAt alone so the "recent sessions"
+      // order doesn't change
       await sessions.update(sessionId, ctx.openid, { currentVid: vid })
       return { session: toSession({ ...doc, currentVid: vid }) }
     },

@@ -11,8 +11,8 @@ export interface LibraryActions {
 const KEY: InjectionKey<LibraryActions> = Symbol('library-actions')
 
 /**
- * 收藏页和文件夹页提供整理操作：列表组件（library-browser）取用，
- * 面板（library-sheets）由页面放在 scroll-view 外面，避免固定定位受滚动容器影响。
+ * The saved page and folder page provide organizing actions for the list component (library-browser);
+ * the page puts the sheets (library-sheets) outside the scroll-view so fixed positioning isn't affected by the scroll container.
  */
 export function provideLibraryActions(
   options: { onFolderDeleted?: (folder: Folder) => void } = {},
@@ -27,6 +27,7 @@ export function provideLibraryActions(
 
 export function useLibraryActions(): LibraryActions {
   const actions = inject(KEY)
-  if (!actions) throw new Error('library-browser 需要页面先调用 provideLibraryActions()')
+  if (!actions)
+    throw new Error('library-browser requires the page to call provideLibraryActions() first')
   return actions
 }

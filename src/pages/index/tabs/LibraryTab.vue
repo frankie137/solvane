@@ -77,15 +77,15 @@ const tags = ref<TagCount[]>([])
 
 const keyword = ref('')
 
-// --- 标签 -------------------------------------------------------------------
+// --- Tags -------------------------------------------------------------------
 
 async function loadTags() {
   try {
     tags.value = await listTags(tab.value)
-    // 选中的标签已经没有了（被删掉或改名）就取消筛选
+    // Clear the filter if the selected tag no longer exists (deleted or renamed)
     if (tag.value && !tags.value.some((t) => t.name === tag.value)) tag.value = ''
   } catch {
-    // 标签栏只是筛选入口，加载失败时不显示
+    // The tag bar is only a way to filter; hide it if loading fails
   }
 }
 
@@ -103,6 +103,11 @@ void store.refresh()
 
 <style lang="scss">
 @import '@/styles/mixins.scss';
+
+// Every tab defines this itself: component styles are isolated, so another tab's rule doesn't apply
+.tab-scroll {
+  height: 100%;
+}
 
 .library {
   display: flex;

@@ -1,6 +1,6 @@
-// 组件里复用的样式片段。小程序组件样式隔离，关键帧写在各组件里更稳，这里只保证写法一致。
+// Style snippets reused in components. Mini program components isolate styles, so keyframes are safer defined in each component; this file only keeps the usage consistent.
 
-// 加载中转圈：一周 --sv-dur-spin；切到后台的 tab 自动暂停
+// Loading spinner: one turn per --sv-dur-spin; pauses automatically on background tabs
 @mixin sv-spinning($name) {
   animation: $name var(--sv-dur-spin) linear infinite;
   animation-play-state: var(--sv-play);
@@ -12,8 +12,8 @@
   }
 }
 
-// 点击区至少 44px：视觉尺寸不变，用看不见的伪元素把可点范围向四周扩开。
-// 元素本身需要能作为定位参照（这里会设 position: relative）。
+// Hit area of at least 44px: the visual size stays the same while an invisible pseudo-element extends the tappable area on all sides.
+// The element itself must be able to act as the positioning context (this sets position: relative).
 @mixin sv-hit-area($pseudo: after, $size: 44px) {
   position: relative;
 
@@ -29,8 +29,8 @@
   }
 }
 
-// 一次性的出现动画：骨架换成内容、列表加载出来时淡入并上移一点。
-// 结束后 transform 回到 none，不会影响里面固定定位的元素。
+// One-off appear animation: fade in and rise slightly when a skeleton is replaced by content or a list loads.
+// Afterwards transform returns to none, so fixed-position elements inside are unaffected.
 @mixin sv-appear($name: sv-appear) {
   animation: $name var(--sv-dur-2) var(--sv-ease) both;
 

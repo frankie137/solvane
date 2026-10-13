@@ -2,7 +2,7 @@ import type { z } from 'zod'
 import { AppError } from '../errors'
 import { chat, type ChatMessage, type ChatOptions, type FetchLike, type LlmTarget } from './client'
 
-/** 从模型回复中取出 JSON 对象：兼容 ```json 代码块和前后多余文字 */
+/** Extracts a JSON object from the model's reply; tolerates ```json fences and surrounding text */
 export function extractJsonObject(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
   const candidate = fenced?.[1] ?? text
@@ -20,19 +20,20 @@ function describeIssues(error: z.ZodError): string {
 }
 
 export interface ChatJsonOptions extends Omit<ChatOptions, 'json' | 'timeoutMs'> {
-  /** 整个调用（含重试）必须在这个时间点前结束 */
+  /** The whole call (including retries) must finish before this time */
   deadline: number
-  /** 单次请求的超时上限 */
+  /** Maximum timeout for a single request */
   maxRequestMs?: number
   now?: () => number
   fetchImpl?: FetchLike
 }
 
-/** 留给重试的最短时间，不够就不再重试 */
+/** Minimum time needed for a retry; with less left, don't retry */
 const MIN_RETRY_MS = 8_000
 
 /**
- * 请求 JSON 输出并用 schema 校验。格式不对时把错误反馈给模型修正一次。
+ * Requests JSON output and validates it against the schema. If it's malformed, feeds the errors
+ * back to the model for one correction.
  */
 export async function chatJson<S extends z.ZodType>(
   target: LlmTarget,
@@ -85,7 +86,7 @@ export async function chatJson<S extends z.ZodType>(
     const result = schema.safeParse(extractJsonObject(repaired))
     if (result.success) return result.data
   } catch {
-    // 落到下面统一报错
+    // Fall through to the shared error below
   }
   throw new AppError('UPSTREAM_ERROR', '大模型返回的内容格式不正确，请重试')
 }

@@ -1,12 +1,12 @@
 import { LIMITS } from '@shared/constants'
 import type { Folder } from '@shared/types'
 
-/** 某一层的文件夹，按顺序排好；parentId 为 null 是根目录 */
+/** Folders at one level, in order; a null parentId means the root */
 export function childrenOf(folders: Folder[], parentId: string | null): Folder[] {
   return folders.filter((f) => f.parentId === parentId).sort((a, b) => a.order - b.order)
 }
 
-/** 按树的顺序展开（父在前、子紧跟），用于文件夹选择列表 */
+/** Flatten in tree order (parent first, children right after), for the folder picker list */
 export function flattenTree(folders: Folder[]): Folder[] {
   const out: Folder[] = []
   const walk = (parentId: string | null) => {
@@ -19,7 +19,7 @@ export function flattenTree(folders: Folder[]): Folder[] {
   return out
 }
 
-/** 从根到这个文件夹的路径 */
+/** Path from the root to this folder */
 export function folderPath(folders: Folder[], id: string | null): Folder[] {
   const path: Folder[] = []
   let current = folders.find((f) => f.id === id)
@@ -30,7 +30,7 @@ export function folderPath(folders: Folder[], id: string | null): Folder[] {
   return path
 }
 
-/** 这个文件夹和它下面的所有文件夹 */
+/** This folder and every folder below it */
 export function subtreeOf(folders: Folder[], id: string): Folder[] {
   const root = folders.find((f) => f.id === id)
   if (!root) return []
@@ -41,12 +41,12 @@ export function subtreeOf(folders: Folder[], id: string): Folder[] {
   return out
 }
 
-/** 能否在这里新建子文件夹 */
+/** Whether a subfolder can be created here */
 export function canCreateIn(folder: Folder | null): boolean {
   return !folder || folder.depth < LIMITS.folderDepth
 }
 
-/** 能否把 folderId 移到 target 下面（target 为 null 表示根目录） */
+/** Whether folderId can move under target (a null target means the root) */
 export function canMoveInto(folders: Folder[], folderId: string, target: Folder | null): boolean {
   const tree = subtreeOf(folders, folderId)
   const root = tree[0]

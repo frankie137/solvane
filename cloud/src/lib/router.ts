@@ -14,8 +14,9 @@ export type Handlers<F extends FunctionName> = {
 type AnyHandler = (payload: unknown, ctx: RequestContext) => Promise<unknown>
 
 /**
- * 把按 action 登记的处理函数包装成云函数入口：
- * 校验 event 结构、注入调用者身份、把所有异常转换成统一的 ApiResult。
+ * Wraps the handlers registered by action into a cloud function entry point:
+ * validates the event shape, injects the caller's identity, and turns every error into a
+ * uniform ApiResult.
  */
 export function createRouter<F extends FunctionName>(
   fn: F,
@@ -50,7 +51,7 @@ export function createRouter<F extends FunctionName>(
       if (err instanceof AppError) {
         return fail(err.code, err.message)
       }
-      // 只记录错误本身，不记录 payload，避免把用户数据或密钥写进日志
+      // Log only the error itself, never the payload, so user data and keys stay out of the logs
       console.error(`[${fn}.${action}]`, err instanceof Error ? err.stack : String(err))
       return fail('INTERNAL', '服务暂时不可用，请稍后再试')
     }

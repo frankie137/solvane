@@ -1,5 +1,5 @@
-# 单包仓库，这里只放 pnpm 设置
-# uni-app 的编译器依赖未声明的传递依赖，需要平铺 node_modules
+# Single-package repo; this file only holds pnpm settings
+# uni-app's compiler relies on undeclared transitive dependencies, so node_modules must be hoisted flat
 shamefullyHoist: true
 allowBuilds:
   '@swc/core': true

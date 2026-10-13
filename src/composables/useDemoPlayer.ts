@@ -5,15 +5,15 @@ import { useSettingsStore } from '@/stores/settings'
 import { useAudio } from './useAudio'
 
 /**
- * 示范朗读：按句播放，读到哪句高亮哪句。
- * 每句是单独的一段音频，按句高亮总是对得上；语音合成给的逐词时间不准，不再逐词高亮。
- * 音频按需加载（第一次播放时合成并缓存），换版本后重新加载。
+ * Demo reading: plays sentence by sentence and highlights the sentence being read.
+ * Each sentence is its own audio clip, so sentence highlighting always lines up; TTS word timings are inaccurate, so words are no longer highlighted.
+ * Audio loads on demand (synthesized and cached on first play) and reloads after switching versions.
  */
-/** 云端给的临时链接 2 小时过期，提前换新 */
+/** Temporary URLs from the cloud expire after 2 hours; renew them early */
 const TRACK_TTL_MS = 90 * 60_000
 
 export function useDemoPlayer(sessionId: Ref<string>, vid: Ref<string | null>) {
-  // 播放出错时作废缓存，下次重新获取链接；不跟进度高亮，进度不用读得很勤
+  // On playback errors, invalidate the cache and fetch new URLs next time; nothing highlights by progress, so progress needn't be read often
   const audio = useAudio(250, {
     onError: () => {
       loadedAt = 0
@@ -79,7 +79,7 @@ export function useDemoPlayer(sessionId: Ref<string>, vid: Ref<string | null>) {
     reset()
   }
 
-  // 换版本时停止并清空，下一次播放重新加载
+  // Stop and clear when the version changes; the next play reloads
   watch(vid, () => {
     stop()
     tracks.value = []

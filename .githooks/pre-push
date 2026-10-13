@@ -1,14 +1,14 @@
 #!/bin/sh
-# 推送前检查：密钥文件绝不能进入版本控制；然后跑完整检查，和 CI 保持一致。
-# 紧急情况可用 git push --no-verify 跳过（不建议）。
+# Pre-push check: secret files must never enter version control; then run the full check, same as CI.
+# In an emergency, skip with git push --no-verify (not recommended).
 
 tracked_secrets=$(git ls-files -- '.keys' '*.key' 'cloud.env' '.env.local')
 if [ -n "$tracked_secrets" ]; then
-  echo "pre-push: 以下密钥文件被纳入了版本控制，已阻止推送："
+  echo "pre-push: the following secret files are tracked by git; push blocked:"
   echo "$tracked_secrets"
-  echo "请用 git rm --cached <文件> 移出版本控制，并确认 .gitignore 生效。"
+  echo "Remove them from version control with git rm --cached <file>, and make sure .gitignore covers them."
   exit 1
 fi
 
-echo "pre-push: 运行 pnpm check …"
+echo "pre-push: running pnpm check..."
 pnpm check

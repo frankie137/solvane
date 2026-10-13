@@ -8,14 +8,14 @@ import { toast } from '@/utils/dialog'
 import { navigateTo } from '@/utils/nav'
 
 /**
- * 分享一次练习：还没有署名时先弹出头像昵称面板，保存后继续；
- * 没评分的录音先做识别和对照得到歌词时间（不扣次数），再生成分享，打开歌词页预览，在那里发给朋友。
- * 页面里放一个 profile-sheet 绑定 sheet 的状态。
+ * Share a practice: if there's no byline yet, open the avatar and nickname sheet first and continue after saving;
+ * for an unscored recording, run recognition and alignment first to get lyric timings (doesn't use a free use), then create the share and open the lyrics player to preview it and send it to friends.
+ * The page places a profile-sheet bound to the sheet state.
  */
 export function useShareFlow(
   options: {
     isCancelled?: () => boolean
-    /** 准备好歌词时间后的练习，页面据此更新，再分享时不用重新准备 */
+    /** The practice once lyric timings are ready; the page updates from it so sharing again needn't prepare them again */
     onPrepared?: (practice: Practice) => void
   } = {},
 ) {
@@ -51,7 +51,7 @@ export function useShareFlow(
     }
   }
 
-  /** 头像昵称保存后，接着分享 */
+  /** Continue sharing after the avatar and nickname are saved */
   function onProfileSaved() {
     const practice = pending
     pending = null

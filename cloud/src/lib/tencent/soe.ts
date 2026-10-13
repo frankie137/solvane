@@ -1,10 +1,12 @@
 /**
- * 腾讯云智聆口语评测（新版）WebSocket 接口。官方没有 Node SDK，按文档实现：
+ * WebSocket API for Tencent Cloud Smart Oral Evaluation (SOE, new version). There is no official
+ * Node SDK, so this follows the docs:
  * https://cloud.tencent.cn/document/product/1774/107497
  *
- * 用文档推荐的实时流式（rec_mode=0）：按 1:1 的实时率分片发送 PCM（发得比实时快会报错），
- * 发完后发 {"type":"end"}，等到 final=1 的结果后断开。
- * 签名为 HMAC-SHA1，签名原文是不带 wss:// 的地址加按字典序排列的参数。
+ * Uses the recommended real-time streaming mode (rec_mode=0): PCM is sent in chunks at a 1:1
+ * real-time rate (sending faster than real time is an error), then {"type":"end"}, and the
+ * connection closes after the final=1 result.
+ * Signature: HMAC-SHA1 over the URL without wss:// plus the parameters in lexicographic order.
  */
 import { createHmac, randomUUID } from 'node:crypto'
 import WebSocket from 'ws'
@@ -16,7 +18,7 @@ const HOST_PATH = 'soe.cloud.tencent.com/soe/api'
 export interface SoeCredential {
   secretId: string
   secretKey: string
-  /** 腾讯云账号的 AppID（数字），不是微信 AppID */
+  /** The Tencent Cloud account AppID (numeric), not the WeChat AppID */
   appId: string
 }
 
@@ -25,16 +27,16 @@ export type SoeMode = 'sentence' | 'paragraph'
 export interface SoeRequest {
   refText: string
   mode: SoeMode
-  /** 以下三个参数只在测试时固定，正常调用自动生成 */
+  /** The next three parameters are fixed only in tests; normally they are generated */
   timestamp?: number
   nonce?: number
   voiceId?: string
 }
 
-/** 评分严格程度：1.0 对应儿童，4.0 对应成人严格打分 */
+/** Scoring strictness: 1.0 is for children, 4.0 is strict adult scoring */
 const SCORE_COEFF = 3.5
 
-/** 生成带签名的连接地址 */
+/** Builds the signed connection URL */
 export function buildSoeUrl(cred: SoeCredential, req: SoeRequest): string {
   const timestamp = req.timestamp ?? Math.floor(Date.now() / 1000)
   const params: Record<string, string | number> = {
@@ -53,7 +55,7 @@ export function buildSoeUrl(cred: SoeCredential, req: SoeRequest): string {
     rec_mode: 0,
   }
   const keys = Object.keys(params).sort()
-  // 签名用未编码的原值，请求时 key 和 value 都要编码
+  // Sign the raw unencoded values; in the request both keys and values must be encoded
   const raw = keys.map((k) => `${k}=${params[k]}`).join('&')
   const signature = createHmac('sha1', cred.secretKey)
     .update(`${HOST_PATH}/${cred.appId}?${raw}`)
@@ -96,7 +98,7 @@ const num = (v: unknown, fallback = 0) =>
   typeof v === 'number' && Number.isFinite(v) ? v : fallback
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
 
-/** 把接口返回的 result 转成内部结构；标点（MatchTag=5）丢掉 */
+/** Converts the API's result into the internal shape; punctuation (MatchTag=5) is dropped */
 export function parseSoeResult(result: unknown): SoeResult {
   const r = (typeof result === 'string' ? JSON.parse(result) : result) as Raw
   const words = (Array.isArray(r.Words) ? (r.Words as Raw[]) : [])
@@ -122,12 +124,12 @@ export function parseSoeResult(result: unknown): SoeResult {
   }
 }
 
-/** 接口返回的错误码转成可操作的提示 */
+/** Turns API error codes into actionable messages */
 export function toSoeError(code: number, message: string): AppError {
   const brief = message.replace(/\s+/g, ' ').slice(0, 60)
-  // 附上错误码和原因便于排查（不含敏感信息）
+  // Include the code and reason for troubleshooting (nothing sensitive)
   const tag = `（${code}${brief ? `：${brief}` : ''}）`
-  // 先按错误码判断：未开通、欠费的文案里也可能出现 auth 字样
+  // Check the code first: "not enabled" and "overdue" messages may also contain "auth"
   if (code === 4003 || code === 4004 || code === 4005) {
     return new AppError('NOT_CONFIGURED', `腾讯云口语评测未开通、额度已用完或已欠费${tag}`)
   }
@@ -149,7 +151,7 @@ export function toSoeError(code: number, message: string): AppError {
   return new AppError('UPSTREAM_ERROR', `口语评测失败${tag}`)
 }
 
-/** 最小的 WebSocket 接口，便于测试时替换 */
+/** Minimal WebSocket interface, easy to swap out in tests */
 export interface SocketLike {
   on(event: 'open', listener: () => void): unknown
   on(event: 'message', listener: (data: unknown, isBinary: boolean) => void): unknown
@@ -164,16 +166,16 @@ export type SocketFactory = (url: string) => SocketLike
 
 const defaultSocket: SocketFactory = (url) => new WebSocket(url) as unknown as SocketLike
 
-/** 每片 200ms 的 16kHz 单声道 PCM */
+/** 200 ms of 16 kHz mono PCM per chunk */
 const CHUNK_BYTES = 6400
 const CHUNK_INTERVAL_MS = 200
 
-/** 按实时率发完一段音频大约要多久（毫秒） */
+/** Roughly how long sending the audio takes at the real-time rate (ms) */
 export function streamDurationMs(audio: Buffer): number {
   return Math.ceil(audio.length / CHUNK_BYTES) * CHUNK_INTERVAL_MS
 }
 
-/** 评测一段 PCM（16kHz 单声道）；超时、连接中断、接口报错都转成 AppError */
+/** Assesses 16 kHz mono PCM; timeouts, dropped connections and API errors all become AppError */
 export function evaluatePronunciation(
   cred: SoeCredential,
   audio: Buffer,
@@ -194,7 +196,7 @@ export function evaluatePronunciation(
       try {
         socket.close()
       } catch {
-        // 已经关闭
+        // Already closed
       }
     }
     const timer = setTimeout(

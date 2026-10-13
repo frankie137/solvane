@@ -57,7 +57,7 @@ async function errorOf(p: Promise<unknown>): Promise<AppError> {
 }
 
 describe('compose.create', () => {
-  it('只保存原文，返回 id', async () => {
+  it('stores only the raw text and returns the id', async () => {
     const { handlers, repos } = setup()
     const { sessionId } = await handlers.create(
       { mode: 'voice', rawText: '  周末 想去 爬山  ' },
@@ -70,7 +70,7 @@ describe('compose.create', () => {
     expect(doc.job).toBeNull()
   })
 
-  it('拒绝空内容和超长内容', async () => {
+  it('rejects empty and overlong content', async () => {
     const { handlers } = setup()
     expect((await errorOf(handlers.create({ mode: 'text', rawText: '   ' }, ME))).code).toBe(
       'BAD_REQUEST',
@@ -88,7 +88,7 @@ describe('compose.generate', () => {
     sessionId = (await ctx.handlers.create({ mode: 'text', rawText: '周末想去爬山' }, ME)).sessionId
   })
 
-  it('没有配置大模型时提示联系管理员，并记录错误', async () => {
+  it('tells the user to contact the admin when no LLM is configured, and records the error', async () => {
     const err = await errorOf(ctx.handlers.generate({ sessionId }, ME))
     expect(err.code).toBe('NOT_CONFIGURED')
     expect(err.message).toContain('管理员还没有配置')
@@ -97,7 +97,7 @@ describe('compose.generate', () => {
     expect(doc.lastError).toMatchObject({ kind: 'generate', code: 'NOT_CONFIGURED' })
   })
 
-  it('生成第一版：标题、整理后的中文、逐句对照', async () => {
+  it('generates the first version: title, polished Chinese, sentence-by-sentence pairs', async () => {
     await ctx.storeLlm()
     const { session } = await ctx.handlers.generate({ sessionId }, ME)
     expect(session.title).toBe(DRAFT.title)
@@ -108,26 +108,26 @@ describe('compose.generate', () => {
     expect(session.currentVid).toBe('v1')
     expect(session.job).toBeNull()
     expect(session.lastError).toBeNull()
-    // 用的是解密后的 Key，原文出现在提示词里
+    // Uses the decrypted key, and the raw text appears in the prompt
     expect(ctx.fake.calls[0]!.target.apiKey).toBe('sk-user-key-0001')
     expect(ctx.fake.calls[0]!.prompt).toContain('周末想去爬山')
   })
 
-  it('成员以前存的配置不再使用，只用管理员的全局配置', async () => {
+  it("ignores configs members saved earlier and uses only the admin's global config", async () => {
     await ctx.storeLlm(ME.openid, 'sk-own-key-0001')
     await ctx.storeLlm(GLOBAL_SETTINGS_ID, 'sk-global-key-9999')
     await ctx.handlers.generate({ sessionId }, ME)
     expect(ctx.fake.calls[0]!.target.apiKey).toBe('sk-global-key-9999')
   })
 
-  it('已经生成过时直接返回，不重复调用大模型', async () => {
+  it('returns right away if already generated, without calling the LLM again', async () => {
     await ctx.storeLlm()
     await ctx.handlers.generate({ sessionId }, ME)
     await ctx.handlers.generate({ sessionId }, ME)
     expect(ctx.fake.calls.filter((c) => c.kind === 'draft')).toHaveLength(1)
   })
 
-  it('已有任务在运行时不重复执行，返回当前状态', async () => {
+  it('does not rerun while a job is running and returns the current state', async () => {
     await ctx.storeLlm()
     const running = { kind: 'generate' as const, vid: null, startedAt: 1_000_000 }
     await ctx.repos.sessions.update(sessionId, ME.openid, { job: running })
@@ -136,7 +136,7 @@ describe('compose.generate', () => {
     expect(ctx.fake.calls).toHaveLength(0)
   })
 
-  it('任务超时中断后可以重新发起', async () => {
+  it('can be restarted after a job times out', async () => {
     await ctx.storeLlm()
     await ctx.repos.sessions.update(sessionId, ME.openid, {
       job: { kind: 'generate', vid: null, startedAt: 1_000_000 },
@@ -147,7 +147,7 @@ describe('compose.generate', () => {
     expect(session.job).toBeNull()
   })
 
-  it('大模型出错时释放锁、记录错误并抛出', async () => {
+  it('releases the lock, records the error and throws when the LLM fails', async () => {
     await ctx.storeLlm()
     ctx.fake.fail(new AppError('UPSTREAM_ERROR', '大模型 API Key 无效或没有权限'))
     const err = await errorOf(ctx.handlers.generate({ sessionId }, ME))
@@ -157,7 +157,7 @@ describe('compose.generate', () => {
     expect(doc.lastError).toMatchObject({ code: 'UPSTREAM_ERROR', message: err.message })
   })
 
-  it('未预期的异常不把内部信息透出', async () => {
+  it('does not leak internal details on unexpected errors', async () => {
     await ctx.storeLlm()
     ctx.fake.fail(new Error('db password=123'))
     const original = console.error
@@ -169,7 +169,7 @@ describe('compose.generate', () => {
     expect(err.message).not.toContain('password')
   })
 
-  it('不能操作别人的对话', async () => {
+  it("cannot act on someone else's session", async () => {
     await ctx.storeLlm()
     expect((await errorOf(ctx.handlers.generate({ sessionId }, OTHER))).code).toBe('NOT_FOUND')
   })
@@ -184,7 +184,7 @@ describe('compose.revise / analyze', () => {
     return { ...ctx, sessionId }
   }
 
-  it('按要求生成新版本并设为当前版本', async () => {
+  it('generates a new version as requested and makes it current', async () => {
     const { handlers, sessionId, fake } = await generated()
     const { session } = await handlers.revise(
       { sessionId, baseVid: 'v1', instruction: '更随意一点' },
@@ -199,7 +199,7 @@ describe('compose.revise / analyze', () => {
     expect(fake.calls.at(-1)!.prompt).toContain('更随意一点')
   })
 
-  it('修改要求为空、过长或版本不存在时拒绝', async () => {
+  it('rejects an empty or overlong revision request, or a missing version', async () => {
     const { handlers, sessionId } = await generated()
     await expect(
       handlers.revise({ sessionId, baseVid: 'v1', instruction: ' ' }, ME),
@@ -212,7 +212,7 @@ describe('compose.revise / analyze', () => {
     ).rejects.toThrow('找不到')
   })
 
-  it('为指定版本生成解析，重复调用不再请求', async () => {
+  it('generates the analysis for the given version; repeat calls do not request it again', async () => {
     const { handlers, sessionId, fake } = await generated()
     const { session } = await handlers.analyze({ sessionId, vid: 'v1' }, ME)
     expect(session.versions[0]!.analysis?.keyPhrases[0]?.phrase).toBe('hit the trails')
@@ -220,7 +220,7 @@ describe('compose.revise / analyze', () => {
     expect(fake.calls.filter((c) => c.kind === 'analysis')).toHaveLength(1)
   })
 
-  it('补解析不改变对话的更新时间，修改会更新', async () => {
+  it("filling in an analysis does not change the session's updatedAt, but revising does", async () => {
     const { handlers, sessionId, repos, tick } = await generated()
     const afterGenerate = repos.sessionDocs.get(sessionId)!.updatedAt
     tick(5_000)
@@ -231,7 +231,7 @@ describe('compose.revise / analyze', () => {
     expect(repos.sessionDocs.get(sessionId)!.updatedAt).toBeGreaterThan(afterGenerate)
   })
 
-  it('解析不会覆盖其他版本', async () => {
+  it('analysis does not overwrite other versions', async () => {
     const { handlers, sessionId } = await generated()
     await handlers.revise({ sessionId, baseVid: 'v1', instruction: '更随意' }, ME)
     const { session } = await handlers.analyze({ sessionId, vid: 'v2' }, ME)
@@ -240,7 +240,7 @@ describe('compose.revise / analyze', () => {
   })
 })
 
-describe('大模型配置', () => {
+describe('LLM config', () => {
   const input = {
     preset: 'deepseek' as const,
     baseUrl: 'https://api.deepseek.com/v1/',
@@ -248,7 +248,7 @@ describe('大模型配置', () => {
     apiKey: 'sk-abcdefghij1234',
   }
 
-  it('只有管理员能查看和设置', async () => {
+  it('only admins can view and set it', async () => {
     const { handlers } = setup()
     for (const call of [
       handlers.getLlmConfig({}, ME),
@@ -260,7 +260,7 @@ describe('大模型配置', () => {
     }
   })
 
-  it('保存为全局配置，加密 Key，只返回打码值', async () => {
+  it('saves it as the global config, encrypts the key and returns only a masked value', async () => {
     const { handlers, repos } = setup()
     const { config } = await handlers.saveLlmConfig(input, ADMIN)
     expect(config).toMatchObject({
@@ -273,7 +273,7 @@ describe('大模型配置', () => {
     expect(repos.settingsDocs.get(ADMIN.openid)).toBeUndefined()
   })
 
-  it('不填 Key 时沿用已保存的 Key', async () => {
+  it('reuses the saved key when none is given', async () => {
     const { handlers, repos } = setup()
     await handlers.saveLlmConfig(input, ADMIN)
     const cipher = repos.settingsDocs.get(GLOBAL_SETTINGS_ID)!.llm!.apiKeyCipher
@@ -283,7 +283,7 @@ describe('大模型配置', () => {
     expect(stored.apiKeyCipher).toBe(cipher)
   })
 
-  it('换了服务商地址时不能沿用旧 Key', async () => {
+  it('cannot reuse the old key when the provider host changes', async () => {
     const { handlers, fake } = setup()
     await handlers.saveLlmConfig(input, ADMIN)
     const moved = {
@@ -297,26 +297,26 @@ describe('大模型配置', () => {
     expect(fake.calls.filter((c) => c.kind === 'ping')).toHaveLength(0)
   })
 
-  it('从没保存过时必须填 Key', async () => {
+  it('requires a key when nothing has been saved yet', async () => {
     const { handlers } = setup()
     await expect(handlers.saveLlmConfig({ ...input, apiKey: '' }, ADMIN)).rejects.toThrow('API Key')
   })
 
-  it('拒绝不安全的接口地址', async () => {
+  it('rejects unsafe API URLs', async () => {
     const { handlers } = setup()
     await expect(
       handlers.saveLlmConfig({ ...input, baseUrl: 'http://10.0.0.1/v1' }, ADMIN),
     ).rejects.toThrow('https')
   })
 
-  it('清除后没有配置', async () => {
+  it('has no config after clearing', async () => {
     const { handlers } = setup()
     await handlers.saveLlmConfig(input, ADMIN)
     expect((await handlers.clearLlmConfig({}, ADMIN)).config).toBeNull()
     expect((await handlers.getLlmConfig({}, ADMIN)).config).toBeNull()
   })
 
-  it('管理员打开配置时清掉成员以前存的配置', async () => {
+  it('clears configs members saved earlier when an admin opens the config', async () => {
     const { handlers, repos, storeLlm } = setup()
     await storeLlm(ME.openid)
     await storeLlm(GLOBAL_SETTINGS_ID)
@@ -326,7 +326,7 @@ describe('大模型配置', () => {
     expect(repos.settingsDocs.get(GLOBAL_SETTINGS_ID)!.llm).not.toBeNull()
   })
 
-  it('清理成员配置失败时仍能读取配置', async () => {
+  it('still reads the config when clearing member configs fails', async () => {
     const { handlers, repos, storeLlm } = setup()
     await storeLlm(GLOBAL_SETTINGS_ID)
     repos.settings.clearMemberLlm = async () => {
@@ -340,7 +340,7 @@ describe('大模型配置', () => {
     expect(config).not.toBeNull()
   })
 
-  it('测试连接用填写的 Key，不保存', async () => {
+  it('tests the connection with the entered key without saving it', async () => {
     const { handlers, fake, repos } = setup()
     const res = await handlers.testLlm(input, ADMIN)
     expect(res.reply).toBe('OK')
@@ -349,7 +349,7 @@ describe('大模型配置', () => {
   })
 })
 
-describe('免费次数', () => {
+describe('free uses', () => {
   const used = (repos: ReturnType<typeof createMemoryRepos>, openid = ME.openid) =>
     repos.accountDocs.get(openid)?.freeUsed ?? 0
   const account = (freeUsed: number, proUntil: number | null = null) => ({
@@ -361,7 +361,7 @@ describe('免费次数', () => {
     updatedAt: 1,
   })
 
-  it('生成第一版扣一次，修改和解析不扣', async () => {
+  it('generating the first version uses one; revise and analyze do not', async () => {
     const ctx = setup()
     await ctx.storeLlm()
     const { sessionId } = await ctx.handlers.create({ mode: 'text', rawText: '周末' }, ME)
@@ -374,7 +374,7 @@ describe('免费次数', () => {
     expect(used(ctx.repos)).toBe(1)
   })
 
-  it('次数用完时不能新建对话', async () => {
+  it('cannot create a session once free uses run out', async () => {
     const ctx = setup()
     await ctx.repos.accounts.create(account(5))
     const err = await errorOf(ctx.handlers.create({ mode: 'text', rawText: '周末' }, ME))
@@ -382,7 +382,7 @@ describe('免费次数', () => {
     expect(ctx.repos.sessionDocs.size).toBe(0)
   })
 
-  it('新建后次数被用完：生成时报错并记录，不调用大模型', async () => {
+  it('uses run out after creating: generate fails and records it without calling the LLM', async () => {
     const ctx = setup()
     await ctx.storeLlm()
     await ctx.repos.accounts.create(account(4))
@@ -396,7 +396,7 @@ describe('免费次数', () => {
     })
   })
 
-  it('生成失败退回次数，重试成功后只扣一次', async () => {
+  it('refunds a failed generation; a successful retry charges only once', async () => {
     const ctx = setup()
     await ctx.storeLlm()
     const { sessionId } = await ctx.handlers.create({ mode: 'text', rawText: '周末' }, ME)
@@ -409,7 +409,7 @@ describe('免费次数', () => {
     expect(used(ctx.repos)).toBe(1)
   })
 
-  it('任务中断后重试不重复扣', async () => {
+  it('retrying after an interrupted job does not charge again', async () => {
     const ctx = setup()
     await ctx.storeLlm()
     const { sessionId } = await ctx.handlers.create({ mode: 'text', rawText: '周末' }, ME)
@@ -424,7 +424,7 @@ describe('免费次数', () => {
     expect(used(ctx.repos)).toBe(1)
   })
 
-  it('Pro 和管理员不扣次数', async () => {
+  it('does not charge Pro users or admins', async () => {
     const ctx = setup()
     await ctx.storeLlm()
     await ctx.repos.accounts.create(account(5, 1_000_000 + 1000))
@@ -437,7 +437,7 @@ describe('免费次数', () => {
     expect(used(ctx.repos, ADMIN.openid)).toBe(0)
   })
 
-  it('Pro 到期后回到免费次数', async () => {
+  it('falls back to free uses after Pro expires', async () => {
     const ctx = setup()
     await ctx.repos.accounts.create(account(5, 1_000_000 - 1))
     const err = await errorOf(ctx.handlers.create({ mode: 'text', rawText: '周末' }, ME))

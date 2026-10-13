@@ -46,7 +46,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ finish: []; cancel: [] }>()
 
-/** 最后 10 秒提示剩余时间 */
+/** Show the remaining time during the last 10 seconds */
 const WARN_SECONDS = 10
 
 const secondsLeft = computed(() =>
@@ -62,7 +62,7 @@ const hint = computed(() =>
   nearLimit.value ? `还可以说 ${secondsLeft.value} 秒` : '说完点「完成」，我来帮你整理',
 )
 
-// 录音时挡住背后的页面滚动
+// Block scrolling of the page behind while recording
 function noop() {}
 </script>
 
@@ -119,7 +119,7 @@ function noop() {}
   margin-bottom: 18px;
 }
 
-// 录音指示灯，和系统录音的红点一致
+// Recording indicator, matching the system's red recording dot
 .rec__dot {
   width: 8px;
   height: 8px;

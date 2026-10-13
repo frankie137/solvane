@@ -1,31 +1,31 @@
-# 依赖
+# Dependencies
 node_modules/
 
-# 构建产物
+# Build output
 dist/
 cloudfunctions/
 coverage/
 
-# 冒烟测试截图、预览二维码
+# Smoke test screenshots, preview QR code
 .smoke/
 .ci/
 
-# 密钥：代码上传密钥、云函数密钥（绝不提交）
+# Secrets: code upload key, cloud function secrets (never commit)
 .keys/
 *.key
 cloud.env
 
-# 本地环境变量
+# Local environment variables
 .env.local
 .env.*.local
 
-# 开发者工具的个人配置
+# Personal WeChat DevTools settings
 project.private.config.json
 
-# 日志
+# Logs
 *.log
 
-# 系统与编辑器
+# OS and editor
 .DS_Store
 .idea/
 .vscode/*

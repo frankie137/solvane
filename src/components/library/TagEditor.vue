@@ -17,7 +17,7 @@
       <text v-else class="tags__empty">还没有标签，给它加几个方便以后筛选</text>
 
       <view class="tags__input">
-        <!-- 输入时不回写内容，避免打断中文输入法；添加后换新的输入框来清空，并保持键盘 -->
+        <!-- Don't write the value back while typing, which would interrupt Chinese IME input; after adding, swap in a fresh input to clear it while keeping the keyboard up -->
         <input
           :key="inputVersion"
           class="tags__field"
@@ -75,7 +75,7 @@ const props = withDefaults(
   defineProps<{
     show: boolean
     tags: string[]
-    /** 这一栏已有的标签，按使用次数排序 */
+    /** Existing tags in this tab, sorted by usage count */
     known?: TagCount[]
     saving?: boolean
   }>(),
@@ -89,7 +89,7 @@ const input = ref('')
 const inputVersion = ref(0)
 const refocus = ref(false)
 
-// 每次打开都从当前标签开始编辑
+// Each time it opens, start editing from the current tags
 watch(
   () => props.show,
   (show) => {

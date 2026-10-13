@@ -8,12 +8,15 @@ import type {
   TimedText,
 } from '@shared/types'
 
-/** 带时间、知道属于哪一句的词：评过分的来自评测结果，没评分的来自识别结果 */
+/**
+ * A timed word that knows which sentence it belongs to: from the assessment result if scored,
+ * from the transcript otherwise
+ */
 export type SentenceWord = Pick<ScoredWord, 'word' | 'sentenceIndex' | 'startMs' | 'endMs'> & {
   match?: ScoredWord['match']
 }
 
-/** 评测单词往后最多跳过几个原句的词去找对应（中间有漏读或多读时） */
+/** Max source words to skip ahead when matching an assessed word (for skipped or extra words) */
 const LOOKAHEAD = 3
 
 const normalize = (word: string) =>
@@ -23,8 +26,9 @@ const normalize = (word: string) =>
     .replace(/^[^\p{L}\p{N}']+|[^\p{L}\p{N}']+$/gu, '')
 
 /**
- * 把评测得到的单词时间对到原句的词上（字符位置以原句为准），按顺序贪心匹配。
- * 换了说法、漏读的词对不上就跳过，对应的词不点亮。
+ * Maps assessed word timings onto the source sentence's words (character positions follow the
+ * source), matching greedily in order. Paraphrased or skipped words that don't match are passed
+ * over, and the corresponding words don't light up.
  */
 export function mapWordTimings(sentence: string, words: SentenceWord[]): TimedText[] {
   const tokens = tokenizeWords(sentence)
@@ -54,8 +58,9 @@ export function mapWordTimings(sentence: string, words: SentenceWord[]): TimedTe
 }
 
 /**
- * 没评分的录音没有评测的逐词时间：把识别结果的词按句子的时间范围分到各句。
- * 词的中点落在哪一句的范围里就算哪一句；落在句子之间的（停顿里的杂音、多说的话）不要。
+ * Unscored recordings have no per-word assessment timings: assign transcript words to sentences
+ * by their time ranges. A word belongs to the sentence whose range contains its midpoint; words
+ * between sentences (noise in pauses, extra speech) are dropped.
  */
 export function wordsFromTranscript(
   words: SpokenWord[],
@@ -69,7 +74,7 @@ export function wordsFromTranscript(
   })
 }
 
-/** 分享快照里的句子：原文 + 这次背诵的句子时间和逐词时间 */
+/** Sentences in a share snapshot: source text + this recitation's sentence and per-word timings */
 export function buildShareSentences(
   sentences: SentencePair[],
   aligned: AlignedSentence[],

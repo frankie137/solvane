@@ -1,6 +1,9 @@
 import { z } from 'zod'
 
-/** 去掉首尾空白、限制长度；超长时截断而不是报错，避免因为一点点超长就整体重试 */
+/**
+ * Trims whitespace and caps length; overlong text is truncated instead of rejected, so a slight
+ * overrun doesn't force a full retry
+ */
 const text = (max: number) =>
   z
     .string()
@@ -8,7 +11,7 @@ const text = (max: number) =>
     .min(1)
     .transform((s) => s.slice(0, max))
 
-/** 数组超过上限时截断 */
+/** Truncates arrays that exceed the limit */
 const list = <T extends z.ZodType>(item: T, max: number) =>
   z
     .array(item)
@@ -22,7 +25,7 @@ const sentences = z
 
 const alternatives = list(z.object({ label: text(10), en: text(1000) }), 3)
 
-/** 第一次生成 */
+/** First generation */
 export const draftSchema = z.object({
   title: text(20),
   polishedZh: text(1500),
@@ -30,7 +33,7 @@ export const draftSchema = z.object({
   alternatives,
 })
 
-/** 按要求修改 */
+/** Revision on request */
 export const revisionSchema = z.object({
   sentences,
   alternatives,
@@ -45,7 +48,7 @@ export const analysisSchema = z.object({
   chinglish: list(z.object({ literal: field, natural: field, why: field }), 4),
 })
 
-/** 收藏的单词或短语的讲解 */
+/** Explanation of a saved word or phrase */
 export const explainSchema = z.object({
   meaning: text(60),
   usage: text(120),
@@ -55,7 +58,10 @@ export const explainSchema = z.object({
 export type Draft = z.infer<typeof draftSchema>
 export type Revision = z.infer<typeof revisionSchema>
 
-/** 背诵对照：每句对应识别结果里的词序号范围、还原文本、差异和两项分数 */
+/**
+ * Recitation alignment: each sentence's word index range in the transcript, the reconstructed
+ * text, differences, and two scores
+ */
 export const alignSchema = z.object({
   sentences: z
     .array(
@@ -88,7 +94,7 @@ export const alignSchema = z.object({
   expression: z.number().min(0).max(100),
 })
 
-/** 背诵报告：一句话总结、发音建议、背诵建议 */
+/** Recitation report: one-line summary, pronunciation tips, recitation tips */
 export const reportSchema = z.object({
   summary: text(80),
   pronunciationTips: list(z.object({ word: text(40), issue: text(80), howTo: text(120) }), 6),

@@ -29,19 +29,19 @@ export default tseslint.config(
     },
   },
 
-  // 小程序端
+  // Mini program
   {
     files: ['src/**/*.{ts,vue}'],
     languageOptions: {
       globals: { uni: 'readonly', wx: 'readonly', getCurrentPages: 'readonly', getApp: 'readonly' },
     },
     rules: {
-      // 页面文件统一叫 index.vue
+      // Page files are all named index.vue
       'vue/multi-word-component-names': 'off',
     },
   },
 
-  // Node 端：云函数、脚本、配置文件
+  // Node: cloud functions, scripts, config files
   {
     files: ['cloud/**/*.ts', 'scripts/**/*.ts', '*.config.{ts,mts,mjs}'],
     languageOptions: { globals: globals.node },
@@ -49,7 +49,7 @@ export default tseslint.config(
 
   {
     rules: {
-      // 类型检查已经覆盖未定义变量
+      // Type checking already catches undefined variables
       'no-undef': 'off',
       '@typescript-eslint/no-unused-vars': [
         'error',
@@ -61,7 +61,7 @@ export default tseslint.config(
     },
   },
 
-  // 类型声明文件里 import() 类型是惯用写法
+  // import() types are idiomatic in type declaration files
   {
     files: ['**/*.d.ts'],
     rules: { '@typescript-eslint/consistent-type-imports': 'off' },

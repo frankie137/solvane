@@ -1,6 +1,6 @@
-/** 跳转锁：上一次跳转还没完成时忽略新的跳转，防止连点压两层同一个页面 */
+/** Navigation lock: ignore new navigations while the previous one is pending, so double taps don't push the same page twice */
 let navigating = false
-/** 个别情况下 complete 不回调，最多锁这么久 */
+/** complete occasionally never fires, so lock for at most this long */
 const LOCK_MS = 800
 
 export function navigateTo(url: string): void {
@@ -13,7 +13,7 @@ export function navigateTo(url: string): void {
     url,
     complete: () => {
       clearTimeout(timer)
-      // 新页面出现前还有一点动画时间，稍等再解锁
+      // There's a bit of animation before the new page appears; wait a moment before unlocking
       setTimeout(() => {
         navigating = false
       }, 300)

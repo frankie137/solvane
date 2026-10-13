@@ -60,7 +60,7 @@ const props = defineProps<{
   tip: PronunciationTip | null
   canPlayMine: boolean
   loadingStandard: boolean
-  /** 这个词已经收藏过 */
+  /** This word is already saved */
   saved: boolean
   saving: boolean
 }>()
@@ -74,7 +74,7 @@ const emit = defineEmits<{
 
 const tone = computed(() => (props.word ? scoreTone(props.word.accuracy) : 'none'))
 
-/** 精准度低的音素：读成别的音时写"应为 / 实际"，否则只写分数 */
+/** Low-accuracy phonemes: "expected / actual" if misread as another sound, else just the score */
 const phoneIssues = computed(() =>
   (props.word?.phones ?? [])
     .filter((p) => p.accuracy >= 0 && p.accuracy < 70)

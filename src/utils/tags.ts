@@ -1,6 +1,6 @@
 import { LIMITS } from '@shared/constants'
 
-/** 和云端一致：去掉开头的 #、合并空白；不合法时返回原因 */
+/** Same as the cloud: strip a leading # and collapse whitespace; returns the reason when invalid */
 export function normalizeTag(raw: string): { tag: string } | { error: string } {
   const tag = raw.trim().replace(/^#+/, '').replace(/\s+/g, ' ').trim()
   if (!tag) return { error: '标签不能为空' }

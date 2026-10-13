@@ -4,7 +4,7 @@ import { logError } from '@/utils/log'
 
 onLaunch(() => {})
 
-// 没被捕获的异常写进实时日志，便于排查真机上的问题
+// Write uncaught errors to the realtime log to help debug issues on real devices
 onError((err) => logError('app.onError', err))
 onUnhandledRejection((res) => logError('app.unhandledRejection', res.reason))
 </script>

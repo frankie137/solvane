@@ -1,5 +1,5 @@
 {
-  "description": "Solvane 微信开发者工具项目配置：直接打开仓库根目录即可",
+  "description": "Solvane WeChat DevTools project config: just open the repository root",
   "appid": "wx46ecc9293eb0f276",
   "projectname": "solvane",
   "compileType": "miniprogram",

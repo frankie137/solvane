@@ -22,17 +22,17 @@ export async function setCurrentVersion(sessionId: string, vid: string): Promise
 }
 
 export interface JobOptions {
-  /** 判断这次任务想要的结果是否已经出现在对话里 */
+  /** Whether the result this job is after already shows up in the session */
   isDone: (session: Session) => boolean
-  /** 页面关闭后返回 true，停止等待并抛出 CANCELLED */
+  /** Returns true once the page closes, to stop waiting and throw CANCELLED */
   isCancelled?: () => boolean
   poll?: Partial<PollOptions>
 }
 
 /**
- * 运行一个生成任务（generate / revise / analyze）。
- * 云函数可能比小程序端等待得更久：等不到返回时，转为轮询对话状态直到任务结束。
- * 成功返回最新的对话；失败抛出 CloudError，message 可直接展示。
+ * Run a generation job (generate / revise / analyze).
+ * The cloud function may run longer than the client can wait: if no response arrives, poll the session state until the job ends.
+ * Returns the latest session on success; on failure throws a CloudError whose message can be shown as is.
  */
 export async function runSessionJob(
   sessionId: string,
@@ -70,6 +70,6 @@ function finish(session: Session, options: JobOptions, startError: CloudError | 
   if (session.lastError) {
     throw new CloudError(session.lastError.code, session.lastError.message)
   }
-  // 任务没有运行过：多半是请求根本没到云端
+  // The job never ran: most likely the request never reached the cloud
   throw startError ?? new CloudError('INTERNAL', '生成失败，请重试')
 }

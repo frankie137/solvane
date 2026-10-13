@@ -3,7 +3,7 @@
     <view class="profile-form">
       <text v-if="hint" class="profile-form__hint">{{ hint }}</text>
 
-      <!-- 微信的头像选择：原生按钮，去掉默认样式 -->
+      <!-- WeChat avatar picker: native button with default styles removed -->
       <button class="profile-form__avatar" open-type="chooseAvatar" @chooseavatar="onChooseAvatar">
         <image
           v-if="avatarShown"
@@ -22,7 +22,7 @@
 
       <view class="profile-form__field">
         <text class="profile-form__label">昵称</text>
-        <!-- 微信的昵称输入（可一键填入微信昵称）；输入时不回写内容，避免打断中文输入法 -->
+        <!-- WeChat nickname input (can fill in the WeChat nickname with one tap); don't write the value back while typing, which would interrupt Chinese IME input -->
         <input
           :key="inputVersion"
           class="profile-form__input"
@@ -75,7 +75,7 @@ const saving = ref(false)
 
 const avatarShown = computed(() => pickedAvatar.value || profile.value?.avatarUrl || '')
 
-// 每次打开都从当前资料开始编辑
+// Each time it opens, start editing from the current profile
 watch(
   () => props.show,
   (show) => {
@@ -97,7 +97,7 @@ function onNickname(e: { detail: { value?: string } }) {
   if (typeof e.detail.value === 'string') nickname.value = e.detail.value
 }
 
-/** 微信在失焦后异步检查昵称，没通过时会清空输入框（不一定触发 input），这里同步清掉 */
+/** WeChat checks the nickname asynchronously after blur and clears the input if it fails (input doesn't always fire), so clear our copy too */
 function onReview(e: unknown) {
   const detail = (e as { detail?: { pass?: boolean; timeout?: boolean } }).detail
   if (detail?.pass === false && !detail.timeout) {
@@ -141,7 +141,7 @@ async function save() {
   color: var(--sv-text-2);
 }
 
-// 原生按钮自带背景、边框和内边距，全部去掉
+// Native buttons come with background, border and padding; remove them all
 .profile-form__avatar {
   position: relative;
   width: 84px;

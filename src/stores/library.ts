@@ -10,15 +10,15 @@ import {
   type SaveExpressionInput,
 } from '@/services/library'
 
-/** 收藏：文件夹、各文件夹的数量、已收藏表达的合并键；收藏页和各个收藏入口共享 */
+/** Saved items: folders, per-folder counts and merge keys of saved expressions; shared by the saved page and every save entry point */
 export const useLibraryStore = defineStore('library', () => {
   const folders = ref<Folder[]>([])
   const counts = ref<FolderCounts>({ expression: {}, session: {} })
-  /** 合并键 → 表达 id */
+  /** Merge key → expression id */
   const keys = ref<Record<string, string>>({})
   const loaded = ref(false)
   const error = ref('')
-  /** 收藏有变化时加一，列表页据此重新加载 */
+  /** Incremented whenever saved items change; list pages reload on it */
   const revision = ref(0)
 
   let inFlight: Promise<void> | null = null
@@ -44,7 +44,7 @@ export const useLibraryStore = defineStore('library', () => {
     return inFlight
   }
 
-  /** 收藏有变化：通知列表重新加载，并刷新文件夹数量 */
+  /** Saved items changed: tell lists to reload and refresh folder counts */
   function touch() {
     revision.value++
     void refresh()
@@ -56,7 +56,7 @@ export const useLibraryStore = defineStore('library', () => {
     const res = await saveExpression(input)
     keys.value = { ...keys.value, [expressionKey(res.expression.text)]: res.expression.id }
     touch()
-    // 需要大模型补全的在后台进行；失败时卡片上可以重试
+    // Fill-ins that need the LLM run in the background; on failure they can be retried from the card
     if (res.expression.fill === 'pending') void explainExpression(res.expression.id).catch(() => {})
     return res
   }

@@ -19,7 +19,7 @@ function styleRules(settings: UserSettings): string {
   ].join('\n')
 }
 
-/** 用户内容放进三引号里；内容本身的三引号替换掉，避免提前闭合 */
+/** Wrap user content in triple quotes; replace triple quotes inside it so it can't close early */
 function quote(content: string): string {
   return `"""\n${content.replace(/"""/g, '“”“')}\n"""`
 }
@@ -118,7 +118,7 @@ ${quote(version.en)}`
   ]
 }
 
-/** 收藏的单词或短语：按收藏时所在的句子讲解 */
+/** A saved word or phrase: explain it in the context of the sentence it was saved from */
 export function buildExplainMessages(
   text: string,
   sentences: string[],
@@ -150,7 +150,7 @@ ${context}`
   ]
 }
 
-/** 测试连接用的最小请求 */
+/** Minimal request for testing the connection */
 export const PING_MESSAGES: ChatMessage[] = [
   { role: 'system', content: '你是连通性测试助手。' },
   { role: 'user', content: '请只回复 OK 两个字母。' },

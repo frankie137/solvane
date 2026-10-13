@@ -7,11 +7,11 @@ export interface RecordingResult {
   durationMs: number
 }
 
-/** 波形条数量 */
+/** Number of waveform bars */
 export const WAVE_BARS = 28
 /**
- * 界面刷新间隔：音量帧每秒约 16 帧，界面只按这个频率更新，避免频繁 setData。
- * 波形条的过渡时长 --sv-dur-tick（tokens.scss）要和它一致。
+ * UI refresh interval: volume frames arrive about 16 times a second; the UI updates only at this rate to avoid frequent setData.
+ * The waveform bar transition duration --sv-dur-tick (tokens.scss) must match it.
  */
 const UI_TICK_MS = 80
 
@@ -20,11 +20,11 @@ interface RecorderListener {
   onFrame(frame: ArrayBuffer): void
   onStop(res: { tempFilePath: string; duration: number }): void
   onError(errMsg: string): void
-  /** 来电等系统打断、切到后台导致录音暂停 */
+  /** Recording paused by a system interruption such as an incoming call, or by going to the background */
   onInterrupt(): void
 }
 
-// 录音管理器是全局唯一的，事件只注册一次，再转发给当前的录音会话
+// The recorder manager is a global singleton: register events once and forward them to the current recording
 let manager: WechatMiniprogram.RecorderManager | null = null
 let listener: RecorderListener | null = null
 
@@ -43,7 +43,7 @@ function getManager(): WechatMiniprogram.RecorderManager {
       listener = null
       current?.onError(res.errMsg)
     })
-    // 来电等系统打断、切到后台：录音会暂停而计时还在走，这次录音直接取消
+    // System interruption (e.g. incoming call) or going to the background: recording pauses while the timer keeps running, so cancel this recording
     manager.onInterruptionBegin(() => listener?.onInterrupt())
     manager.onPause(() => listener?.onInterrupt())
   }
@@ -77,8 +77,8 @@ function guideToSettings() {
 }
 
 /**
- * 点按开始、点「完成」或「取消」结束的录音逻辑：权限、实时音量、时长、取消、过短判断。
- * 录音格式为 16kHz 单声道 PCM，便于计算音量，也符合语音识别的要求。
+ * Recording logic for tap to start, then tap "Done" or "Cancel" to finish: permission, live volume, duration, cancel and too-short checks.
+ * Records 16kHz mono PCM, which makes volume easy to compute and meets speech recognition (ASR) requirements.
  */
 export function useRecorder(
   onFinish: (result: RecordingResult) => void,
@@ -93,7 +93,7 @@ export function useRecorder(
   let startedAt = 0
   let ticker: ReturnType<typeof setInterval> | null = null
   let starting = false
-  /** 录音还没真正开始就点了完成或取消：开始后立即停止并丢弃 */
+  /** Done or Cancel was tapped before recording actually started: stop and discard as soon as it starts */
   let stopRequested = false
   let cancelled = false
 
@@ -118,7 +118,7 @@ export function useRecorder(
     if (permission !== 'granted') {
       starting = false
       if (permission === 'denied') guideToSettings()
-      // 刚弹窗授权完，等对方准备好再开始，不直接开录
+      // Permission was just granted in the dialog; wait until the user is ready instead of recording right away
       else uni.showToast({ title: '已开启麦克风，请再点一次开始说话', icon: 'none' })
       return
     }
@@ -157,7 +157,7 @@ export function useRecorder(
         onFinish({ tempFilePath: res.tempFilePath, durationMs })
       },
       onInterrupt() {
-        // 还没真正开始：交给开始后的处理直接停掉并丢弃，不提示
+        // Not actually started yet: the on-start handler stops and discards it, without a notice
         if (!recording.value) {
           stopRequested = true
           return
@@ -181,14 +181,14 @@ export function useRecorder(
         frameSize: 2,
       })
     } catch {
-      // 同步抛错时 onStart / onError 都不会触发，这里自己复位，否则按钮会一直无响应
+      // A synchronous throw fires neither onStart nor onError, so reset here or the button stays unresponsive
       listener = null
       reset()
       uni.showToast({ title: '录音启动失败，可以改用打字输入', icon: 'none' })
     }
   }
 
-  /** 结束录音：cancel 为 true 表示取消，录音直接丢弃 */
+  /** Finish recording: cancel = true cancels it and discards the recording */
   function stop(cancel: boolean) {
     cancelled = cancel
     if (recording.value) {

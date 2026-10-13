@@ -52,13 +52,13 @@ function setup() {
   }
 }
 
-describe('设置', () => {
-  it('没有设置时返回默认值', async () => {
+describe('settings', () => {
+  it('returns defaults when nothing is set', async () => {
     const { handlers } = setup()
     await expect(handlers.getSettings({}, ME)).resolves.toEqual(DEFAULT_SETTINGS)
   })
 
-  it('部分更新，其余保持', async () => {
+  it('updates partially and keeps the rest', async () => {
     const { handlers } = setup()
     await handlers.updateSettings({ level: 'ielts' }, ME)
     await expect(handlers.updateSettings({ accent: 'uk' }, ME)).resolves.toEqual({
@@ -68,7 +68,7 @@ describe('设置', () => {
     })
   })
 
-  it('保存示范朗读的音色和语速', async () => {
+  it('saves the demo reading voice and speed', async () => {
     const { handlers } = setup()
     await expect(
       handlers.updateSettings({ ttsVoice: 'male', ttsSpeed: 'slow' }, ME),
@@ -78,7 +78,7 @@ describe('设置', () => {
     })
   })
 
-  it('拒绝非法取值', async () => {
+  it('rejects invalid values', async () => {
     const { handlers } = setup()
     await expect(
       handlers.updateSettings({ level: 'expert' } as unknown as { level: 'cet4' }, ME),
@@ -86,8 +86,8 @@ describe('设置', () => {
   })
 })
 
-describe('对话读取', () => {
-  it('最近对话按更新时间倒序，只含自己的', async () => {
+describe('reading sessions', () => {
+  it("lists recent sessions newest first, only the caller's own", async () => {
     const { handlers, repos } = setup()
     await repos.sessions.create(sessionDoc({ title: '旧', updatedAt: 1 }))
     await repos.sessions.create(sessionDoc({ title: '新', updatedAt: 3 }))
@@ -96,7 +96,7 @@ describe('对话读取', () => {
     expect(items.map((i) => i.title)).toEqual(['新', '旧'])
   })
 
-  it('摘要的状态和预览', async () => {
+  it('summary state and preview', async () => {
     const { handlers, repos } = setup()
     await repos.sessions.create(
       sessionDoc({ updatedAt: 4, versions: [version('v1', 'Hello there.')], currentVid: 'v1' }),
@@ -118,13 +118,13 @@ describe('对话读取', () => {
     expect(items[3]!.title).toBe('原文内容')
   })
 
-  it('读取别人的对话返回 NOT_FOUND', async () => {
+  it("returns NOT_FOUND for someone else's session", async () => {
     const { handlers, repos } = setup()
     const id = await repos.sessions.create(sessionDoc({ _openid: 'o_other' }))
     await expect(handlers.getSession({ sessionId: id }, ME)).rejects.toThrow('不存在')
   })
 
-  it('切换版本不改变更新时间', async () => {
+  it('switching versions does not change updatedAt', async () => {
     const { handlers, repos } = setup()
     const id = await repos.sessions.create(
       sessionDoc({

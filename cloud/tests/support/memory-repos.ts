@@ -12,7 +12,7 @@ import {
   type SettingsDoc,
 } from '../../src/lib/repos'
 
-/** 和云数据库实现语义一致的内存版本，供 handler 测试使用 */
+/** In-memory version with the same semantics as the CloudBase database one, for handler tests */
 export function createMemoryRepos(): Repos & {
   accountDocs: Map<string, AccountDoc>
   sessionDocs: Map<string, SessionDoc>
@@ -31,7 +31,7 @@ export function createMemoryRepos(): Repos & {
   const shareDocs = new Map<string, ShareDoc>()
   let seq = 0
 
-  /** 和云数据库一样不返回示范朗读缓存 */
+  /** Like the CloudBase database, does not return the demo reading cache */
   const withoutTts = (doc: SessionDoc): SessionDoc => {
     const { tts: _tts, ...rest } = clone(doc)
     return rest as SessionDoc

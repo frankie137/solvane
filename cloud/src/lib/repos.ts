@@ -19,7 +19,7 @@ import type {
   Version,
 } from '@shared/types'
 
-/** 数据库里的对话文档 */
+/** Session document in the database */
 export interface SessionDoc {
   _id: string
   _openid: string
@@ -30,38 +30,44 @@ export interface SessionDoc {
   currentVid: string | null
   job: Job | null
   lastError: JobError | null
-  /** 收藏：收藏时间（没收藏为 null，旧数据没有这个字段）、文件夹、标签 */
+  /** Saving: when it was saved (null if not saved; missing in older data), folder, tags */
   starredAt?: number | null
   folderId: string | null
   tags: string[]
-  /** 示范朗读缓存（只在服务端使用，不发给前端）：版本号 → 音色语速 → 每句 */
+  /**
+   * Demo reading cache (server only, never sent to the frontend):
+   * version ID → voice and speed → per sentence
+   */
   tts?: Record<string, TtsCache>
-  /** 生成第一版时占用了一次免费次数（生成失败时退回并清掉）；M6 之前的对话没有这个字段 */
+  /**
+   * Generating the first version consumed a free use (refunded and cleared if generation fails);
+   * sessions from before M6 lack this field
+   */
   freeCharged?: boolean
   createdAt: number
   updatedAt: number
 }
 
-/** 数据库里的练习记录 */
+/** Practice record in the database */
 export interface PracticeDoc {
   _id: string
   _openid: string
   sessionId: string
   vid: string
   stage: PracticeStage
-  /** 要不要评分；M6 之前的练习没有这个字段，都是评过分的 */
+  /** Whether to score; practices from before M6 lack this field and were all scored */
   scoreRequested?: boolean
-  /** 分享时要歌词时间：只做到对照这一步 */
+  /** Lyric timings needed for sharing: process only up to alignment */
   timingRequested?: boolean
-  /** 这次评分占用了一次免费次数（评分失败时退回并清掉） */
+  /** This scoring consumed a free use (refunded and cleared if scoring fails) */
   freeCharged?: boolean
-  /** 提交时上传的原始录音；重新提交同一个文件时据此认出已建好的记录 */
+  /** Original recording uploaded on submit; used to find the existing record on resubmission */
   sourceFileID?: string
   job: PracticeJob | null
   lastError: PracticeError | null
-  /** 原始 PCM 录音，转成 WAV 后删除（M6 起提交时就转） */
+  /** Raw PCM recording, deleted after conversion to WAV (converted on submit since M6) */
   pcmFileID: string | null
-  /** 转换后的 WAV，用于回放和评测 */
+  /** Converted WAV, used for playback and assessment */
   wavFileID: string | null
   durationMs: number
   transcript: Practice['transcript']
@@ -86,7 +92,7 @@ export interface ExpressionDoc {
   _id: string
   _openid: string
   text: string
-  /** 合并键，见 shared/expression.ts 的 expressionKey */
+  /** Merge key; see expressionKey in shared/expression.ts */
   key: string
   kind: ExpressionKind
   meaning: string
@@ -94,7 +100,7 @@ export interface ExpressionDoc {
   example: string
   note: string
   fill: ExpressionFill
-  /** 补全任务的开始时间，用作锁；没有任务时为 null */
+  /** Start time of the fill job, used as a lock; null when no job is running */
   fillStartedAt: number | null
   folderId: string | null
   tags: string[]
@@ -117,7 +123,7 @@ export type PracticePatch = Partial<
 
 export type SessionPatch = Partial<Omit<SessionDoc, '_id' | '_openid' | 'createdAt'>>
 
-/** 加密后保存的大模型配置 */
+/** LLM config, stored encrypted */
 export interface LlmStored {
   preset: LlmPresetId
   baseUrl: string
@@ -127,7 +133,7 @@ export interface LlmStored {
   updatedAt: number
 }
 
-/** _id 为用户 openid；管理员的全局默认配置 _id 为 GLOBAL_SETTINGS_ID */
+/** _id is the user's openid; the admin's global default config has _id GLOBAL_SETTINGS_ID */
 export interface SettingsDoc {
   _id: string
   level?: EnglishLevel
@@ -135,7 +141,7 @@ export interface SettingsDoc {
   ttsVoice?: TtsVoice
   ttsSpeed?: TtsSpeed
   llm?: LlmStored | null
-  /** 分享时的署名 */
+  /** Byline shown when sharing */
   profile?: ProfileStored | null
   updatedAt: number
 }
@@ -145,31 +151,31 @@ export interface ProfileStored {
   avatarFileID: string | null
 }
 
-/** 分享快照：内容在分享时定下来，之后对话、练习怎么变都不影响 */
+/** Share snapshot: fixed at share time, unaffected by later changes to the session or practice */
 export interface ShareDoc {
   _id: string
   _openid: string
   sessionId: string
   practiceId: string
   title: string
-  /** 第一句英文，列表里显示（列表不取 sentences） */
+  /** First English sentence, shown in lists (lists don't fetch sentences) */
   preview: string
   sentences: ShareSentence[]
-  /** 录音副本，撤回时删除 */
+  /** Copy of the recording, deleted when the share is revoked */
   audioFileID: string
   durationMs: number
   author: ProfileStored
   createdAt: number
 }
 
-/** 会员档案：_id 为用户 openid，第一次用到时建档 */
+/** Membership record: _id is the user's openid; created on first use */
 export interface AccountDoc {
   _id: string
-  /** 已用的免费次数（新建对话和评分合计） */
+  /** Free uses consumed (new sessions and scoring combined) */
   freeUsed: number
-  /** 最近一次开通的到期时间；从没开通过为 null */
+  /** Expiry of the latest grant; null if never granted */
   proUntil: number | null
-  /** 管理员的开通、结束记录 */
+  /** Admin grant and revoke history */
   grants: ProGrant[]
   createdAt: number
   updatedAt: number
@@ -177,20 +183,20 @@ export interface AccountDoc {
 
 export interface ProGrant {
   action: 'grant' | 'revoke'
-  /** 操作后的到期时间 */
+  /** Expiry after the change */
   until: number
-  /** 操作的管理员 */
+  /** Admin who made the change */
   by: string
   at: number
 }
 
-/** 一句示范朗读的缓存：云存储文件 + 逐词时间 */
+/** Cached demo reading for one sentence: cloud storage file + per-word timings */
 export interface TtsCachedSentence {
   fileID: string
   words: TimedText[]
 }
 
-/** 版本上的示范朗读缓存，键为「音色-语速」 */
+/** Demo reading cache on a version, keyed by "voice-speed" */
 export type TtsCache = Record<string, TtsCachedSentence[]>
 
 export const GLOBAL_SETTINGS_ID = '__global__'
@@ -198,24 +204,27 @@ export const GLOBAL_SETTINGS_ID = '__global__'
 export interface SessionRepo {
   create(doc: Omit<SessionDoc, '_id'>): Promise<string>
   get(id: string, openid: string): Promise<SessionDoc | null>
-  /** 没有任务、或已有任务早于 staleBefore 开始（视为中断）时加锁成功 */
+  /** Locks if there's no job or it started before staleBefore (treated as interrupted) */
   acquireJob(id: string, openid: string, job: Job, staleBefore: number): Promise<boolean>
-  /** 只有锁仍属于 startedAt 这次任务时才写入；返回是否写入成功 */
+  /** Writes only if the lock still belongs to the startedAt job; returns whether it wrote */
   updateIfJob(id: string, openid: string, startedAt: number, patch: SessionPatch): Promise<boolean>
   update(id: string, openid: string, patch: SessionPatch): Promise<boolean>
   listRecent(openid: string, limit: number): Promise<SessionDoc[]>
-  /** 按更新时间倒序分页；有关键词时在标题、原文、润色中文和所有版本的英文里查找 */
+  /**
+   * Paginated by update time, newest first; with a keyword, searches the title, original text,
+   * polished Chinese, and the English of every version
+   */
   listPage(
     openid: string,
     options: { offset: number; limit: number; keyword?: string },
   ): Promise<SessionDoc[]>
-  /** 已收藏的对话 */
+  /** Saved sessions */
   listStarred(openid: string): Promise<SessionDoc[]>
-  /** 已收藏对话的收藏字段（计数、标签用，不取内容） */
+  /** Save fields of saved sessions (for counts and tags; content not fetched) */
   listStarredMeta(openid: string): Promise<SessionMeta[]>
-  /** 这些对话的标题（溯源显示用，不取内容） */
+  /** Titles of these sessions (for showing sources; content not fetched) */
   listTitles(openid: string, ids: string[]): Promise<SessionTitle[]>
-  /** 把这些文件夹里的已收藏对话一起改掉（删除文件夹时用） */
+  /** Updates all saved sessions in these folders (used when deleting folders) */
   updateInFolders(openid: string, folderIds: string[], patch: SessionPatch): Promise<void>
 }
 
@@ -230,17 +239,17 @@ export interface ExpressionRepo {
   create(doc: Omit<ExpressionDoc, '_id'>): Promise<string>
   get(id: string, openid: string): Promise<ExpressionDoc | null>
   findByKey(openid: string, key: string): Promise<ExpressionDoc | null>
-  /** 全部表达，按最近收藏时间倒序（收藏量不大，筛选在函数里做） */
+  /** All expressions, latest saved first (saves are few, so filtering happens in the function) */
   listAll(openid: string): Promise<ExpressionDoc[]>
-  /** 全部表达的合并键、文件夹和标签（计数、标签、已收藏标记用） */
+  /** Merge keys, folders and tags of all expressions (for counts, tags and saved markers) */
   listMeta(openid: string): Promise<ExpressionMeta[]>
   update(id: string, openid: string, patch: ExpressionPatch): Promise<boolean>
   remove(id: string, openid: string): Promise<void>
   updateInFolders(openid: string, folderIds: string[], patch: ExpressionPatch): Promise<void>
   removeInFolders(openid: string, folderIds: string[]): Promise<void>
-  /** 补全锁：还没就绪、且没有任务或任务早于 staleBefore 开始时加锁成功 */
+  /** Fill lock: locks if not ready yet and there's no job or it started before staleBefore */
   acquireFill(id: string, openid: string, startedAt: number, staleBefore: number): Promise<boolean>
-  /** 只有锁仍属于 startedAt 这次任务时才写入 */
+  /** Writes only if the lock still belongs to the startedAt job */
   updateIfFill(
     id: string,
     openid: string,
@@ -251,11 +260,11 @@ export interface ExpressionRepo {
 
 export interface SettingsRepo {
   get(id: string): Promise<SettingsDoc | null>
-  /** 合并更新；文档不存在时创建 */
+  /** Merge update; creates the document if missing */
   upsert(id: string, patch: Partial<Omit<SettingsDoc, '_id'>>): Promise<void>
-  /** 这些用户的署名资料（会员管理页用） */
+  /** Byline profiles of these users (for the membership admin page) */
   listProfiles(ids: string[]): Promise<Pick<SettingsDoc, '_id' | 'profile'>[]>
-  /** 清掉成员自己存的大模型配置（M6 起只用全局配置）；可以重复执行 */
+  /** Clears members' own LLM configs (only the global one is used since M6); safe to rerun */
   clearMemberLlm(): Promise<void>
 }
 
@@ -263,21 +272,27 @@ export interface PracticeRepo {
   create(doc: Omit<PracticeDoc, '_id'>): Promise<string>
   get(id: string, openid: string): Promise<PracticeDoc | null>
   update(id: string, openid: string, patch: PracticePatch): Promise<boolean>
-  /** 由这个上传文件建的练习（重新提交时去重） */
+  /** Practice created from this uploaded file (deduplicates resubmissions) */
   findBySource(openid: string, fileID: string): Promise<PracticeDoc | null>
-  /** 还没要求评分时标记为要评分；返回是否标记成功（同一条录音并发请求时只有一个成功） */
+  /**
+   * Marks for scoring if not requested yet; returns whether it did (of concurrent requests for the
+   * same recording, only one succeeds)
+   */
   requestScore(id: string, openid: string, freeCharged: boolean): Promise<boolean>
   acquireJob(id: string, openid: string, job: PracticeJob, staleBefore: number): Promise<boolean>
   updateIfJob(id: string, openid: string, startedAt: number, patch: PracticePatch): Promise<boolean>
-  /** 某个对话的练习，按创建时间倒序 */
+  /** Practices of a session, newest first */
   listBySession(openid: string, sessionId: string, limit: number): Promise<PracticeDoc[]>
   remove(id: string, openid: string): Promise<void>
 }
 
 export interface ShareRepo {
-  /** 用指定 id 新建；id 已存在时不覆盖，返回 false（同一次练习并发分享时只留一个） */
+  /**
+   * Creates with the given id; if the id exists, doesn't overwrite and returns false (concurrent
+   * shares of the same practice keep only one)
+   */
   create(id: string, doc: Omit<ShareDoc, '_id'>): Promise<boolean>
-  /** 任何人凭 id 都能读，调用方只能返回快照字段 */
+  /** Anyone with the id can read it; callers may only return snapshot fields */
   get(id: string): Promise<ShareDoc | null>
   findByPractice(openid: string, practiceId: string): Promise<ShareDoc | null>
   listByOwner(openid: string, limit: number): Promise<ShareDoc[]>
@@ -286,15 +301,18 @@ export interface ShareRepo {
 
 export interface AccountRepo {
   get(id: string): Promise<AccountDoc | null>
-  /** 新建档案；已存在时不覆盖（并发建档时只留一个） */
+  /** Creates the record; doesn't overwrite an existing one (concurrent creation keeps only one) */
   create(doc: AccountDoc): Promise<void>
-  /** 已用次数小于 limit 时加 1；返回是否占用成功 */
+  /** Increments the used count if below limit; returns whether a use was consumed */
   consume(id: string, limit: number, now: number): Promise<boolean>
-  /** 退回一次（已用次数大于 0 时减 1） */
+  /** Refunds one use (decrements if the used count is above 0) */
   refund(id: string, now: number): Promise<void>
-  /** 到期时间仍是 expected 时改成 grant.until 并追加记录；返回是否写入（并发操作时只有一个成功） */
+  /**
+   * If the expiry is still `expected`, sets it to grant.until and appends the grant; returns
+   * whether it wrote (of concurrent changes, only one succeeds)
+   */
   setProUntil(id: string, expected: number | null, grant: ProGrant): Promise<boolean>
-  /** 所有档案，按建档时间先后 */
+  /** All records, in creation order */
   list(limit: number): Promise<AccountDoc[]>
 }
 
@@ -309,7 +327,8 @@ export interface Repos {
 }
 
 // ---------------------------------------------------------------------------
-// 云数据库实现。只声明用到的接口，返回值统一按 Promise 处理。
+// CloudBase database implementation. Declares only the APIs in use; all return values are
+// treated as Promises.
 
 interface WxUpdateResult {
   stats: { updated: number }
@@ -366,9 +385,9 @@ const EXPRESSIONS = 'expressions'
 const SHARES = 'shares'
 const ACCOUNTS = 'accounts'
 
-/** 云函数端一次最多取 100 条，更多的分页取 */
+/** Cloud functions fetch at most 100 records per query; more are paginated */
 const PAGE = 100
-/** 示范朗读缓存只在服务端用，读列表时不取 */
+/** The demo reading cache is server-only and is left out when reading lists */
 const WITHOUT_TTS = { tts: false }
 
 async function fetchAll(query: () => WxQuery, cap: number): Promise<unknown[]> {
@@ -384,7 +403,7 @@ async function fetchAll(query: () => WxQuery, cap: number): Promise<unknown[]> {
   return out
 }
 
-/** 关键词按字面查找：正则里的特殊字符转义 */
+/** Keywords match literally: escape regex special characters */
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
@@ -404,7 +423,7 @@ function isDuplicateKey(err: unknown): boolean {
   return e?.errCode === -502001 || /duplicate/i.test(`${e?.errMsg ?? ''}${e?.message ?? ''}`)
 }
 
-/** 首次使用时集合可能还不存在：自动创建后重试一次 */
+/** The collection may not exist on first use: create it and retry once */
 async function withCollection<T>(db: WxDatabase, name: string, run: () => Promise<T>): Promise<T> {
   try {
     return await run()
@@ -416,8 +435,8 @@ async function withCollection<T>(db: WxDatabase, name: string, run: () => Promis
 }
 
 /**
- * 云数据库的 update 会对嵌套对象做局部合并，这里把对象和数组值包成 _.set()，
- * 保证字段被整体替换，和内存实现的语义一致。
+ * CloudBase database update partially merges nested objects, so object and array values are
+ * wrapped in _.set() to replace the field as a whole, matching the in-memory implementation.
  */
 function toUpdateData(_: WxCommand, patch: object): object {
   const data: Record<string, unknown> = {}
@@ -571,7 +590,7 @@ export function createWxRepos(db: WxDatabase): Repos {
           .update({ data: toUpdateData(_, patch) })
         if (res.stats.updated === 0) {
           const existing = await settings().where({ _id: id }).limit(1).get()
-          // 内容没变时 updated 也是 0，只有文档确实不存在才新建
+          // updated is also 0 when nothing changed: create only if the document is really missing
           if (existing.data.length === 0) {
             await settings()
               .doc(id)

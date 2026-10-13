@@ -31,9 +31,9 @@ const props = withDefaults(
     block?: boolean
     loading?: boolean
     disabled?: boolean
-    /** 原生开放能力，如 share、chooseAvatar */
+    /** Native open-type capability, e.g. share, chooseAvatar */
     openType?: ButtonOpenType
-    /** 点击时轻微震动 */
+    /** Light haptic feedback on tap */
     haptic?: boolean
   }>(),
   {
@@ -96,7 +96,7 @@ function onTap() {
 }
 
 .sv-btn--sm {
-  // 原生 button 的 ::after 已被全局样式隐藏，点击区用 ::before
+  // The native button's ::after is hidden by global styles, so the hit area uses ::before
   height: 34px;
   padding: 0 16px;
   font-size: 15px;
@@ -131,8 +131,8 @@ function onTap() {
   color: var(--sv-accent);
 }
 
-// 微信内置样式 button[disabled]:not([type]) 会把文字改灰、背景改成 #f7f7f7，
-// 优先级是 (0,2,1)，这里用三个类选择器 (0,3,0) 盖回去
+// WeChat's built-in button[disabled]:not([type]) style greys the text and sets the background to #f7f7f7,
+// with specificity (0,2,1); two classes plus an attribute selector (0,3,0) override it here
 .sv-btn.sv-btn--primary[disabled] {
   color: var(--sv-text-on-accent);
   background-color: transparent;

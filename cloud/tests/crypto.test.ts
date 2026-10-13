@@ -5,7 +5,7 @@ import { AppError } from '../src/lib/errors'
 const SECRET = 'a-very-long-test-secret-value'
 
 describe('encryptSecret / decryptSecret', () => {
-  it('加密后能还原，且每次密文不同', () => {
+  it('round-trips, producing different ciphertext each time', () => {
     const a = encryptSecret('sk-123456789', SECRET)
     const b = encryptSecret('sk-123456789', SECRET)
     expect(a).not.toBe(b)
@@ -13,12 +13,12 @@ describe('encryptSecret / decryptSecret', () => {
     expect(decryptSecret(a, SECRET)).toBe('sk-123456789')
   })
 
-  it('加密密钥不对时报错，不返回乱码', () => {
+  it('throws with the wrong encryption secret instead of returning garbage', () => {
     const token = encryptSecret('sk-123456789', SECRET)
     expect(() => decryptSecret(token, 'another-secret-value-xx')).toThrow(AppError)
   })
 
-  it('密文被篡改时报错', () => {
+  it('throws when the ciphertext is tampered with', () => {
     const [v, iv, tag, body] = encryptSecret('sk-123456789', SECRET).split(':')
     const flipped = Buffer.from(body!, 'base64')
     flipped[0] = flipped[0]! ^ 0xff
@@ -26,16 +26,16 @@ describe('encryptSecret / decryptSecret', () => {
     expect(() => decryptSecret(tampered, SECRET)).toThrow(AppError)
   })
 
-  it('格式不对时报错', () => {
+  it('throws on a malformed token', () => {
     expect(() => decryptSecret('plain-text', SECRET)).toThrow(AppError)
   })
 })
 
 describe('maskSecret', () => {
-  it('保留前 3 位和后 4 位', () => {
+  it('keeps the first 3 and last 4 characters', () => {
     expect(maskSecret('sk-abcdefghijklmn')).toBe('sk-****klmn')
   })
-  it('太短的 Key 全部打码', () => {
+  it('fully masks keys that are too short', () => {
     expect(maskSecret('short')).toBe('****')
   })
 })

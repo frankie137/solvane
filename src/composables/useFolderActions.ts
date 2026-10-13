@@ -7,8 +7,8 @@ import { chooseAction, confirmAction, promptText, toast } from '@/utils/dialog'
 import { childrenOf, subtreeOf } from '@/utils/folders'
 
 /**
- * 文件夹的整理操作：新建、重命名、移动、删除、排序。
- * 页面里放一个带 moving-folder-id 的 folder-picker，绑定 mover 的状态。
+ * Folder actions: create, rename, move, delete, reorder.
+ * The page places a folder-picker with moving-folder-id, bound to the mover state.
  */
 export function useFolderActions(options: { onDeleted?: (folder: Folder) => void } = {}) {
   const store = useLibraryStore()
@@ -78,7 +78,7 @@ export function useFolderActions(options: { onDeleted?: (folder: Folder) => void
     }
   }
 
-  /** 长按或编辑模式里点「…」 */
+  /** Long press, or tap "…" in edit mode */
   async function more(folder: Folder) {
     const index = await chooseAction(['重命名', '移动到…', '删除'])
     if (index === 0) await rename(folder)
@@ -86,7 +86,7 @@ export function useFolderActions(options: { onDeleted?: (folder: Folder) => void
     else if (index === 2) await remove(folder)
   }
 
-  /** 同一层里上移或下移一位 */
+  /** Move up or down one position within the same level */
   async function reorder(parentId: string | null, folderId: string, step: -1 | 1) {
     const siblings = childrenOf(store.folders, parentId)
     const i = siblings.findIndex((f) => f.id === folderId)
@@ -94,7 +94,7 @@ export function useFolderActions(options: { onDeleted?: (folder: Folder) => void
     if (i < 0 || j < 0 || j >= siblings.length) return
     const ids = siblings.map((f) => f.id)
     ;[ids[i], ids[j]] = [ids[j]!, ids[i]!]
-    // 先在本地换好顺序，界面立即响应
+    // Reorder locally first so the UI responds immediately
     store.folders = store.folders.map((f) => {
       const order = ids.indexOf(f.id)
       return f.parentId === parentId && order >= 0 ? { ...f, order } : f

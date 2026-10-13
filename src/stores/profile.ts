@@ -5,11 +5,11 @@ import { getProfile, saveProfile } from '@/services/share'
 
 const PROFILE_TTL_MS = 90 * 60_000
 
-/** 分享时的署名（头像、昵称）；「我的」页和分享入口共享 */
+/** Byline for shares (avatar, nickname); shared by the Me tab and share entry points */
 export const useProfileStore = defineStore('profile', () => {
   const profile = ref<Profile | null>(null)
   const loaded = ref(false)
-  /** 头像是临时链接（2 小时过期），记下取到的时间，快过期时重新取 */
+  /** The avatar is a temporary URL (expires in 2 hours); record when it was fetched and refetch before it expires */
   let loadedAt = 0
 
   async function load(): Promise<Profile | null> {
@@ -19,7 +19,7 @@ export const useProfileStore = defineStore('profile', () => {
     return profile.value
   }
 
-  /** 超过 90 分钟就重新取，换新的头像链接；失败时保留原来的 */
+  /** Refetch after 90 minutes to renew the avatar URL; keep the old one on failure */
   async function refreshIfStale(): Promise<void> {
     if (!loaded.value || Date.now() - loadedAt < PROFILE_TTL_MS) return
     await load().catch(() => {})

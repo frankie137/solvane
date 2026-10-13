@@ -18,7 +18,7 @@ export function toSession(doc: SessionDoc): Session {
   }
 }
 
-/** 旧数据没有 starredAt；没收藏时文件夹和标签一律视为空 */
+/** Older data has no starredAt; when not saved, folder and tags are always treated as empty */
 export function favoriteFields(doc: Pick<SessionDoc, 'starredAt' | 'folderId' | 'tags'>): {
   starredAt: number | null
   folderId: string | null
@@ -32,7 +32,7 @@ export function favoriteFields(doc: Pick<SessionDoc, 'starredAt' | 'folderId' | 
   }
 }
 
-/** 还没生成标题时用原文开头 */
+/** Falls back to the start of the original text until a title is generated */
 export function sessionTitle(doc: Pick<SessionDoc, 'title' | 'input'>): string {
   return doc.title || doc.input.rawText.slice(0, 12)
 }
@@ -53,7 +53,7 @@ export function toSummary(doc: SessionDoc): SessionSummary {
 function summaryState(doc: SessionDoc): SessionSummary['state'] {
   if (doc.job) return 'running'
   if (doc.versions.length > 0) return 'ready'
-  // 还没有任何版本：生成失败过，或者新建后还没开始生成
+  // No versions yet: generation failed, or it hasn't started since the session was created
   return doc.lastError ? 'failed' : 'pending'
 }
 
@@ -67,7 +67,7 @@ export async function requireSession(
   return doc
 }
 
-/** 版本号按顺序递增：v1、v2…… */
+/** Version IDs increase in order: v1, v2, ... */
 export function makeVersion(
   existing: Version[],
   sentences: SentencePair[],

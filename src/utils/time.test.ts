@@ -17,7 +17,7 @@ describe('formatRelative', () => {
 })
 
 describe('formatDate', () => {
-  it('今年的省略年份，其他年份带上', () => {
+  it('omits the year for this year and includes it otherwise', () => {
     expect(formatDate(new Date(2026, 10, 10, 8, 0).getTime(), NOW)).toBe('11月10日')
     expect(formatDate(new Date(2027, 0, 3).getTime(), NOW)).toBe('2027年1月3日')
   })

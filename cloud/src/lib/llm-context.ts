@@ -11,8 +11,8 @@ export interface LlmContext {
 }
 
 /**
- * 生成任务需要的上下文：自己的学习偏好 + 管理员统一设置的大模型。
- * 成员不能填自己的配置（M6 起），没配置时按身份给出不同的提示。
+ * Context for generation jobs: the user's own learning preferences + the LLM set up by the admin.
+ * Members can't set their own config (since M6); when it's missing, the message depends on role.
  */
 export function createLlmContextLoader(
   settings: SettingsRepo,

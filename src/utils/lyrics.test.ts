@@ -4,7 +4,7 @@ import { centerScrollTop, currentLine, formatClock, wrapText } from './lyrics'
 describe('currentLine', () => {
   const lines = [{ startMs: 500 }, { startMs: -1 }, { startMs: 2000 }, { startMs: 4000 }]
 
-  it('开始前没有当前句，之后取最后一句已开始的', () => {
+  it('has no current line before the start, then picks the last line that has started', () => {
     expect(currentLine(lines, 0)).toBe(-1)
     expect(currentLine(lines, 500)).toBe(0)
     expect(currentLine(lines, 1999)).toBe(0)
@@ -12,13 +12,13 @@ describe('currentLine', () => {
     expect(currentLine(lines, 9999)).toBe(3)
   })
 
-  it('没背出来的句子不会成为当前句', () => {
+  it('never makes an unrecited sentence the current line', () => {
     expect(currentLine([{ startMs: -1 }, { startMs: -1 }], 1000)).toBe(-1)
   })
 })
 
 describe('centerScrollTop', () => {
-  it('让这一行居中，不小于 0', () => {
+  it('centers the line and never goes below 0', () => {
     expect(centerScrollTop(800, 60, 600)).toBe(530)
     expect(centerScrollTop(100, 60, 600)).toBe(0)
   })
@@ -36,10 +36,10 @@ describe('formatClock', () => {
 })
 
 describe('wrapText', () => {
-  // 每个字符宽 10
+  // Every character is 10 wide
   const measure = (s: string) => s.length * 10
 
-  it('英文按单词折行', () => {
+  it('wraps English at word boundaries', () => {
     expect(wrapText("I'm at work right now.", 100, 3, measure)).toEqual([
       "I'm at",
       'work right',
@@ -47,11 +47,11 @@ describe('wrapText', () => {
     ])
   })
 
-  it('中文按字折行', () => {
+  it('wraps Chinese at any character', () => {
     expect(wrapText('周六还在上班真辛苦', 40, 3, measure)).toEqual(['周六还在', '上班真辛', '苦'])
   })
 
-  it('超过行数时最后一行加省略号', () => {
+  it('adds an ellipsis to the last line when there are too many lines', () => {
     const lines = wrapText('one two three four five six', 90, 2, measure)
     expect(lines).toHaveLength(2)
     expect(lines[1]!.endsWith('…')).toBe(true)

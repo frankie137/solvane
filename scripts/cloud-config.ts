@@ -1,14 +1,14 @@
 /**
- * 把 .keys/cloud.env 里的密钥写入各云函数的环境变量，并设置超时：pnpm cloud:config
+ * Write the secrets in .keys/cloud.env into each cloud function's environment variables and set timeouts: pnpm cloud:config
  *
- * 安全约束：
- * - 密钥文件在 .keys/（不提交），权限必须是仅本人可读写（600），否则拒绝运行
- * - 每个函数只下发 cloud/src/function-config.ts 里声明的变量
- * - 不打印任何值；写入后读回核对，只报告"已核对"
+ * Security constraints:
+ * - The secrets file lives in .keys/ (not committed) and must be readable and writable by the owner only (600), or the script refuses to run
+ * - Each function receives only the variables declared in cloud/src/function-config.ts
+ * - Never prints any value; reads back after writing to verify, and only reports "verified"
  *
- * 通过 miniprogram-ci 鉴权（代码上传密钥 + IP 白名单），调用的是腾讯云 SCF 的
- * UpdateFunctionConfiguration。miniprogram-ci 没有公开这个能力，这里用的是它的内部模块，
- * 升级 miniprogram-ci 后需要重新验证。
+ * Authenticates through miniprogram-ci (code upload key + IP whitelist) and calls Tencent Cloud SCF's
+ * UpdateFunctionConfiguration. miniprogram-ci doesn't expose this publicly, so this uses its internal modules;
+ * re-verify after upgrading miniprogram-ci.
  */
 import { randomBytes } from 'node:crypto'
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
@@ -23,7 +23,7 @@ const secretsFile = resolve(root, process.env.CLOUD_SECRETS_FILE ?? '.keys/cloud
 const templateFile = join(root, 'cloud.env.example')
 
 // ---------------------------------------------------------------------------
-// miniprogram-ci 的内部模块（没有类型声明，只声明用到的部分）
+// Internal modules of miniprogram-ci (no type declarations; only the parts used here are declared)
 
 interface TransactOptions {
   request: unknown
@@ -59,12 +59,14 @@ function fail(message: string): never {
 
 function loadSecrets(): Map<string, string> {
   if (!existsSync(secretsFile)) {
-    // 直接以 600 权限新建（复制文件会沿用模板的 644）
+    // Create it directly with mode 600 (copying the file would keep the template's 644)
     writeFileSync(secretsFile, readFileSync(templateFile), { mode: 0o600, flag: 'wx' })
-    fail(`已创建 ${secretsFile}（权限 600）。请填写里面的配置后再运行 pnpm cloud:config`)
+    fail(
+      `Created ${secretsFile} (mode 600). Fill in the settings, then run pnpm cloud:config again`,
+    )
   }
   if (!isPrivateMode(statSync(secretsFile).mode)) {
-    fail(`${secretsFile} 的权限过宽，请先运行：chmod 600 "${secretsFile}"`)
+    fail(`${secretsFile} has overly broad permissions; first run: chmod 600 "${secretsFile}"`)
   }
 
   let text = readFileSync(secretsFile, 'utf8')
@@ -74,7 +76,9 @@ function loadSecrets(): Map<string, string> {
     text = setEnvValue(text, 'KEY_ENCRYPTION_SECRET', generated)
     writeFileSync(secretsFile, text, { mode: 0o600 })
     values.set('KEY_ENCRYPTION_SECRET', generated)
-    console.info('• KEY_ENCRYPTION_SECRET 为空，已自动生成并写回文件。之后不要修改或删除它。')
+    console.info(
+      '• KEY_ENCRYPTION_SECRET was empty, so one was generated and written back to the file. Do not change or delete it afterwards.',
+    )
   }
   return values
 }
@@ -83,7 +87,7 @@ function readEnvId(): string {
   const envFile = join(root, '.env.local')
   if (existsSync(envFile)) process.loadEnvFile(envFile)
   const id = process.env.VITE_CLOUD_ENV
-  if (!id) fail('缺少云开发环境 ID：请在 .env.local 里填写 VITE_CLOUD_ENV')
+  if (!id) fail('Missing CloudBase environment ID: set VITE_CLOUD_ENV in .env.local')
   return id
 }
 
@@ -92,11 +96,11 @@ function createProject(): ci.Project {
     appid: string
   }
   const keyPath = resolve(root, process.env.WX_PRIVATE_KEY_PATH ?? `.keys/private.${appid}.key`)
-  if (!existsSync(keyPath)) fail(`找不到代码上传密钥：${keyPath}`)
+  if (!existsSync(keyPath)) fail(`Code upload key not found: ${keyPath}`)
   return new ci.Project({ appid, type: 'miniProgram', projectPath: root, privateKeyPath: keyPath })
 }
 
-/** 兼容接口返回的大小写两种字段名 */
+/** Accept both capitalized and lowercase field names returned by the API */
 function pick(obj: FunctionInfo | undefined, key: string): unknown {
   if (!obj) return undefined
   return obj[key] ?? obj[key.charAt(0).toLowerCase() + key.slice(1)]
@@ -114,7 +118,8 @@ async function waitUntilActive(get: () => Promise<FunctionInfo>): Promise<Functi
     const info = await get()
     const status = pick(info, 'Status')
     if (status === undefined || status === 'Active') return info
-    if (Date.now() > deadline) fail(`函数状态一直是 ${String(status)}，请稍后重试`)
+    if (Date.now() > deadline)
+      fail(`Function status is stuck at ${String(status)}; try again later`)
     await new Promise((r) => setTimeout(r, 2_000))
   }
 }
@@ -123,7 +128,7 @@ async function main(): Promise<void> {
   const values = loadSecrets()
   const problems = validateSecrets(values)
   if (problems.length > 0) {
-    fail(`${secretsFile} 有问题：\n${problems.map((p) => `  - ${p}`).join('\n')}`)
+    fail(`${secretsFile} has problems:\n${problems.map((p) => `  - ${p}`).join('\n')}`)
   }
 
   const envId = readEnvId()
@@ -138,12 +143,14 @@ async function main(): Promise<void> {
   try {
     const { envList } = await cloudAPI.tcbGetEnvironments({}, opts)
     const env = envList.find((e) => e.envId === envId)
-    if (!env) fail(`代码上传密钥所属的小程序下没有环境 ${envId}`)
+    if (!env) fail(`The mini program that owns the code upload key has no environment ${envId}`)
     region = env.functions[0]?.region ?? ''
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     if (/invalid ip/i.test(message)) {
-      fail(`当前 IP 不在代码上传的白名单里，请到公众平台添加。\n  原始信息：${message}`)
+      fail(
+        `The current IP is not in the code upload whitelist; add it in the WeChat MP console.\n  Original message: ${message}`,
+      )
     }
     throw err
   }
@@ -158,22 +165,22 @@ async function main(): Promise<void> {
     await cloudAPI.scfUpdateFunctionInfo({ ...target, timeout, environment: { variables } }, opts)
     const info = await waitUntilActive(getInfo)
 
-    // 读回核对：超时一致，变量和本地完全一致（不多不少），不打印值
+    // Read back to verify: timeout matches and variables match the local ones exactly (none missing, none extra); values are not printed
     const remote = readVariables(info)
     const timeoutOk = Number(pick(info, 'Timeout')) === timeout
     const varsOk =
       remote.size === variables.length && variables.every((v) => remote.get(v.key) === v.value)
     if (!timeoutOk || !varsOk) {
       fail(
-        `${name}：写入后核对不一致（超时${timeoutOk ? '正确' : '不对'}，变量${varsOk ? '正确' : '不对'}）`,
+        `${name}: mismatch after writing (timeout ${timeoutOk ? 'ok' : 'wrong'}, variables ${varsOk ? 'ok' : 'wrong'})`,
       )
     }
-    const varsText = env.length > 0 ? env.join('、') : '无'
-    console.info(`✓ ${name}：超时 ${timeout} 秒；环境变量 ${varsText}（已核对）`)
+    const varsText = env.length > 0 ? env.join(', ') : 'none'
+    console.info(`✓ ${name}: timeout ${timeout}s; env vars ${varsText} (verified)`)
   }
 }
 
-// miniprogram-ci 会留着网络连接，任务结束后主动退出
+// miniprogram-ci keeps network connections open, so exit explicitly when done
 main().then(
   () => process.exit(0),
   (err: unknown) => {

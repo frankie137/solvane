@@ -38,10 +38,10 @@ export interface ComposeDeps {
   adminOpenids: () => string[]
 }
 
-/** 云函数超时设为 60 秒，留 5 秒给读写数据库 */
+/** The cloud function timeout is 60 s; leave 5 s for database reads and writes */
 const JOB_BUDGET_MS = 55_000
 const MAX_VERSIONS = 20
-/** 讲解只参考最近收藏的两句 */
+/** Explanations only use the two most recently saved sentences as context */
 const EXPLAIN_CONTEXT_SENTENCES = 2
 
 const presetSchema = z.enum(['deepseek', 'qwen', 'moonshot', 'zhipu', 'doubao', 'custom'])
@@ -79,8 +79,10 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
   const loadJobContext = createLlmContextLoader(settings, deps.encryptionSecret, accounts.isAdmin)
 
   /**
-   * M6 起成员不能用自己的配置：管理员打开配置时顺带清掉成员以前存的（含加密的 Key）。
-   * 每个函数实例只做一次；清理失败不影响读取配置，下次再试。
+   * Since M6, members can't use their own config: when an admin opens the config, also clear what
+   * members saved earlier (including encrypted keys).
+   * Done once per function instance; a failed cleanup doesn't block reading the config and is
+   * retried next time.
    */
   let memberLlmCleared = false
   async function clearMemberLlmOnce() {
@@ -97,7 +99,7 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
     return { config: toView((await settings.get(GLOBAL_SETTINGS_ID))?.llm) }
   }
 
-  /** 校验输入并得到可用的目标；没填 Key 时沿用已保存的 Key */
+  /** Validate the input and build a usable target; if no key is given, reuse the saved one */
   async function targetFromInput(
     input: LlmConfigInput,
   ): Promise<{ target: LlmTarget; stored: LlmStored }> {
@@ -112,7 +114,7 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
     } else {
       const saved = (await settings.get(GLOBAL_SETTINGS_ID))?.llm
       if (!saved) throw new AppError('BAD_REQUEST', '请填写 API Key')
-      // 换了服务商地址就不能沿用旧 Key，否则会把一家的 Key 发给另一家
+      // Don't reuse the old key for another provider host, or one provider's key goes to another
       if (new URL(saved.baseUrl).host !== new URL(baseUrl).host) {
         throw new AppError('BAD_REQUEST', '更换了服务商地址，请重新填写 API Key')
       }
@@ -134,9 +136,11 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
   }
 
   /**
-   * 运行一个生成任务：加锁 → 执行 → 写入结果并解锁。
-   * 已有任务在运行时不重复执行，直接返回当前对话，由前端轮询结果。
-   * charge：生成第一版时占用一次免费次数并记在对话上（之前中断的任务已占用过就不再占）；失败时退回。
+   * Run a generation job: lock -> run -> write the result and unlock.
+   * If a job is already running, don't run it again; return the current session and let the
+   * frontend poll for the result.
+   * charge: generating the first version uses one free use and records it on the session (not again
+   * if an interrupted earlier job already did); refunded on failure.
    */
   async function runJob(
     ctx: RequestContext,
@@ -158,7 +162,7 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
     })
     if (!acquired) return current()
 
-    /** 对话上记着已占用一次免费次数（这次占的，或之前中断的任务占的） */
+    /** Whether the session has a free use charged (by this run or an earlier interrupted job) */
     let charged = false
     try {
       const fresh = await requireSession(sessions, sessionId, ctx.openid)
@@ -172,7 +176,7 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
           } finally {
             if (!charged) await accounts.refund(ctx.openid)
           }
-          // 锁已被接管：交给接管的任务
+          // The lock was taken over: leave it to the job that took over
           if (!charged) return current()
         }
       }
@@ -181,7 +185,8 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
         ...patch,
         job: null,
         lastError: null,
-        // 只有生成和修改算内容更新；补解析不改变"最近对话"的顺序
+        // Only generate and revise count as content updates; filling in an analysis doesn't change
+        // the "recent sessions" order
         ...(kind === 'analyze' ? {} : { updatedAt: deps.now() }),
       })
     } catch (err) {
@@ -195,7 +200,7 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
         lastError: { kind, vid, code: appErr.code, message: appErr.message, at: deps.now() },
         ...(charged ? { freeCharged: false } : {}),
       })
-      // 失败不扣次数；锁已被接管时由接管的任务决定
+      // A failure doesn't use up a free use; if the lock was taken over, the new job decides
       if (charged && written) {
         await accounts.refund(ctx.openid).catch((e: unknown) => {
           console.error('[compose.refund]', e instanceof Error ? e.message : String(e))
@@ -203,7 +208,8 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
       }
       throw appErr
     }
-    // 锁若已被接管（任务超时后别人重新发起），结果不会写入；这里都以数据库为准
+    // If the lock was taken over (someone restarted after the job timed out), the result isn't
+    // written; either way, defer to the database
     return current()
   }
 
@@ -217,7 +223,8 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
       if (rawText.length > LIMITS.rawTextMax) {
         throw new AppError('BAD_REQUEST', `内容太长了，请控制在 ${LIMITS.rawTextMax} 字以内`)
       }
-      // 次数用完时不建空对话；真正占用次数在生成第一版时
+      // Don't create an empty session once free uses run out; the use is actually charged when the
+      // first version is generated
       await accounts.assertAvailable(ctx.openid)
       const now = deps.now()
       const sessionId = await sessions.create({
@@ -352,7 +359,7 @@ export function createComposeHandlers(deps: ComposeDeps): Handlers<'compose'> {
         startedAt,
         startedAt - JOB_STALE_MS,
       )
-      // 已有补全在运行：返回当前状态，由前端轮询
+      // A fill is already running: return the current state and let the frontend poll
       if (!acquired) return { expression: toExpression(doc) }
 
       try {

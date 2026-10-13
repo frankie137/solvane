@@ -5,7 +5,7 @@ export async function getProfile(): Promise<Profile | null> {
   return (await callCloud('data', 'getProfile', {})).profile
 }
 
-/** 保存署名；avatarPath 是刚选的头像（本地临时文件），先上传到 avatars/ */
+/** Save the byline; avatarPath is the newly chosen avatar (a local temp file), uploaded to avatars/ first */
 export async function saveProfile(nickname: string, avatarPath?: string): Promise<Profile> {
   let avatarFileID: string | undefined
   if (avatarPath) {

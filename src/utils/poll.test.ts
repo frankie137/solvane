@@ -12,7 +12,7 @@ function fakeClock() {
 }
 
 describe('pollUntil', () => {
-  it('满足条件时返回', async () => {
+  it('returns once the condition is met', async () => {
     const clock = fakeClock()
     const load = vi.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(2).mockResolvedValueOnce(3)
     const res = await pollUntil(load, (v) => v === 3, {
@@ -24,7 +24,7 @@ describe('pollUntil', () => {
     expect(load).toHaveBeenCalledTimes(3)
   })
 
-  it('单次失败不中断', async () => {
+  it('keeps polling after a single failure', async () => {
     const clock = fakeClock()
     const load = vi.fn().mockRejectedValueOnce(new Error('net')).mockResolvedValueOnce('ok')
     const res = await pollUntil(load, (v) => v === 'ok', {
@@ -35,7 +35,7 @@ describe('pollUntil', () => {
     expect(res.value).toBe('ok')
   })
 
-  it('超时返回最后一次的值', async () => {
+  it('returns the last value on timeout', async () => {
     const clock = fakeClock()
     const load = vi.fn().mockResolvedValue('still running')
     const res = await pollUntil(load, () => false, {
@@ -47,7 +47,7 @@ describe('pollUntil', () => {
     expect(load).toHaveBeenCalledTimes(3)
   })
 
-  it('取消后立即停止，不再请求', async () => {
+  it('stops right away on cancel without further requests', async () => {
     const clock = fakeClock()
     let stop = false
     const load = vi.fn(async () => {

@@ -4,11 +4,11 @@ import type { LlmConfigView, UserSettings } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/constants'
 import { callCloud } from '@/services/cloud'
 
-/** 学习偏好与大模型配置，"我的"页和设置页共享 */
+/** Learning preferences and LLM config, shared by the Me tab and the settings page */
 export const useSettingsStore = defineStore('settings', () => {
   const settings = ref<UserSettings>({ ...DEFAULT_SETTINGS })
   const loaded = ref(false)
-  /** 全局大模型配置：只有管理员能取；undefined 表示还没取到 */
+  /** Global LLM config: only admins can fetch it; undefined means not fetched yet */
   const llm = ref<LlmConfigView | null | undefined>(undefined)
 
   async function load() {
@@ -16,7 +16,7 @@ export const useSettingsStore = defineStore('settings', () => {
     loaded.value = true
   }
 
-  /** 管理员的「我的」页显示配置状态；失败时保持"—" */
+  /** The Me tab shows the config status to admins; stays "—" on failure */
   async function loadLlm() {
     llm.value = (await callCloud('compose', 'getLlmConfig', {})).config
   }

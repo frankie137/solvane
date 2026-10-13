@@ -19,7 +19,7 @@ const words: SpokenWord[] = [
 ]
 
 describe('mapSentenceTimings', () => {
-  it('按词序号换算时间，缺少的句子补成没背出来', () => {
+  it('converts word indexes to timings and fills missing sentences as not recited', () => {
     const r = mapSentenceTimings(
       [
         { index: 0, intended: "I'm going hiking.", wordRange: [0, 2] },
@@ -35,7 +35,7 @@ describe('mapSentenceTimings', () => {
     ])
   })
 
-  it('句首前紧挨的标点算作这一句的开始', () => {
+  it('counts punctuation right before a sentence as its start', () => {
     const withDot: SpokenWord[] = [
       { word: 'out', startMs: 2440, endMs: 2740 },
       { word: '.', startMs: 3140, endMs: 3515 },
@@ -54,17 +54,17 @@ describe('mapSentenceTimings', () => {
   })
 
   it.each([
-    ['越界', [3, 9] as [number, number]],
-    ['颠倒', [2, 1] as [number, number]],
-    ['负数', [-1, 1] as [number, number]],
-  ])('范围%s时视为没有对应', (_name, range) => {
+    ['out of bounds', [3, 9] as [number, number]],
+    ['reversed', [2, 1] as [number, number]],
+    ['negative', [-1, 1] as [number, number]],
+  ])('treats a range that is %s as unmatched', (_name, range) => {
     const [s] = mapSentenceTimings([{ index: 0, intended: 'x', wordRange: range }], words, 1)
     expect(s).toEqual({ index: 0, intended: '', startMs: 0, endMs: 0 })
   })
 })
 
 describe('planSegments', () => {
-  it('跳过没背出来的句子，往停顿里延伸但不越过相邻句子', () => {
+  it('skips unrecited sentences and extends into pauses without crossing neighboring sentences', () => {
     const segs = planSegments(
       [
         { index: 0, intended: "I'm going hiking.", startMs: 100, endMs: 1000 },
@@ -79,7 +79,7 @@ describe('planSegments', () => {
     ])
   })
 
-  it('停顿很长时只延伸固定余量，最后一句延伸到录音结束为止', () => {
+  it('extends only a fixed margin into long pauses, and the last sentence up to the end of the recording', () => {
     const segs = planSegments(
       [
         { index: 0, intended: 'Hi there.', startMs: 1000, endMs: 2000 },
@@ -93,7 +93,7 @@ describe('planSegments', () => {
     ])
   })
 
-  it('超过 30 个词改用段落模式', () => {
+  it('switches to paragraph mode above 30 words', () => {
     const long = Array.from({ length: 31 }, () => 'word').join(' ')
     const [seg] = planSegments([{ index: 0, intended: long, startMs: 0, endMs: 9000 }], 9000)
     expect(seg!.mode).toBe('paragraph')
@@ -116,7 +116,7 @@ const result = (accuracy: number, fluency: number, n: number): SoeResult => ({
 })
 
 describe('toScoredWords / mergeResults', () => {
-  it('按原句恢复单词的大小写，对不上的保持原样', () => {
+  it('restores word casing from the source sentence and leaves unmatched words as is', () => {
     const seg = {
       sentenceIndex: 0,
       refText: "Ah, I'm at work — today's Saturday.",
@@ -139,7 +139,7 @@ describe('toScoredWords / mergeResults', () => {
     ])
   })
 
-  it('句子模式的时间加上切片起点', () => {
+  it('offsets sentence-mode timings by the segment start', () => {
     const seg = {
       sentenceIndex: 1,
       refText: 'x',
@@ -151,7 +151,7 @@ describe('toScoredWords / mergeResults', () => {
     expect(w).toMatchObject({ sentenceIndex: 1, startMs: 1000, endMs: 1080 })
   })
 
-  it('段落模式按词数平均分配时间', () => {
+  it('splits time evenly by word count in paragraph mode', () => {
     const seg = {
       sentenceIndex: 0,
       refText: 'x',
@@ -168,7 +168,7 @@ describe('toScoredWords / mergeResults', () => {
     ])
   })
 
-  it('按词数加权汇总', () => {
+  it('aggregates weighted by word count', () => {
     const seg = { sentenceIndex: 0, refText: 'x', mode: 'sentence' as const, startMs: 0, endMs: 1 }
     const merged = mergeResults([
       { segment: seg, result: result(90, 1, 3) },
@@ -179,7 +179,7 @@ describe('toScoredWords / mergeResults', () => {
     expect(merged.words).toHaveLength(4)
   })
 
-  it('没有任何片段时全部为 0', () => {
+  it('returns all zeros when there are no segments', () => {
     expect(mergeResults([])).toEqual({
       accuracy: 0,
       fluency: 0,
@@ -191,7 +191,7 @@ describe('toScoredWords / mergeResults', () => {
 })
 
 describe('computeScores', () => {
-  it('四项加权得到总分', () => {
+  it('weights the four scores into the overall score', () => {
     const scores = computeScores(
       { sentences: [], diffs: [], content: 80, expression: 90 },
       { accuracy: 70, fluency: 0.9, completeness: 1, words: [], unscored: [] },
@@ -206,7 +206,7 @@ describe('computeScores', () => {
     })
   })
 
-  it('超出范围的值被限制在 0～100', () => {
+  it('clamps out-of-range values to 0-100', () => {
     const scores = computeScores(
       { sentences: [], diffs: [], content: 120, expression: -5 },
       { accuracy: 101, fluency: 1.2, completeness: 1, words: [], unscored: [] },
@@ -226,7 +226,7 @@ describe('pickWeakWords', () => {
     phones: [],
   })
 
-  it('取精准度最低的，排除没说出来和无法评测的', () => {
+  it('picks the lowest-accuracy words, excluding missing and unassessable ones', () => {
     const weak = pickWeakWords(
       [w('a', 90), w('b', 40), w('c', 60), w('d', -1), w('e', 10, 'missing')],
       2,

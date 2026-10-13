@@ -98,8 +98,8 @@ async function errorOf(p: Promise<unknown>): Promise<AppError> {
   return err as AppError
 }
 
-describe('文件夹', () => {
-  it('最多三级，同一层不能重名，名字的问题说清楚', async () => {
+describe('folders', () => {
+  it('allows at most three levels and unique names per level, with clear name errors', async () => {
     const { data } = setup()
     const { folder: a } = await data.createFolder({ name: '日常', parentId: null }, ME)
     const { folder: b } = await data.createFolder({ name: '吃饭', parentId: a.id }, ME)
@@ -114,11 +114,11 @@ describe('文件夹', () => {
     expect((await errorOf(data.createFolder({ name: '   ', parentId: null }, ME))).message).toBe(
       '文件夹名不能为空',
     )
-    // 不同层可以同名
+    // The same name is fine on different levels
     await expect(data.createFolder({ name: '日常', parentId: a.id }, ME)).resolves.toBeTruthy()
   })
 
-  it('移动时整棵子树一起改深度，不能超过三级、不能移进自己下面', async () => {
+  it('moving updates the depth of the whole subtree; cannot exceed three levels or move under itself', async () => {
     const { data } = setup()
     const { folder: a } = await data.createFolder({ name: 'A', parentId: null }, ME)
     const { folder: b } = await data.createFolder({ name: 'B', parentId: a.id }, ME)
@@ -128,7 +128,7 @@ describe('文件夹', () => {
     expect(
       (await errorOf(data.moveFolder({ folderId: a.id, parentId: b.id }, ME))).message,
     ).toContain('它自己或它下面')
-    // A(含 B) 移到 D 下面会变成 3、4 级
+    // Moving A (with B) under D would make them levels 3 and 4
     expect(
       (await errorOf(data.moveFolder({ folderId: a.id, parentId: d.id }, ME))).message,
     ).toContain('超过 3 级')
@@ -139,7 +139,7 @@ describe('文件夹', () => {
     expect(byName.B).toMatchObject({ parentId: a.id, depth: 3 })
   })
 
-  it('排序必须给出同一层的全部文件夹', async () => {
+  it('reordering must list every folder on the level', async () => {
     const { data } = setup()
     const ids: string[] = []
     for (const name of ['一', '二', '三']) {
@@ -153,7 +153,7 @@ describe('文件夹', () => {
     expect(folders.map((f) => f.name)).toEqual(['三', '一', '二'])
   })
 
-  it('删除时内容移到上一级：子文件夹上移一级，收藏移到上一级', async () => {
+  it('deleting moves contents up: subfolders move up one level, saved items go to the parent', async () => {
     const { data, addSession } = setup()
     const { folder: a } = await data.createFolder({ name: 'A', parentId: null }, ME)
     const { folder: b } = await data.createFolder({ name: 'B', parentId: a.id }, ME)
@@ -168,7 +168,7 @@ describe('文件夹', () => {
     expect(counts.session).toEqual({ [a.id]: 1 })
   })
 
-  it('内容移到上一级时遇到同名文件夹，改名避免重名', async () => {
+  it('renames folders moved up that clash with an existing name', async () => {
     const { data } = setup()
     const { folder: a } = await data.createFolder({ name: 'A', parentId: null }, ME)
     await data.createFolder({ name: '工作', parentId: a.id }, ME)
@@ -184,7 +184,7 @@ describe('文件夹', () => {
     ).toEqual(['工作', '工作 2'])
   })
 
-  it('一起删除：表达卡片删掉，对话只取消收藏', async () => {
+  it('delete everything: expression cards are deleted, sessions are only unsaved', async () => {
     const { data, repos, addSession } = setup()
     const { folder: a } = await data.createFolder({ name: 'A', parentId: null }, ME)
     const { folder: b } = await data.createFolder({ name: 'B', parentId: a.id }, ME)
@@ -208,7 +208,7 @@ describe('文件夹', () => {
     expect(session.versions).toHaveLength(1)
   })
 
-  it('不能操作别人的文件夹', async () => {
+  it("cannot act on someone else's folders", async () => {
     const { data } = setup()
     const { folder } = await data.createFolder({ name: 'A', parentId: null }, ME)
     await expect(data.renameFolder({ folderId: folder.id, name: 'B' }, OTHER)).rejects.toThrow(
@@ -220,8 +220,8 @@ describe('文件夹', () => {
   })
 })
 
-describe('收藏对话', () => {
-  it('收藏不改更新时间；取消收藏清掉文件夹和标签', async () => {
+describe('saving sessions', () => {
+  it('saving does not change updatedAt; unsaving clears folder and tags', async () => {
     const { data, repos, addSession } = setup()
     const sid = await addSession({ updatedAt: 7 })
     const starred = await data.starSession({ sessionId: sid, star: true }, ME)
@@ -233,7 +233,7 @@ describe('收藏对话', () => {
     expect(repos.sessionDocs.get(sid)).toMatchObject({ starredAt: null, folderId: null, tags: [] })
   })
 
-  it('移动或打标签时一并收藏；标签有数量和长度限制', async () => {
+  it('moving or tagging also saves; tags are limited in count and length', async () => {
     const { data, repos, addSession } = setup()
     const sid = await addSession()
     await data.organize({ tab: 'session', id: sid, tags: ['旅行'] }, ME)
@@ -250,7 +250,7 @@ describe('收藏对话', () => {
     ).rejects.toThrow('文件夹不存在')
   })
 
-  it('旧数据没有收藏字段时视为没收藏', async () => {
+  it('treats old data without saved fields as not saved', async () => {
     const { data, addSession } = setup()
     const sid = await addSession({ folderId: 'stale', tags: ['x'] })
     const { session } = await data.getSession({ sessionId: sid }, ME)
@@ -258,7 +258,7 @@ describe('收藏对话', () => {
   })
 })
 
-describe('收藏表达', () => {
+describe('saving expressions', () => {
   async function withSession() {
     const ctx = setup()
     const sid = await ctx.addSession({
@@ -272,7 +272,7 @@ describe('收藏表达', () => {
     return { ...ctx, sid }
   }
 
-  it('解析里带释义的直接就绪，并在版本里找到所在句子', async () => {
+  it('is ready right away when saved from the analysis with a meaning, and finds the sentence in the version', async () => {
     const { data, sid } = await withSession()
     const { expression, created } = await data.saveExpression(
       {
@@ -294,7 +294,7 @@ describe('收藏表达', () => {
     })
   })
 
-  it('同一个表达合并成一张卡片，来源累加，同一句不重复记', async () => {
+  it('merges the same expression into one card, accumulating sources without repeating a sentence', async () => {
     const { data, repos, sid, tick } = await withSession()
     const save = (text: string, vid: string, sentenceIndex: number) =>
       data.saveExpression(
@@ -314,7 +314,7 @@ describe('收藏表达', () => {
     expect(repos.expressionDocs.size).toBe(1)
   })
 
-  it('先从句子收藏、后从解析收藏时用上解析的释义', async () => {
+  it('takes the analysis meaning when saved from a sentence first and from the analysis later', async () => {
     const { data, sid } = await withSession()
     await data.saveExpression(
       {
@@ -336,7 +336,7 @@ describe('收藏表达', () => {
     expect(expression).toMatchObject({ fill: 'ready', meaning: '补上' })
   })
 
-  it('校验对话和版本归属', async () => {
+  it('checks session and version ownership', async () => {
     const { data, sid } = await withSession()
     const source = { sessionId: sid, vid: 'v1', sentenceIndex: 0, from: 'sentence' as const }
     await expect(data.saveExpression({ text: 'x', kind: 'word', source }, OTHER)).rejects.toThrow(
@@ -350,7 +350,7 @@ describe('收藏表达', () => {
     )
   })
 
-  it('卡片详情带来源对话的标题，最近的在前；别人看不到', async () => {
+  it('card details include source session titles, newest first; hidden from others', async () => {
     const { data, sid, tick } = await withSession()
     const { expression } = await data.saveExpression(
       {
@@ -379,7 +379,7 @@ describe('收藏表达', () => {
     )
   })
 
-  it('备注、删除和已收藏的合并键', async () => {
+  it('note, delete, and merge keys of saved expressions', async () => {
     const { data, sid } = await withSession()
     const { expression } = await data.saveExpression(
       {
@@ -399,8 +399,8 @@ describe('收藏表达', () => {
   })
 })
 
-describe('收藏列表', () => {
-  it('按文件夹、标签、关键词筛选；文件夹被删掉的算未归类', async () => {
+describe('saved list', () => {
+  it('filters by folder, tag and keyword; items whose folder was deleted count as unfiled', async () => {
     const { data, repos, addSession } = setup()
     const { folder } = await data.createFolder({ name: '工作', parentId: null }, ME)
     const sid = await addSession({
@@ -436,7 +436,7 @@ describe('收藏列表', () => {
     })
   })
 
-  it('对话栏只列已收藏的，可按英文搜索', async () => {
+  it('the sessions tab lists only saved sessions and searches English text', async () => {
     const { data, addSession } = setup()
     const a = await addSession({ title: '爬山', versions: [version('v1', ['Hit the trails.'])] })
     await addSession({ title: '没收藏' })
@@ -448,8 +448,8 @@ describe('收藏列表', () => {
   })
 })
 
-describe('溯源：也出现在', () => {
-  it('在其他对话里认词形变化地查找，排除来源句，同一对话的重复句只列一次', async () => {
+describe('source tracing: "Also appears in"', () => {
+  it('matches inflected forms in other sessions, skips source sentences, lists repeats in a session once', async () => {
     const { data, addSession, tick } = setup()
     const src = await addSession({
       title: '来源',
@@ -487,8 +487,8 @@ describe('溯源：也出现在', () => {
   })
 })
 
-describe('历史', () => {
-  it('按更新时间倒序分页，关键词查找中英文', async () => {
+describe('history', () => {
+  it('pages by updatedAt, newest first; keyword search covers Chinese and English', async () => {
     const { data, addSession } = setup()
     for (let i = 0; i < 25; i++) {
       await addSession({
@@ -529,7 +529,7 @@ describe('compose.explainExpression', () => {
     return { ...ctx, expressionId: expression.id }
   }
 
-  it('按原句补全释义，之后不再调用大模型', async () => {
+  it('fills in the meaning from the source sentence and does not call the LLM again', async () => {
     const { compose, fake, expressionId } = await pending()
     const { expression } = await compose.explainExpression({ expressionId }, ME)
     expect(expression).toMatchObject({ fill: 'ready', ...EXPLAIN })
@@ -539,7 +539,7 @@ describe('compose.explainExpression', () => {
     expect(fake.calls).toHaveLength(1)
   })
 
-  it('失败时记为失败、解锁，可以重试', async () => {
+  it('on failure, marks it failed and unlocks so it can be retried', async () => {
     const { compose, fake, repos, expressionId } = await pending()
     fake.fail(new AppError('UPSTREAM_ERROR', '大模型服务暂时不可用'))
     await expect(compose.explainExpression({ expressionId }, ME)).rejects.toThrow('暂时不可用')
@@ -552,7 +552,7 @@ describe('compose.explainExpression', () => {
     expect(expression.fill).toBe('ready')
   })
 
-  it('已有补全在运行时不重复调用；超时的任务可以接管', async () => {
+  it('does not call again while a fill is running; a timed-out job can be taken over', async () => {
     const { compose, fake, repos, expressionId, tick } = await pending()
     repos.expressionDocs.get(expressionId)!.fillStartedAt = 1_000_000
     const { expression } = await compose.explainExpression({ expressionId }, ME)
@@ -564,7 +564,7 @@ describe('compose.explainExpression', () => {
     })
   })
 
-  it('没配大模型时报未配置', async () => {
+  it('reports not configured when no LLM is set up', async () => {
     const ctx = setup()
     const sid = await ctx.addSession({ versions: [version('v1', ['Hi.'])] })
     const { expression } = await ctx.data.saveExpression(

@@ -16,7 +16,7 @@
       </sv-state>
     </view>
 
-    <!-- 加载中：和歌词同样排布的几行占位 -->
+    <!-- Loading: placeholder rows laid out like the lyrics -->
     <view v-else-if="!share" class="stage__skeleton">
       <view class="ghost is-title" />
       <view class="ghost is-author" />
@@ -64,7 +64,8 @@
           :class="{ 'is-current': i === current, 'is-silent': s.startMs < 0 }"
           @tap="jumpTo(i)"
         >
-          <!-- 每句都按词渲染：当前句切换时排版不变，量好的行位置一直有效 -->
+          <!-- Render every sentence word by word, so the layout doesn't change when the current
+               sentence switches and measured line positions stay valid -->
           <view class="line__en sv-en">
             <text
               v-for="(t, j) in tokensOf(i)"
@@ -133,7 +134,7 @@
       </view>
     </view>
 
-    <!-- 生成分享封面用，放在屏幕外 -->
+    <!-- For drawing the share cover; kept off screen -->
     <canvas id="cover" type="2d" class="cover-canvas" />
   </view>
 </template>
@@ -151,7 +152,7 @@ import { drawCover } from '@/utils/cover'
 import { centerScrollTop, currentLine, formatClock } from '@/utils/lyrics'
 import { activeTokenIndex, tokenize } from '@/utils/recite'
 
-/** 手动滚动后多久恢复自动跟随 */
+/** How long after a manual scroll before auto-follow resumes */
 const MANUAL_SCROLL_MS = 3_000
 
 const { metrics } = storeToRefs(useSystemStore())
@@ -184,17 +185,17 @@ let measureTimer: ReturnType<typeof setTimeout> | null = null
 
 async function load() {
   error.value = null
-  // 录音加载失败后重新加载：换新的临时链接，从原来的位置接着播
+  // Reload after the recording failed to load: get a new temporary URL, resume where it was
   const resumeAt = share.value ? player.positionMs.value : 0
   const wasPlaying = player.playing.value
   try {
     const s = await getShare(shareId.value)
     share.value = s
     player.load(s.audioUrl, s.durationMs)
-    // 只回到原来的位置；原来在播才接着播
+    // Only restore the position; resume playback only if it was playing
     if (resumeAt > 0) player.seek(resumeAt, wasPlaying)
     await nextTick()
-    // 等列表渲染完再量每一行的位置
+    // Wait for the list to render before measuring each line's position
     if (measureTimer) clearTimeout(measureTimer)
     measureTimer = setTimeout(() => {
       measure()
@@ -205,14 +206,14 @@ async function load() {
   }
 }
 
-// --- 当前句与逐词点亮 -------------------------------------------------------
+// --- Current sentence and word-by-word highlight ----------------------------
 
 const current = computed(() =>
   share.value ? currentLine(share.value.sentences, player.positionMs.value) : -1,
 )
 const tokens = computed(() => share.value?.sentences.map((s) => tokenize(s.en)) ?? [])
 const tokensOf = (i: number) => tokens.value[i] ?? []
-/** 当前句里读到的词（及之前的词）点亮；只在变化时更新 */
+/** Light up the current sentence's spoken word and those before it; update only on change */
 const litToken = ref(-1)
 watch(
   () => player.positionMs.value,
@@ -224,7 +225,7 @@ watch(
   },
 )
 
-// --- 居中滚动 ---------------------------------------------------------------
+// --- Keep the current line centered -----------------------------------------
 
 const viewport = ref(0)
 let tops: number[] = []
@@ -233,12 +234,13 @@ const scrollTop = ref(0)
 let manualUntil = 0
 let followTimer: ReturnType<typeof setTimeout> | null = null
 
-/** 上下留半屏空白，第一句和最后一句也能滚到中间 */
+/** Pad half a screen above and below so the first and last sentences can scroll to the center */
 const padStyle = computed(() => `height:${Math.max(0, Math.round(viewport.value / 2 - 40))}px`)
 
 /**
- * 先量出歌词区的高度，定下上下留白；等留白渲染好以后再量每一行的位置，
- * 否则量到的是加留白之前的位置，整体偏差半屏。进度条的位置也在这里量好备用。
+ * Measure the lyrics area height first to set the top and bottom padding; measure each line's
+ * position only after the padding renders, otherwise the positions are from before the padding and
+ * off by half a screen. The progress bar position is also measured here for later use.
  */
 function measure() {
   uni
@@ -272,14 +274,15 @@ function measureLines() {
   })
 }
 
-/** 把当前句滚到中间；用户刚手动滚过时不动 */
+/** Scroll the current sentence to the center; don't move if the user just scrolled manually */
 function follow(force = false) {
   const i = Math.max(0, current.value)
   if (!force && Date.now() < manualUntil) return
   const top = tops[i]
   if (top === undefined) return
   const target = centerScrollTop(top, heights[i] ?? 0, viewport.value)
-  // scroll-top 值不变时不会滚动（用户手动滚开后再回来），加一点点差值强制生效
+  // scroll-top doesn't scroll if the value is unchanged (the user scrolled away and back), so add a
+  // tiny offset to force it
   scrollTop.value = target === scrollTop.value ? target + 0.01 : target
 }
 
@@ -303,7 +306,7 @@ function jumpTo(i: number) {
   player.seek(s.startMs)
 }
 
-// --- 进度条 -----------------------------------------------------------------
+// --- Progress bar -----------------------------------------------------------
 
 const dragging = ref(false)
 const dragMs = ref(0)
@@ -339,7 +342,10 @@ function measureBar(): Promise<void> {
   })
 }
 
-/** 按下时如果还没量到进度条的位置，量好以后再算；松手早于量好时，等量好再跳转 */
+/**
+ * If the progress bar hasn't been measured on press, compute once it is; if released before that,
+ * seek once it is measured
+ */
 let barReady: Promise<void> | null = null
 
 function onBarStart(e: TouchEvent) {
@@ -367,9 +373,12 @@ async function onBarEnd(e: TouchEvent) {
   player.seek(dragMs.value)
 }
 
-// --- 分享 -------------------------------------------------------------------
+// --- Share ------------------------------------------------------------------
 
-/** 用隐藏画布画封面，作为分享卡片的图片；画不出来时用微信默认截图 */
+/**
+ * Draw the cover on a hidden canvas as the share card image; fall back to WeChat's default
+ * screenshot if drawing fails
+ */
 async function makeCover(s: Share) {
   const first = s.sentences.find((x) => x.en)?.en ?? s.title
   uni
@@ -391,7 +400,7 @@ async function makeCover(s: Share) {
           fail: () => {},
         })
       } catch {
-        // 封面只是锦上添花
+        // The cover is only a nice-to-have
       }
     })
 }
@@ -555,7 +564,7 @@ function goHome() {
 .lyrics {
   flex: 1;
   min-height: 0;
-  // 上下边缘渐隐
+  // Fade out the top and bottom edges
   -webkit-mask-image: linear-gradient(transparent 0%, #000 14%, #000 86%, transparent 100%);
   mask-image: linear-gradient(transparent 0%, #000 14%, #000 86%, transparent 100%);
 }
@@ -646,7 +655,7 @@ function goHome() {
   }
 }
 
-// 浮在进度条上方，出现时不把下面的控件顶下去
+// Floats above the progress bar, so it doesn't push the controls below down when it appears
 .audio-error {
   position: absolute;
   left: 0;

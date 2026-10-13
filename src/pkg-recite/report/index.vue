@@ -9,20 +9,23 @@
     <sv-nav-bar :title="navTitle" back :large="false" />
 
     <view class="report">
-      <!-- 记录取不到：还不知道练习的情况，只能重试 -->
+      <!-- Couldn't fetch the record: practice state unknown, so all we can do is retry -->
       <sv-card v-if="error && !practice" :padding="24">
         <sv-state icon="alert" tone="danger" title="练习记录加载失败" :description="error.message">
           <sv-button size="sm" :loading="loading" @click="run">重试</sv-button>
         </sv-state>
       </sv-card>
 
-      <!-- 取记录中：还不知道是否已经评完，先显示骨架，不闪「正在评测」 -->
+      <!-- Fetching the record: unknown whether scoring is done, so show a skeleton instead of
+           flashing "Assessing" (「正在评测」) -->
       <view v-else-if="!practice" class="report__loading">
         <sv-card :padding="22"><sv-skeleton :rows="4" title /></sv-card>
       </view>
 
       <template v-else>
-        <!-- 评分失败：云端已撤回评分、退回次数，下面回到「录好了」可以再评；M6 之前的练习在这里重试 -->
+        <!-- Scoring failed: the cloud has withdrawn the scoring and refunded the use, and the
+             page below falls back to "Recorded" (「录好了」) to score again. Practices from before
+             M6 retry here -->
         <sv-card v-if="error" :padding="24">
           <sv-state icon="alert" tone="danger" title="评分没有完成" :description="error.message">
             <view v-if="practice.scoreRequested" class="actions">
@@ -35,7 +38,8 @@
           </sv-state>
         </sv-card>
 
-        <!-- 录好了，还没评分：先回放，评分自己决定；不评分也能分享 -->
+        <!-- Recorded, not yet scored: play back first and let the user decide whether to score;
+             sharing works without scoring -->
         <view v-if="!practice.scoreRequested" class="report__result">
           <sv-card :padding="22">
             <text class="report__title">录好了</text>
@@ -56,7 +60,7 @@
           </sv-card>
         </view>
 
-        <!-- 评测中 -->
+        <!-- Assessing -->
         <sv-card v-else-if="!done && !error" :padding="22">
           <text class="report__title">正在评测</text>
           <text class="report__desc"
@@ -68,7 +72,7 @@
         </sv-card>
       </template>
 
-      <!-- 评测结果 -->
+      <!-- Assessment results -->
       <view v-if="done && practice && report" class="report__result">
         <sv-card :padding="22">
           <view class="summary">
@@ -180,7 +184,8 @@
         </view>
       </view>
 
-      <!-- 录好了或评完了：分享、返回、再背；没评分时「评分」是主按钮，这里的「再背一次」降为次要 -->
+      <!-- Recorded or scored: share, go back, recite again. When not scored, "Score" (「评分」) is
+           the primary button, so "Recite again" (「再背一次」) here becomes secondary -->
       <view v-if="practice && (!practice.scoreRequested || (done && report))" class="report__end">
         <view v-if="practice.audioUrl" class="share-entry">
           <sv-button type="plain" block :loading="shareFlow.state.busy" @click="sharePractice">
@@ -279,7 +284,7 @@ const DIFF_LABEL: Record<DiffKind, string> = {
   grammar: '语法',
 }
 
-/** 播放自己某个词的录音时前后多留一点，听得完整 */
+/** Extra padding before and after when playing back one of your own words, so it's heard in full */
 const WORD_PADDING_MS = 80
 
 const practiceId = ref('')
@@ -293,7 +298,10 @@ const navTitle = computed(() =>
 )
 const report = computed(() => practice.value?.report ?? null)
 
-/** 评分条先从 0 开始，结果出现后再长到分数，和分数环一起动 */
+/**
+ * Score bars start at 0 and grow to the score once results appear, animating together with the
+ * score ring
+ */
 const barsGrown = ref(false)
 watch(
   () => Boolean(done.value && report.value),
@@ -308,7 +316,7 @@ watch(
   { immediate: true },
 )
 
-/** 配置类问题和"没听清"重试没有意义 */
+/** Retrying is pointless for config problems and "couldn't hear clearly" */
 const canRetry = computed(() => !!practice.value && error.value?.code !== 'BAD_REQUEST')
 
 let disposed = false
@@ -339,7 +347,7 @@ async function run() {
   try {
     if (!practice.value) practice.value = await getPractice(practiceId.value)
     void loadVersion()
-    // 评分进行到一半离开过：接着评（不会重复扣次数）
+    // Left mid-scoring: continue scoring (the use won't be charged twice)
     if (practice.value.scoreRequested && practice.value.stage !== 'done') {
       scoring.value = true
       practice.value = await runPractice(practiceId.value, 'score', runOptions)
@@ -352,7 +360,7 @@ async function run() {
   }
 }
 
-// --- 评分 -------------------------------------------------------------------
+// --- Scoring ----------------------------------------------------------------
 
 const accountStore = useAccountStore()
 const { account } = storeToRefs(accountStore)
@@ -367,7 +375,10 @@ const scoreHint = computed(() => {
     : '免费体验已用完，开通 Pro 后可以评分'
 })
 
-/** 评分：扣一次免费次数（Pro 不扣），失败时云端撤回评分并退回次数，回到「录好了」 */
+/**
+ * Scoring: uses one free use (none for Pro); on failure the cloud withdraws the scoring and refunds
+ * the use, and the page returns to "Recorded" (「录好了」)
+ */
 async function startScore() {
   const p = practice.value
   if (!p || scoring.value) return
@@ -379,13 +390,13 @@ async function startScore() {
   playingAll.value = false
   scoring.value = true
   error.value = null
-  // 先切到「正在评测」，不等第一步返回
+  // Switch to "Assessing" (「正在评测」) right away without waiting for the first step to return
   practice.value = { ...p, scoreRequested: true }
   try {
     practice.value = await runPractice(practiceId.value, 'score', runOptions)
   } catch (err) {
     if (wasCancelled(err)) return
-    // 以云端为准：失败时评分请求已撤回
+    // The cloud is the source of truth: on failure the scoring request has been withdrawn
     practice.value = await getPractice(practiceId.value).catch(() => p)
     const e = asError(err)
     if (e.code === 'QUOTA_EXCEEDED') showPro.value = true
@@ -396,18 +407,18 @@ async function startScore() {
   }
 }
 
-/** 报告里要显示原文，没背出来的句子用它提示 */
+/** The report shows the original text, used as a hint for sentences that weren't recited */
 async function loadVersion() {
   if (version.value || !practice.value) return
   try {
     const session = await getSession(practice.value.sessionId)
     version.value = session.versions.find((v) => v.vid === practice.value?.vid) ?? null
   } catch {
-    // 原文只用于对照显示，取不到时不影响分数
+    // The original text is only for comparison; failing to fetch it doesn't affect the score
   }
 }
 
-// --- 展示 -------------------------------------------------------------------
+// --- Display ----------------------------------------------------------------
 
 const metrics = computed(() => {
   const s = report.value?.scores
@@ -420,7 +431,7 @@ const metrics = computed(() => {
   ].map((m) => ({ ...m, tone: scoreTone(m.value) }))
 })
 
-/** 按原文的句子分组：每句显示评测过的单词和原文 */
+/** Group by sentences of the original text: each shows its assessed words and the original */
 const rows = computed(() => {
   const words = practice.value?.pronunciation?.words ?? []
   const count =
@@ -431,7 +442,7 @@ const rows = computed(() => {
   return Array.from({ length: count }, (_, index) => ({
     original: version.value?.sentences[index]?.en ?? '',
     words: words.filter((w) => w.sentenceIndex === index && w.match !== 'missing'),
-    // 背了但评测失败的句子：显示还原出的句子，不能当成没背出来
+    // Recited but unassessed sentences: show the reconstructed text; don't count them as missing
     unscored: unscored.has(index),
     spoken: aligned.find((a) => a.index === index)?.intended ?? '',
   }))
@@ -441,9 +452,12 @@ function toneOf(w: ScoredWord) {
   return w.match === 'extra' ? 'none' : scoreTone(w.accuracy)
 }
 
-// --- 播放 -------------------------------------------------------------------
+// --- Playback ---------------------------------------------------------------
 
-/** 回放链接是临时链接（2 小时过期）：超过 90 分钟或播放出错后，播放前重新取一次 */
+/**
+ * The playback URL is temporary (expires in 2 hours): refetch it before playing once 90 minutes
+ * have passed or after a playback error
+ */
 const AUDIO_TTL_MS = 90 * 60_000
 let audioFetchedAt = Date.now()
 const audio = useAudio(60, {
@@ -459,7 +473,7 @@ async function freshAudioUrl(): Promise<string | null> {
       practice.value = await getPractice(practiceId.value)
       audioFetchedAt = Date.now()
     } catch {
-      // 取不到就用原来的链接试一下
+      // If refetching fails, try the old URL
     }
   }
   return practice.value?.audioUrl ?? null
@@ -489,7 +503,7 @@ const sheet = reactive<{
   saving: false,
 })
 
-// --- 分享 -------------------------------------------------------------------
+// --- Share ------------------------------------------------------------------
 
 const shareFlow = useShareFlow({
   isCancelled: () => disposed,
@@ -502,14 +516,14 @@ function sharePractice() {
   if (practice.value) void shareFlow.share(practice.value)
 }
 
-// --- 收藏单词 ---------------------------------------------------------------
+// --- Save words -------------------------------------------------------------
 
 const libraryStore = useLibraryStore()
 const organizer = useOrganizer()
 const { metrics: system } = storeToRefs(useSystemStore())
 const toastBottom = computed(() => system.value.safeAreaBottom + 24)
 
-// 底部留出安全区，最后的内容不贴着手势条
+// Leave room for the bottom safe area so the last item doesn't touch the home indicator
 const bottomInset = computed(() => `height:${system.value.safeAreaBottom + 24}px`)
 if (!libraryStore.loaded) void libraryStore.refresh()
 
@@ -593,7 +607,7 @@ onHide(() => {
   playingAll.value = false
 })
 
-// --- 跳转 -------------------------------------------------------------------
+// --- Navigation -------------------------------------------------------------
 
 function reciteAgain() {
   const p = practice.value

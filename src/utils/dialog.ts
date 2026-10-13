@@ -1,6 +1,6 @@
-/** 系统原生的输入框、确认框和操作菜单，包装成 Promise */
+/** Native system input dialog, confirm dialog and action sheet, wrapped in Promises */
 
-/** 输入一行文字；取消返回 null */
+/** Prompt for a line of text; returns null on cancel */
 export function promptText(options: {
   title: string
   placeholder?: string
@@ -20,7 +20,7 @@ export function promptText(options: {
   })
 }
 
-/** 确认框；危险操作的确认按钮显示为红色 */
+/** Confirm dialog; the confirm button is red for destructive actions */
 export function confirmAction(options: {
   title: string
   content?: string
@@ -39,7 +39,7 @@ export function confirmAction(options: {
   })
 }
 
-/** 底部操作菜单；返回选中项的序号，取消返回 -1 */
+/** Action sheet; returns the index of the selected item, or -1 on cancel */
 export function chooseAction(items: string[]): Promise<number> {
   return new Promise((resolve) => {
     uni.showActionSheet({

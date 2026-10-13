@@ -62,7 +62,7 @@ const { collapsed, onScroll } = useCollapsingTitle()
 const store = useLibraryStore()
 const { folders, loaded, error: storeError } = storeToRefs(store)
 const { metrics } = storeToRefs(useSystemStore())
-// 删掉当前文件夹（自己的菜单，或在上一级页面里）后返回
+// Go back after the current folder is deleted (from its own menu or from the parent page)
 const { folders: folderActions } = provideLibraryActions({
   onFolderDeleted: (f) => {
     if (f.id === folderId.value) goBack()
@@ -84,7 +84,7 @@ const bottomInset = computed(() => `height:${metrics.value.safeAreaBottom + 24}p
 onLoad((query) => {
   folderId.value = String(query?.id ?? '')
   if (query?.tab === 'session') tab.value = 'session'
-  // 从深链接直接打开时还没有文件夹数据
+  // No folder data yet when opened directly from a deep link
   if (!store.loaded) void store.refresh()
 })
 

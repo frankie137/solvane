@@ -161,7 +161,7 @@ async function started(over: Partial<AssessDeps> = {}) {
 }
 
 describe('assess.start', () => {
-  it('校验录音路径和版本', async () => {
+  it('validates the recording path and version', async () => {
     const { handlers, repos } = setup()
     const sessionId = await addSession(repos)
     await expect(
@@ -175,7 +175,7 @@ describe('assess.start', () => {
     ).rejects.toThrow('版本')
   })
 
-  it('马上转成 WAV 能回放，不识别也不评分', async () => {
+  it('converts to WAV right away for playback, without recognizing or scoring', async () => {
     const { handlers, practiceId, removed, files, deps, repos } = await started()
     const { practice } = await handlers.get({ practiceId }, ME)
     expect(practice).toMatchObject({ stage: 'transcribe', scoreRequested: false, job: null })
@@ -186,13 +186,13 @@ describe('assess.start', () => {
     expect(removed).toEqual([PCM_FILE])
     expect(repos.practiceDocs.get(practiceId)!.pcmFileID).toBeNull()
 
-    // 没要求评分时推进什么也不做
+    // Advancing does nothing when scoring hasn't been requested
     await handlers.advance({ practiceId }, ME)
     expect(deps.recognize).not.toHaveBeenCalled()
     expect(repos.accountDocs.size).toBe(0)
   })
 
-  it('转存失败时撤掉记录，原始录音留着重新提交', async () => {
+  it('removes the record when conversion fails, keeping the raw recording for resubmission', async () => {
     const { handlers, repos, deps } = setup()
     const sessionId = await addSession(repos)
     vi.mocked(deps.storage.upload).mockRejectedValueOnce(new Error('upload failed'))
@@ -207,7 +207,7 @@ describe('assess.start', () => {
     expect(repos.practiceDocs.get(practiceId)!.wavFileID).toBeTruthy()
   })
 
-  it('重新提交同一个文件时返回已建好的记录', async () => {
+  it('returns the existing record when the same file is resubmitted', async () => {
     const { handlers, practiceId, sessionId, repos } = await started()
     const again = await handlers.start(
       { sessionId, vid: 'v1', fileID: PCM_FILE, durationMs: 3000 },
@@ -217,7 +217,7 @@ describe('assess.start', () => {
     expect(repos.practiceDocs.size).toBe(1)
   })
 
-  it('每个对话只保留最近 3 次，旧的连同录音删除', async () => {
+  it('keeps only the latest 3 per session, deleting older ones with their recordings', async () => {
     const { handlers, repos, removed, files, tick } = setup()
     const sessionId = await addSession(repos)
     const ids: string[] = []
@@ -233,7 +233,7 @@ describe('assess.start', () => {
     expect(removed).toContain(`cloud://env.x/recordings/o_me/${ids[0]}.wav`)
   })
 
-  it('清理旧练习时跳过还在评测中的', async () => {
+  it('skips practices still being assessed when cleaning up old ones', async () => {
     const { handlers, repos, files, tick } = setup()
     const sessionId = await addSession(repos)
     const ids: string[] = []
@@ -259,7 +259,7 @@ describe('assess.start', () => {
 })
 
 describe('assess.score', () => {
-  it('一次调用时间够时走完全部步骤', async () => {
+  it('runs every step in one call when time allows', async () => {
     const { handlers, practiceId, llmCalls, deps } = await started()
     const { practice } = await handlers.score({ practiceId }, ME)
 
@@ -272,7 +272,7 @@ describe('assess.score', () => {
       words: true,
     })
 
-    // 换了说法的句子以还原文本为参考评测，且有自己的时间范围
+    // A paraphrased sentence is assessed against the intended text and has its own time range
     expect(deps.evaluate).toHaveBeenCalledWith(
       expect.any(Buffer),
       expect.objectContaining({ refText: 'Catch you later.', mode: 'sentence' }),
@@ -283,7 +283,7 @@ describe('assess.score', () => {
       endMs: 2400,
     })
 
-    // 发音按词数加权：(80×3 + 60×3) / 6 = 70
+    // Pronunciation is weighted by word count: (80×3 + 60×3) / 6 = 70
     expect(practice.report!.scores).toEqual({
       overall: Math.round(70 * 0.4 + 90 * 0.2 + 90 * 0.25 + 95 * 0.15),
       pronunciation: 70,
@@ -292,17 +292,18 @@ describe('assess.score', () => {
       expression: 95,
     })
     expect(practice.report!.summary).toBe('整体很流畅')
-    // 单词时间换算到整段录音上：第二句切片从两句之间停顿的中点开始（1200 和 1300 之间）
+    // Word times are mapped onto the whole recording: the second slice starts at the midpoint of
+    // the pause between the sentences (between 1200 and 1300)
     const catchWord = practice.pronunciation!.words.find((w) => w.word === 'Catch')!
     expect(catchWord.startMs).toBe(1250)
   })
 
-  it('时间不够时停在中间，下次调用从这一步继续', async () => {
+  it('stops midway when out of time; the next call resumes from that step', async () => {
     let clock = 0
     const { handlers, practiceId, repos } = await started({
       now: () => clock,
       recognize: vi.fn(async () => {
-        clock += 30_000 // 识别用掉了大半时间
+        clock += 30_000 // Recognition uses up most of the time
         return {
           text: 'see you',
           words: [
@@ -318,7 +319,7 @@ describe('assess.score', () => {
     expect(repos.practiceDocs.get(practiceId)!.job).toBeNull()
   })
 
-  it('没识别出内容时报错并记录，录音保留，次数退回', async () => {
+  it('fails and records the error when nothing is recognized, keeping the recording and refunding the use', async () => {
     const { handlers, practiceId, repos, removed } = await started({
       recognize: vi.fn(async () => ({ text: '', words: [] })),
     })
@@ -332,7 +333,7 @@ describe('assess.score', () => {
     expect(repos.accountDocs.get(ME.openid)!.freeUsed).toBe(0)
   })
 
-  it('个别句子评测失败时用其余句子的结果', async () => {
+  it('uses the remaining sentences when some fail assessment', async () => {
     const { handlers, practiceId } = await started({
       evaluate: vi.fn(async (_a, req) => {
         if (req.refText.startsWith('Catch'))
@@ -343,16 +344,16 @@ describe('assess.score', () => {
     const { practice } = await handlers.score({ practiceId }, ME)
     expect(practice.stage).toBe('done')
     expect(practice.pronunciation!.accuracy).toBe(80)
-    // 没能评测的句子单独标出，报告里不会显示成没背出来
+    // Sentences not assessed are marked separately, so the report won't show them as not recited
     expect(practice.pronunciation!.unscored).toEqual([1])
   })
 
-  it('剩余时间不够评完一句时不再开始，记为没能评测', async () => {
+  it('does not start a sentence without time to finish it, and marks it as not assessed', async () => {
     let clock = 0
     const { handlers, practiceId, deps, repos } = await started({
       now: () => clock,
       evaluate: vi.fn(async () => {
-        clock += 45_000 // 第一句用掉了大半时间，第二句开始前已经不够
+        clock += 45_000 // Sentence 1 uses most of the time; not enough is left for sentence 2
         return soe(80, ["I'm", 'going', 'hiking'])
       }),
     })
@@ -363,7 +364,7 @@ describe('assess.score', () => {
     expect(repos.practiceDocs.get(practiceId)!.pronunciation!.unscored).toEqual([1])
   })
 
-  it('口语评测未配置时直接报错，停在评测这一步', async () => {
+  it('fails right away when pronunciation assessment is not configured, stopping at the score step', async () => {
     const { handlers, practiceId, repos } = await started({
       evaluate: vi.fn(async () => {
         throw new AppError('NOT_CONFIGURED', '口语评测鉴权失败')
@@ -377,7 +378,7 @@ describe('assess.score', () => {
     })
   })
 
-  it('一句都没背出来时发音分为 0，不调用评测', async () => {
+  it('scores pronunciation 0 without calling assessment when no sentence was recited', async () => {
     const { handlers, practiceId, deps } = await started({
       llm: {
         chatJson: vi.fn(
@@ -395,7 +396,7 @@ describe('assess.score', () => {
     expect(practice.report!.scores.pronunciation).toBe(0)
   })
 
-  it('已有步骤在运行时不重复执行', async () => {
+  it('does not rerun a step that is already running', async () => {
     const { handlers, practiceId, repos, deps } = await started()
     await repos.practices.acquireJob(
       practiceId,
@@ -408,18 +409,18 @@ describe('assess.score', () => {
     expect(deps.recognize).not.toHaveBeenCalled()
   })
 
-  it('不能操作别人的练习', async () => {
+  it("cannot act on someone else's practice", async () => {
     const { handlers, practiceId } = await started()
     await expect(handlers.score({ practiceId }, { openid: 'o_other' })).rejects.toThrow('不存在')
     await expect(handlers.advance({ practiceId }, { openid: 'o_other' })).rejects.toThrow('不存在')
   })
 })
 
-describe('评分扣次数', () => {
+describe('scoring uses free uses', () => {
   const used = (repos: ReturnType<typeof createMemoryRepos>, openid = ME.openid) =>
     repos.accountDocs.get(openid)?.freeUsed ?? 0
 
-  it('评分扣一次，同一条录音再点不重复扣', async () => {
+  it('scoring uses one; requesting again for the same recording does not charge again', async () => {
     const { handlers, practiceId, repos } = await started()
     await handlers.score({ practiceId }, ME)
     await handlers.score({ practiceId }, ME)
@@ -427,7 +428,7 @@ describe('评分扣次数', () => {
     expect(repos.practiceDocs.get(practiceId)!.freeCharged).toBe(true)
   })
 
-  it('次数用完时不评分', async () => {
+  it('does not score once free uses run out', async () => {
     const { handlers, practiceId, repos, deps } = await started()
     await repos.accounts.create({
       _id: ME.openid,
@@ -444,7 +445,7 @@ describe('评分扣次数', () => {
     expect(repos.practiceDocs.get(practiceId)!.scoreRequested).toBe(false)
   })
 
-  it('Pro 和管理员不扣次数', async () => {
+  it('does not charge Pro users or admins', async () => {
     const { handlers, practiceId, repos } = await started()
     await repos.accounts.create({
       _id: ME.openid,
@@ -469,7 +470,7 @@ describe('评分扣次数', () => {
     expect(used(admin.repos, ADMIN.openid)).toBe(0)
   })
 
-  it('失败退回后再评分，总共只扣一次', async () => {
+  it('scoring again after a refunded failure charges only once in total', async () => {
     let fail = true
     const { handlers, practiceId, repos } = await started({
       evaluate: vi.fn(async () => {
@@ -487,7 +488,7 @@ describe('评分扣次数', () => {
 })
 
 describe('assess.prepareShare', () => {
-  it('只做识别和对照，不扣次数；之后评分从评测接着做', async () => {
+  it('only transcribes and aligns without charging; scoring later continues from the score step', async () => {
     const { handlers, practiceId, repos, deps, llmCalls } = await started()
     const { practice } = await handlers.prepareShare({ practiceId }, ME)
     expect(practice.stage).toBe('score')
@@ -498,7 +499,7 @@ describe('assess.prepareShare', () => {
     expect(llmCalls).toEqual(['align'])
     expect(repos.accountDocs.size).toBe(0)
 
-    // 再推进不会继续评测
+    // Advancing again does not go on to assessment
     await handlers.advance({ practiceId }, ME)
     expect(deps.evaluate).not.toHaveBeenCalled()
 
@@ -508,7 +509,7 @@ describe('assess.prepareShare', () => {
     expect(llmCalls).toEqual(['align', 'report'])
   })
 
-  it('准备失败不影响评分标记', async () => {
+  it('a failed preparation does not affect the scoring flag', async () => {
     const { handlers, practiceId, repos } = await started({
       recognize: vi.fn(async () => ({ text: '', words: [] })),
     })
@@ -520,8 +521,8 @@ describe('assess.prepareShare', () => {
   })
 })
 
-describe('M6 之前的练习', () => {
-  it('没有标记的按要评分处理，不扣次数；原始 PCM 在识别时转成 WAV', async () => {
+describe('pre-M6 practices', () => {
+  it('treats unflagged practices as scoring requested without charging; converts raw PCM to WAV on recognition', async () => {
     const { handlers, repos, removed } = setup()
     const sessionId = await addSession(repos)
     const practiceId = await repos.practices.create({
@@ -550,7 +551,7 @@ describe('M6 之前的练习', () => {
 })
 
 describe('assess.list', () => {
-  it('列出最近的练习和分数', async () => {
+  it('lists recent practices with scores', async () => {
     const { handlers, practiceId, sessionId } = await started()
     expect((await handlers.list({ sessionId }, ME)).items[0]).toMatchObject({
       scoreRequested: false,
@@ -569,12 +570,13 @@ describe('assess.list', () => {
   })
 })
 
-describe('WAV 回放与评测切片', () => {
-  it('评测时从 WAV 里取 PCM 切片', async () => {
+describe('WAV playback and assessment slices', () => {
+  it('takes PCM slices from the WAV for assessment', async () => {
     const { handlers, practiceId, deps } = await started()
     await handlers.score({ practiceId }, ME)
     const firstSlice = (deps.evaluate as ReturnType<typeof vi.fn>).mock.calls[0]![0] as Buffer
-    // 第一句 100～1200ms：开头延伸到录音起点，结尾到和下一句之间停顿的中点
+    // First sentence is 100-1200 ms: the start extends to the beginning of the recording, the end
+    // to the midpoint of the pause before the next sentence
     expect(firstSlice.length).toBe((1250 - 0) * 32)
   })
 })

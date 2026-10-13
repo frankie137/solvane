@@ -1,11 +1,11 @@
-/** 密钥文件的解析与校验（纯函数，不读写文件、不打印值） */
+/** Parsing and validation of the secrets file (pure functions: no file I/O, never prints values) */
 
-/** 复制粘贴时容易带进来的不可见字符：零宽空格、零宽连接符、BOM 等，trim() 去不掉 */
+/** Invisible characters that copy-paste tends to bring in (zero-width space, zero-width joiner, BOM, etc.); trim() doesn't remove them */
 const INVISIBLE = /[\u200B-\u200D\u2060\uFEFF]/g
 
 /**
- * 解析 KEY=VALUE 格式：忽略注释行和空行；带引号的值去掉两侧引号；
- * 不带引号的值里，空格后面的 # 视为行尾注释；不可见字符直接去掉。
+ * Parse KEY=VALUE lines: skip comments and blank lines; strip surrounding quotes from quoted values;
+ * in unquoted values, a # after whitespace starts a trailing comment; invisible characters are removed.
  */
 export function parseEnvFile(text: string): Map<string, string> {
   const values = new Map<string, string>()
@@ -23,86 +23,93 @@ export function parseEnvFile(text: string): Map<string, string> {
   return values
 }
 
-/** 把某个变量的值写回文本：替换已有的行，没有就追加 */
+/** Write a variable's value back into the text: replace the existing line, or append one */
 export function setEnvValue(text: string, key: string, value: string): string {
   const pattern = new RegExp(`^${key}=.*$`, 'm')
   if (pattern.test(text)) return text.replace(pattern, () => `${key}=${value}`)
   return `${text.trimEnd()}\n${key}=${value}\n`
 }
 
-/** 描述一个字符属于哪一类，用于提示，不回显字符本身 */
+/** Describe what kind of character this is, for hints, without echoing the character itself */
 export function charKind(ch: string): string {
-  if (/[a-z]/.test(ch)) return '小写字母'
-  if (/[A-Z]/.test(ch)) return '大写字母'
-  if (/\d/.test(ch)) return '数字'
-  if (/["'“”‘’`]/.test(ch)) return '引号'
-  if (/[\u4e00-\u9fff]/.test(ch)) return '汉字'
-  if (/[\u3000-\u303f\uff00-\uffef]/.test(ch)) return '全角符号'
-  return '符号'
+  if (/[a-z]/.test(ch)) return 'a lowercase letter'
+  if (/[A-Z]/.test(ch)) return 'an uppercase letter'
+  if (/\d/.test(ch)) return 'a digit'
+  if (/["'“”‘’`]/.test(ch)) return 'a quotation mark'
+  if (/[\u4e00-\u9fff]/.test(ch)) return 'a Chinese character'
+  if (/[\u3000-\u303f\uff00-\uffef]/.test(ch)) return 'a full-width symbol'
+  return 'a symbol'
 }
 
-/** 说明一个用户 ID 哪里不对；只描述特征（长度、字符类型），不回显内容 */
+/** Explain what's wrong with a user ID; describes only traits (length, character kinds), never the content */
 function describeOpenidProblem(id: string): string | null {
   if (/^o[\w-]{20,40}$/.test(id)) return null
   if (/…|\.\.\./.test(id)) {
-    return '看起来抄的是界面上打码显示的 ID（带省略号）。请在「我的 → 用户 ID」那一行点一下，系统会复制完整的 ID'
+    return 'looks like the masked ID shown in the UI (with an ellipsis). Tap the Me → User ID (「我的 → 用户 ID」) row to copy the full ID'
   }
-  if (/\s/.test(id)) return 'ID 中间有空格'
+  if (/\s/.test(id)) return 'the ID contains a space'
   if (!id.startsWith('o')) {
-    return `用户 ID 应该以小写字母 o 开头，现在第一个字符是${charKind(id.charAt(0))}`
+    return `a user ID should start with a lowercase o, but the first character is ${charKind(id.charAt(0))}`
   }
-  return `长度 ${id.length} 位或含有特殊字符，正常的用户 ID 是 28 位左右的字母、数字、下划线或横线`
+  return `${id.length} characters long or contains special characters; a valid user ID is about 28 letters, digits, underscores or hyphens`
 }
 
-/** 校验格式，返回问题列表（不包含任何值） */
+/** Validate the format and return a list of problems (never containing any value) */
 export function validateSecrets(values: Map<string, string>): string[] {
   const problems: string[] = []
   const secret = values.get('KEY_ENCRYPTION_SECRET') ?? ''
   if (secret.length < 16) {
-    const kind = secret.length > 0 ? `（第一个字符是${charKind(secret.charAt(0))}）` : ''
+    const kind = secret.length > 0 ? ` (the first character is ${charKind(secret.charAt(0))})` : ''
     problems.push(
-      `KEY_ENCRYPTION_SECRET 现在有 ${secret.length} 个字符${kind}，至少需要 16 位。想让脚本自动生成，就把等号后面的内容全部删掉`,
+      `KEY_ENCRYPTION_SECRET currently has ${secret.length} characters${kind}; at least 16 are required. To have the script generate one, delete everything after the equals sign`,
     )
   }
 
   const rawAdmins = values.get('ADMIN_OPENIDS') ?? ''
-  if (/，/.test(rawAdmins)) problems.push('ADMIN_OPENIDS 里用了中文逗号，多个 ID 请用英文逗号分隔')
+  if (/，/.test(rawAdmins))
+    problems.push('ADMIN_OPENIDS uses a full-width comma; separate multiple IDs with ASCII commas')
   const admins = rawAdmins
     .split(/[,，]/)
     .map((s) => s.trim())
     .filter(Boolean)
   if (admins.length === 0) {
-    problems.push('ADMIN_OPENIDS 不能为空（小程序「我的 → 用户 ID」点一下即可复制）')
+    problems.push(
+      'ADMIN_OPENIDS must not be empty. In the mini program, tap Me → User ID (「我的 → 用户 ID」) to copy it',
+    )
   }
   admins.forEach((id, i) => {
     const problem = describeOpenidProblem(id)
-    if (problem) problems.push(`ADMIN_OPENIDS 第 ${i + 1} 个 ID：${problem}`)
+    if (problem) problems.push(`ADMIN_OPENIDS ID #${i + 1}: ${problem}`)
   })
 
   if (!/^AKID\w{8,}$/.test(values.get('TENCENT_SECRET_ID') ?? '')) {
-    problems.push('TENCENT_SECRET_ID 格式不对：腾讯云 SecretId 以 AKID 开头')
+    problems.push(
+      'TENCENT_SECRET_ID has the wrong format: a Tencent Cloud SecretId starts with AKID',
+    )
   }
   if ((values.get('TENCENT_SECRET_KEY') ?? '').length < 16) {
-    problems.push('TENCENT_SECRET_KEY 看起来不完整')
+    problems.push('TENCENT_SECRET_KEY looks incomplete')
   }
 
   const soeAppId = values.get('SOE_APP_ID') ?? ''
   if (!soeAppId) {
-    problems.push('SOE_APP_ID 不能为空：填腾讯云账号的 AppID（腾讯云「账号信息」里的一串数字）')
+    problems.push(
+      'SOE_APP_ID must not be empty: use your Tencent Cloud account AppID (a number shown under Account Info (「账号信息」) in Tencent Cloud)',
+    )
   } else if (!/^\d{5,12}$/.test(soeAppId)) {
     problems.push(
-      `SOE_APP_ID 应该是 5～12 位数字，现在有 ${soeAppId.length} 个字符；注意不是 wx 开头的微信 AppID`,
+      `SOE_APP_ID should be 5-12 digits but has ${soeAppId.length} characters; note that it is not the WeChat AppID that starts with wx`,
     )
   } else if (/^100\d{9}$/.test(soeAppId)) {
-    // 控制台右上角显示的是账号 ID（12 位、100 开头），和 AppID 不是同一个
+    // The top-right corner of the console shows the account ID (12 digits starting with 100), which is not the AppID
     problems.push(
-      'SOE_APP_ID 看起来是账号 ID（控制台右上角那串），不是 AppID：到腾讯云「账号中心 → 账号信息」找 APPID 一栏（通常 10 位）',
+      'SOE_APP_ID looks like the account ID (the number in the top-right corner of the console), not the AppID: in Tencent Cloud, find the APPID field under Account Center → Account Info (「账号中心 → 账号信息」); it is usually 10 digits',
     )
   }
   return problems
 }
 
-/** 文件权限只允许本人读写：组和其他用户有任何权限都不行 */
+/** File permissions must allow only the owner to read and write: any group or other permission is rejected */
 export function isPrivateMode(mode: number): boolean {
   return (mode & 0o077) === 0
 }

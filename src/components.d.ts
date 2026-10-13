@@ -1,5 +1,5 @@
-// easycom 在编译时自动注册 sv-* 组件，这里把它们登记给类型检查，模板里的属性才能被校验。
-// 新增 sv-* 组件时要同步在这里加一行（src/components.test.ts 会校验有没有漏登记）。
+// easycom registers sv-* components at compile time; declaring them here lets type checking validate their props in templates.
+// When adding an sv-* component, add a line here too (src/components.test.ts checks for missing entries).
 export {}
 
 declare module 'vue' {

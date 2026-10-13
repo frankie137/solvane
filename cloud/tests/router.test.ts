@@ -20,7 +20,7 @@ describe('createRouter', () => {
     vi.restoreAllMocks()
   })
 
-  it('分发到对应 action 并包装成功结果', async () => {
+  it('dispatches to the matching action and wraps a success result', async () => {
     const main = createRouter('data', handlers, withUser)
     const result = await main({ action: 'ping', payload: {} })
     expect(result.ok).toBe(true)
@@ -29,21 +29,21 @@ describe('createRouter', () => {
     }
   })
 
-  it('payload 缺省时按空对象处理', async () => {
+  it('treats a missing payload as an empty object', async () => {
     const main = createRouter('data', handlers, withUser)
     const result = await main({ action: 'ping' })
     expect(result.ok).toBe(true)
   })
 
   it.each([
-    ['非对象 event', 'ping'],
+    ['non-object event', 'ping'],
     ['null event', null],
-    ['缺少 action', {}],
-    ['未登记的 action', { action: 'drop' }],
-    ['原型链上的属性名', { action: 'toString' }],
-    ['payload 不是对象', { action: 'ping', payload: 'x' }],
-    ['payload 是数组', { action: 'ping', payload: ['a'] }],
-  ])('拒绝非法请求：%s', async (_name, event) => {
+    ['missing action', {}],
+    ['unregistered action', { action: 'drop' }],
+    ['prototype property name', { action: 'toString' }],
+    ['non-object payload', { action: 'ping', payload: 'x' }],
+    ['array payload', { action: 'ping', payload: ['a'] }],
+  ])('rejects invalid request: %s', async (_name, event) => {
     const main = createRouter('data', handlers, withUser)
     const result = await main(event)
     expect(result).toEqual({
@@ -52,14 +52,14 @@ describe('createRouter', () => {
     })
   })
 
-  it('拿不到 openid 时拒绝', async () => {
+  it('rejects when openid is unavailable', async () => {
     const main = createRouter('data', handlers, () => ({}))
     const result = await main({ action: 'ping', payload: {} })
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error.code).toBe('UNAUTHORIZED')
   })
 
-  it('AppError 原样透出给前端', async () => {
+  it('passes AppError through to the frontend as is', async () => {
     const main = createRouter(
       'data',
       {
@@ -77,7 +77,7 @@ describe('createRouter', () => {
     })
   })
 
-  it('未预期的异常转换为 INTERNAL，且不把内部信息透出', async () => {
+  it('converts unexpected errors to INTERNAL without leaking internals', async () => {
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {})
     const main = createRouter(
       'data',
@@ -95,7 +95,7 @@ describe('createRouter', () => {
       expect(result.error.code).toBe('INTERNAL')
       expect(result.error.message).not.toContain('sk-123')
     }
-    // 日志里不应出现 payload 内容
+    // The log must not contain payload contents
     expect(JSON.stringify(errorLog.mock.calls)).not.toContain('"p"')
   })
 })

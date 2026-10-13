@@ -2,11 +2,14 @@ import { AppError } from '../errors'
 
 type Product = '语音识别' | '语音合成'
 
-/** 把腾讯云 API 的错误码翻译成可操作的提示（fn 为配置密钥的云函数名） */
+/**
+ * Turns Tencent Cloud API error codes into actionable messages (fn is the cloud function that
+ * holds the credentials)
+ */
 export function toTencentError(err: unknown, product: Product, fn: string): AppError {
   const code = String((err as { code?: unknown })?.code ?? '')
   const message = (err as Error)?.message ?? ''
-  // 附上错误码便于排查（错误码不含敏感信息）
+  // Include the error code for troubleshooting (codes contain nothing sensitive)
   const tag = code ? `（${code}）` : ''
   if (code.startsWith('AuthFailure')) {
     return new AppError(

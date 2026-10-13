@@ -19,7 +19,7 @@ function readMetrics(): NavMetrics {
   })
 }
 
-/** 设备与布局信息：启动时读一次，所有页面共享 */
+/** Device and layout info: read once at launch, shared by all pages */
 export const useSystemStore = defineStore('system', () => {
   const metrics = ref<NavMetrics>(readMetrics())
   return { metrics }

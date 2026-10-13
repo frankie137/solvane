@@ -51,7 +51,7 @@ import { toast } from '@/utils/dialog'
 const props = withDefaults(
   defineProps<{
     show: boolean
-    /** 因为次数用完而弹出时，标题直接说明原因 */
+    /** When opened because free uses ran out, the title states the reason */
     reason?: 'quota' | 'info'
   }>(),
   { reason: 'info' },
@@ -69,7 +69,7 @@ const store = useAccountStore()
 const { account } = storeToRefs(store)
 const title = computed(() => (props.reason === 'quota' ? '免费体验已用完' : '会员'))
 
-// 每次打开都取一次最新状态（可能刚被管理员开通）
+// Fetch the latest status on every open (an admin may have just granted membership)
 watch(
   () => props.show,
   (show) => {

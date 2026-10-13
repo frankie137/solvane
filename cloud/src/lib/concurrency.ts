@@ -1,4 +1,4 @@
-/** 按顺序取任务、最多 limit 个同时执行；结果顺序与输入一致 */
+/** Picks tasks in order, running at most `limit` at a time; results keep the input order */
 export async function mapLimit<T, R>(
   items: T[],
   limit: number,

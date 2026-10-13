@@ -59,14 +59,14 @@ describe('runPractice', () => {
     actions.length = 0
   })
 
-  it('一次调用完成', async () => {
+  it('finishes in a single call', async () => {
     advance.mockResolvedValueOnce({ practice: practice({ stage: 'done' }) })
     const res = await runPractice('p1', 'score')
     expect(res.stage).toBe('done')
     expect(advance).toHaveBeenCalledOnce()
   })
 
-  it('没完成时继续推进，并报告每一步的进度', async () => {
+  it('keeps advancing until done and reports progress for each step', async () => {
     advance
       .mockResolvedValueOnce({ practice: practice({ stage: 'score' }) })
       .mockResolvedValueOnce({ practice: practice({ stage: 'done' }) })
@@ -75,7 +75,7 @@ describe('runPractice', () => {
     expect(stages).toEqual(['score', 'done'])
   })
 
-  it('请求超时后轮询，等这一步结束再继续', async () => {
+  it('polls after a request timeout and continues once the step finishes', async () => {
     advance
       .mockRejectedValueOnce(new CloudError('TIMEOUT', '超时'))
       .mockResolvedValueOnce({ practice: practice({ stage: 'done' }) })
@@ -89,7 +89,7 @@ describe('runPractice', () => {
     expect(advance).toHaveBeenCalledTimes(2)
   })
 
-  it('某一步失败时抛出记录的错误', async () => {
+  it('throws the recorded error when a step fails', async () => {
     advance.mockResolvedValueOnce({
       practice: practice({
         stage: 'score',
@@ -99,13 +99,13 @@ describe('runPractice', () => {
     await expect(runPractice('p1', 'score')).rejects.toMatchObject({ code: 'NOT_CONFIGURED' })
   })
 
-  it('不可恢复的错误直接抛出', async () => {
+  it('throws unrecoverable errors right away', async () => {
     advance.mockRejectedValueOnce(new CloudError('BAD_REQUEST', '没有听清'))
     await expect(runPractice('p1', 'score')).rejects.toMatchObject({ message: '没有听清' })
     expect(get).not.toHaveBeenCalled()
   })
 
-  it('每轮都调用评分接口（云端不重复扣次数）', async () => {
+  it('calls the scoring action every round (the cloud never deducts twice)', async () => {
     advance
       .mockResolvedValueOnce({ practice: practice({ stage: 'score' }) })
       .mockResolvedValueOnce({ practice: practice({ stage: 'done' }) })
@@ -113,7 +113,7 @@ describe('runPractice', () => {
     expect(actions).toEqual(['score', 'score'])
   })
 
-  it('为分享准备时做到对照就停', async () => {
+  it('stops after alignment when preparing to share', async () => {
     advance.mockResolvedValueOnce({
       practice: practice({
         stage: 'score',
@@ -126,7 +126,7 @@ describe('runPractice', () => {
     expect(actions).toEqual(['prepareShare'])
   })
 
-  it('页面关闭后不再推进', async () => {
+  it('stops advancing after the page closes', async () => {
     await expect(runPractice('p1', 'score', { isCancelled: () => true })).rejects.toMatchObject({
       code: 'CANCELLED',
     })

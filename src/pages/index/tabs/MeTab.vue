@@ -191,18 +191,21 @@ const { account } = storeToRefs(accountStore)
 const showPro = ref(false)
 let accountFailed = false
 
-/** 会员状态（首页显示时已经在取，这里只补取失败或还没有的） */
+/**
+ * Membership status (the home page already fetches it on show; here it's only fetched if that
+ * failed or hasn't happened yet)
+ */
 async function loadAccount() {
   try {
     await accountStore.load()
     accountFailed = false
   } catch {
-    // 失败原因会显示在"云服务"那一行，这里保持"—"
+    // The failure reason shows on the "Cloud service" row (「云服务」); keep "—" here
     accountFailed = true
   }
 }
 
-// 管理员才取大模型配置的状态；之后由配置页更新，不重复取
+// Only admins fetch the LLM config status; after that the config page updates it, so don't refetch
 watch(
   () => account.value?.isAdmin,
   (admin) => {
@@ -215,7 +218,10 @@ const profileStore = useProfileStore()
 const { profile } = storeToRefs(profileStore)
 const editingProfile = ref(false)
 const profileFailed = ref(false)
-/** 上次因头像出错重新取资料的时间；头像文件本身坏了时，避免反复重取 */
+/**
+ * When the profile was last refetched because of an avatar error; avoids refetching over and over
+ * when the avatar file itself is broken
+ */
 let avatarRetryAt = 0
 const AVATAR_RETRY_GAP_MS = 60_000
 let settingsFailed = false
@@ -225,13 +231,13 @@ async function loadProfile() {
     await profileStore.load()
     profileFailed.value = false
   } catch {
-    // 取不到时先显示默认文案，点资料卡时再试
+    // If it can't be fetched, show the default text and retry when the profile card is tapped
     profileFailed.value = true
   }
 }
 void loadProfile()
 
-/** 头像链接过期或坏了：重新取资料换新链接，一分钟内最多一次 */
+/** Avatar URL expired or broken: refetch the profile for a new URL, at most once a minute */
 function onAvatarError() {
   if (Date.now() - avatarRetryAt < AVATAR_RETRY_GAP_MS) return
   avatarRetryAt = Date.now()
@@ -314,7 +320,7 @@ async function checkCloud() {
     cloud.latency = Date.now() - start
     cloud.openid = res.openid
     cloud.state = 'ok'
-    // 云服务恢复了，之前加载失败的设置补上（还在加载中的不重复发）
+    // The cloud service is back: reload what failed earlier (don't resend requests still in flight)
     if (settingsFailed) void loadSettings()
     if (accountFailed) void loadAccount()
   } catch (err) {
@@ -332,12 +338,13 @@ async function loadSettings(): Promise<boolean> {
     return true
   } catch {
     settingsFailed = true
-    // 失败原因会显示在"云服务"那一行，这里保持"—"；点设置项时会重新加载
+    // The failure reason shows on the "Cloud service" row (「云服务」); keep "—" here.
+    // Settings reload when a setting item is tapped
     return false
   }
 }
 
-/** 设置还没加载成功时点了设置项：先重新加载，成功后再打开 */
+/** A setting was tapped before settings loaded: reload first, then open it on success */
 async function ensureSettings(): Promise<boolean> {
   if (loaded.value) return true
   uni.showLoading({ title: '加载设置…' })
@@ -415,6 +422,11 @@ onMounted(() => {
 </script>
 
 <style lang="scss">
+// Every tab defines this itself: component styles are isolated, so another tab's rule doesn't apply
+.tab-scroll {
+  height: 100%;
+}
+
 .me {
   display: flex;
   flex-direction: column;

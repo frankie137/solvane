@@ -1,6 +1,6 @@
 /**
- * 会员：自己的会员状态；管理员查看成员、开通和结束 Pro。
- * 管理员身份由环境变量 ADMIN_OPENIDS 决定，管理接口逐个校验。
+ * Membership: the caller's own membership status; admins list members and grant or revoke Pro.
+ * Admins are set by the ADMIN_OPENIDS environment variable; each admin action checks it.
  */
 import { z } from 'zod'
 import type { Member } from '@shared/types'
@@ -20,7 +20,7 @@ export interface MemberDeps {
 
 type MemberActions = 'getAccount' | 'listMembers' | 'grantPro' | 'revokePro'
 
-/** 会员管理页最多列多少人（体验成员上限只有十几个） */
+/** Max members listed on the admin page (the trial version allows only a dozen or so members) */
 const MEMBERS_MAX = 200
 
 export function createMemberHandlers(deps: MemberDeps): Pick<Handlers<'data'>, MemberActions> {
@@ -35,7 +35,7 @@ export function createMemberHandlers(deps: MemberDeps): Pick<Handlers<'data'>, M
     if (!accounts.isAdmin(openid)) throw new AppError('FORBIDDEN', '只有管理员可以管理会员')
   }
 
-  /** 档案配上署名资料；头像换成临时链接 */
+  /** Attach each account's profile (nickname, avatar); avatars become temporary URLs */
   async function toMembers(docs: AccountDoc[]): Promise<Member[]> {
     const profiles = new Map<string, ProfileStored | null | undefined>(
       (await settings.listProfiles(docs.map((d) => d._id))).map((s) => [s._id, s.profile]),

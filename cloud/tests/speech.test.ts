@@ -68,7 +68,7 @@ async function addSession(repos: ReturnType<typeof createMemoryRepos>, versions:
 }
 
 describe('speech.recognize', () => {
-  it('返回识别文字并删除录音', async () => {
+  it('returns the recognized text and deletes the recording', async () => {
     const { handlers, removed, deps } = setup({ recognized: '  周末想去爬山  ' })
     await expect(handlers.recognize({ fileID: FILE }, ME)).resolves.toEqual({
       text: '周末想去爬山',
@@ -77,13 +77,13 @@ describe('speech.recognize', () => {
     expect(deps.recognize).toHaveBeenCalledWith(expect.any(Buffer), { engine: '16k_zh' })
   })
 
-  it('没识别出内容时提示重说，仍然删除录音', async () => {
+  it('asks the user to try again when nothing is recognized, and still deletes the recording', async () => {
     const { handlers, removed } = setup({ recognized: '' })
     await expect(handlers.recognize({ fileID: FILE }, ME)).rejects.toThrow('没有听清')
     expect(removed).toEqual([FILE])
   })
 
-  it('录音过大时拒绝，不调用识别', async () => {
+  it('rejects an oversized recording without calling recognition', async () => {
     const { handlers, deps, removed } = setup({ audio: Buffer.alloc(2_200_000), recognized: 'x' })
     await expect(handlers.recognize({ fileID: FILE }, ME)).rejects.toThrow('60 秒')
     expect(deps.recognize).not.toHaveBeenCalled()
@@ -91,11 +91,11 @@ describe('speech.recognize', () => {
   })
 
   it.each([
-    ['非云存储地址', 'https://evil.example/voice-input/a.pcm'],
-    ['其他目录的文件', 'cloud://env-1.xxx/recordings/o_other/a.mp3'],
-    ['目录穿越', 'cloud://env-1.xxx/voice-input/../shares/a.pcm'],
-    ['非 pcm 文件', 'cloud://env-1.xxx/voice-input/a.mp3'],
-  ])('拒绝%s，且不读取、不删除', async (_name, fileID) => {
+    ['a non-cloud-storage URL', 'https://evil.example/voice-input/a.pcm'],
+    ['a file in another directory', 'cloud://env-1.xxx/recordings/o_other/a.mp3'],
+    ['path traversal', 'cloud://env-1.xxx/voice-input/../shares/a.pcm'],
+    ['a non-PCM file', 'cloud://env-1.xxx/voice-input/a.mp3'],
+  ])('rejects %s without reading or deleting it', async (_name, fileID) => {
     const { handlers, deps, removed } = setup({ recognized: 'x' })
     await expect(handlers.recognize({ fileID }, ME)).rejects.toThrow()
     expect(deps.storage.download).not.toHaveBeenCalled()
@@ -104,7 +104,7 @@ describe('speech.recognize', () => {
 })
 
 describe('speech.tts', () => {
-  it('按句合成、上传并缓存，第二次直接用缓存', async () => {
+  it('synthesizes per sentence, uploads and caches; the second call uses the cache', async () => {
     const { handlers, repos, deps, uploaded } = setup()
     const sessionId = await addSession(repos, [version('v1', ['Hi there.', 'How are you?'])])
 
@@ -119,14 +119,14 @@ describe('speech.tts', () => {
     expect(deps.synthesize).toHaveBeenCalledWith(
       expect.objectContaining({ text: 'Hi there.', voiceType: 501009, speed: 0 }),
     )
-    // 缓存不改对话的更新时间
+    // Caching doesn't change the session's updatedAt
     expect(repos.sessionDocs.get(sessionId)!.updatedAt).toBe(7)
 
     await handlers.tts({ sessionId, vid: 'v1' }, ME)
     expect(deps.synthesize).toHaveBeenCalledTimes(2)
   })
 
-  it('换了音色和语速时重新合成，不影响原来的缓存', async () => {
+  it('resynthesizes when voice or speed changes, keeping the existing cache', async () => {
     const { handlers, repos, deps } = setup()
     const sessionId = await addSession(repos, [version('v1', ['Hi.'])])
     await handlers.tts({ sessionId, vid: 'v1' }, ME)
@@ -139,7 +139,7 @@ describe('speech.tts', () => {
     expect(Object.keys(cache).sort()).toEqual(['female-normal', 'male-slow'])
   })
 
-  it('版本不存在或不是自己的对话时拒绝', async () => {
+  it("rejects a missing version or someone else's session", async () => {
     const { handlers, repos } = setup()
     const sessionId = await addSession(repos, [version('v1', ['Hi.'])])
     await expect(handlers.tts({ sessionId, vid: 'v9' }, ME)).rejects.toThrow('找不到')
@@ -150,20 +150,20 @@ describe('speech.tts', () => {
 })
 
 describe('speech.ttsWord', () => {
-  it('返回 base64 音频，用正常语速', async () => {
+  it('returns base64 audio at normal speed', async () => {
     const { handlers, deps } = setup()
     const { audio } = await handlers.ttsWord({ word: "don't" }, ME)
     expect(Buffer.from(audio, 'base64').toString()).toBe("mp3:don't")
     expect(deps.synthesize).toHaveBeenCalledWith(expect.objectContaining({ speed: 0 }))
   })
 
-  it('也能读收藏的短语，多余空白合并', async () => {
+  it('also reads saved phrases, collapsing extra whitespace', async () => {
     const { handlers } = setup()
     const { audio } = await handlers.ttsWord({ word: '  catch   up ' }, ME)
     expect(Buffer.from(audio, 'base64').toString()).toBe('mp3:catch up')
   })
 
-  it.each(['', '123', 'a'.repeat(61), '<script>', 'hi!'])('拒绝 %j', async (word) => {
+  it.each(['', '123', 'a'.repeat(61), '<script>', 'hi!'])('rejects %j', async (word) => {
     const { handlers } = setup()
     await expect(handlers.ttsWord({ word }, ME)).rejects.toThrow()
   })

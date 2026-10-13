@@ -16,24 +16,28 @@ export interface ChatOptions {
   timeoutMs: number
   temperature?: number
   maxTokens?: number
-  /** 要求服务商以 JSON 对象输出 */
+  /** Ask the provider to respond with a JSON object */
   json?: boolean
 }
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>
 
 /**
- * 记住不支持 JSON 模式的「接口地址 + 模型」，之后直接不带 response_format，
- * 省掉每次先失败一次的往返。云函数实例复用期间一直有效。
+ * Remembers which "base URL + model" pairs don't support JSON mode and omits response_format
+ * for them afterwards, saving a failed round trip each time. Lasts while the cloud function
+ * instance is reused.
  */
 const noJsonMode = new Set<string>()
 
-/** 仅供测试重置 */
+/** For resetting in tests only */
 export function resetJsonModeCache(): void {
   noJsonMode.clear()
 }
 
-/** 从上游错误里取一小段说明给用户看，先去掉任何可能是 Key 的内容 */
+/**
+ * Takes a short explanation from the upstream error to show the user, first stripping anything
+ * that may be a key
+ */
 function upstreamReason(body: string, apiKey: string): string {
   let reason = body
   try {
@@ -41,7 +45,7 @@ function upstreamReason(body: string, apiKey: string): string {
     const err = parsed.error
     reason = (typeof err === 'string' ? err : err?.message) ?? parsed.message ?? body
   } catch {
-    // 不是 JSON，用原文
+    // Not JSON; use the raw text
   }
   if (apiKey) reason = reason.split(apiKey).join('***')
   return reason
@@ -68,7 +72,7 @@ function errorForStatus(status: number, reason: string): AppError {
   return new AppError('UPSTREAM_ERROR', `大模型请求失败（${status}）${suffix}`)
 }
 
-/** 调用 OpenAI 兼容的 /chat/completions，返回第一条回复的文本 */
+/** Calls an OpenAI-compatible /chat/completions and returns the text of the first choice */
 export async function chat(
   target: LlmTarget,
   messages: ChatMessage[],
@@ -110,7 +114,8 @@ export async function chat(
   let res = await send(useJson)
   if (!res.ok && res.status === 400 && useJson) {
     const body = await res.text()
-    // 部分服务商或模型不支持 JSON 模式，去掉后重试；提示词本身也要求只输出 JSON
+    // Some providers or models don't support JSON mode: retry without it; the prompt itself
+    // also asks for JSON only
     if (/response_format|json_object|json mode|json_schema/i.test(body)) {
       noJsonMode.add(modelKey)
       res = await send(false)

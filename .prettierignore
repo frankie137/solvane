@@ -6,5 +6,7 @@ pnpm-lock.yaml
 src/static/
 .ci/
 .keys/
-# 由微信开发者工具维护格式，打开项目时会被改写
+# Formatted by WeChat DevTools, which rewrites it when opening the project
 project.config.json
+# Official license text, kept verbatim
+LICENSE.md

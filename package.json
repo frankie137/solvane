@@ -1,8 +1,9 @@
 {
   "name": "solvane",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
-  "description": "用母语说出想法，学会地道英文表达的微信小程序",
+  "description": "A WeChat mini program for saying your ideas in your native language and learning to express them in idiomatic English",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "packageManager": "pnpm@12.10.1",
   "engines": {
     "node": ">=24"

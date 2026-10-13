@@ -8,9 +8,9 @@ const TtsClient = tencentcloud.tts.v20190823.Client
 
 export interface SynthesizeOptions {
   text: string
-  /** 腾讯云音色 ID */
+  /** Tencent Cloud voice ID */
   voiceType: number
-  /** 腾讯云 Speed：-1 为 0.8 倍，0 为正常 */
+  /** Tencent Cloud Speed: -1 is 0.8x, 0 is normal */
   speed: number
 }
 
@@ -19,7 +19,7 @@ export interface SynthesizeResult {
   words: TimedText[]
 }
 
-/** 腾讯云基础语音合成，英文单次不超过 500 个字母；返回 mp3 和逐词时间 */
+/** Tencent Cloud basic TTS, up to 500 English letters per call; returns mp3 and per-word timings */
 export function createSynthesizer(getCredential: () => Credential, fn: string) {
   let client: InstanceType<typeof TtsClient> | null = null
 

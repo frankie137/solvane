@@ -10,7 +10,7 @@ import type { ChatMessage } from '../lib/llm/client'
 
 const COACH = '你是一位以英语为母语、熟悉中国学习者的英语口语教练，正在帮学习者检查背诵。'
 
-/** 用户内容放进三引号里；内容本身的三引号替换掉，避免提前闭合 */
+/** Wrap user content in triple quotes; replace triple quotes inside it so it can't close early */
 function quote(content: string): string {
   return `"""\n${content.replace(/"""/g, '“”“')}\n"""`
 }

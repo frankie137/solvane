@@ -7,7 +7,7 @@
       <text class="panel__status">正在上传录音…</text>
     </view>
 
-    <!-- 提交失败：录音还在，可以直接重新提交，不用重背 -->
+    <!-- Submission failed: the recording is kept and can be resubmitted without reciting again -->
     <view v-else-if="failed" class="panel__body">
       <text class="panel__status is-error">没能提交，录音还在</text>
       <view class="panel__actions">
@@ -65,7 +65,7 @@ const props = withDefaults(
     submitting: boolean
     levels: number[]
     elapsedMs: number
-    /** 上一次提交失败、录音还保留着 */
+    /** The last submission failed and the recording is still kept */
     failed?: boolean
   }>(),
   { failed: false },
@@ -126,7 +126,8 @@ const timeText = computed(() =>
   align-items: center;
   justify-content: center;
   gap: 10px;
-  // 几种状态高度一致，切换时面板不跳；和背诵页的 PANEL_HEIGHT 对应
+  // All states share one height so the panel doesn't jump when switching; matches PANEL_HEIGHT on
+  // the recitation page
   min-height: 124px;
   box-sizing: border-box;
   padding: 0 20px;
