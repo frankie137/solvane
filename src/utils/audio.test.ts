@@ -6,15 +6,15 @@ function frame(values: number[]): ArrayBuffer {
 }
 
 describe('pcmLevel', () => {
-  it('静音为 0', () => {
+  it('silence is 0', () => {
     expect(pcmLevel(frame(new Array(512).fill(0)))).toBe(0)
   })
 
-  it('满幅接近 1', () => {
+  it('full scale is close to 1', () => {
     expect(pcmLevel(frame(new Array(512).fill(32767)))).toBeCloseTo(1, 2)
   })
 
-  it('音量越大值越大，且落在 0～1 之间', () => {
+  it('grows with volume and stays between 0 and 1', () => {
     const quiet = pcmLevel(frame(new Array(512).fill(300)))
     const loud = pcmLevel(frame(new Array(512).fill(8000)))
     expect(quiet).toBeGreaterThan(0)
@@ -22,7 +22,7 @@ describe('pcmLevel', () => {
     expect(loud).toBeLessThanOrEqual(1)
   })
 
-  it('空帧和奇数字节不出错', () => {
+  it('handles empty frames and odd byte counts', () => {
     expect(pcmLevel(new ArrayBuffer(0))).toBe(0)
     expect(pcmLevel(new ArrayBuffer(3))).toBeGreaterThanOrEqual(0)
   })

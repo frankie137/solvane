@@ -5,15 +5,15 @@ import { pollUntil } from '@/utils/poll'
 import { callCloud, CloudError, uploadFile } from './cloud'
 import { mayStillRun } from './cloud-error'
 
-/** 上传背诵录音，返回 fileID */
+/** Upload a recitation recording and return its fileID */
 export async function uploadRecitation(recording: RecordingResult): Promise<string> {
   const cloudPath = `recite-input/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.pcm`
   return uploadFile(recording.tempFilePath, cloudPath)
 }
 
 /**
- * 用上传好的录音建练习记录。超时或断网时记录可能已经建好：保留文件，
- * 用同一个 fileID 重新提交，云端会认出来直接返回，不会重复建。
+ * Create a practice record from an uploaded recording. On timeout or network loss the record may already exist: keep the file
+ * and resubmit with the same fileID; the cloud recognizes it and returns the record without creating a duplicate.
  */
 export async function startPractice(
   sessionId: string,
@@ -30,7 +30,7 @@ export async function startPractice(
     })
     return practiceId
   } catch (err) {
-    // 明确被拒绝时练习没有创建，录音没人引用了，顺手删掉；超时或断网时练习可能已经建好，不能删
+    // On an explicit rejection no practice was created and nothing references the recording, so delete it; on timeout or network loss the practice may already exist, so keep it
     if (!mayStillRun(err)) {
       wx.cloud.deleteFile({ fileList: [fileID], fail: () => {} })
     }
@@ -46,15 +46,15 @@ export async function listPractices(sessionId: string): Promise<PracticeSummary[
   return (await callCloud('assess', 'list', { sessionId })).items
 }
 
-/** 防止异常情况下无限循环：正常最多四步 */
+/** Guards against infinite loops in abnormal cases: normally at most four steps */
 const MAX_ROUNDS = 10
 
-/** score：评分（扣次数），推进到出报告；share：只为分享准备歌词时间（识别和对照），不扣次数 */
+/** score: scoring (uses a free use), advancing until the report is ready; share: only prepares lyric timings for sharing (recognition and alignment), doesn't use a free use */
 export type PracticeGoal = 'score' | 'share'
 
 const ACTION = { score: 'score', share: 'prepareShare' } as const
 
-/** 分享需要的歌词时间来自对照这一步 */
+/** The lyric timings needed for sharing come from the alignment step */
 export const reachedGoal = (p: Practice, goal: PracticeGoal) =>
   goal === 'score' ? p.stage === 'done' : p.alignment !== null
 
@@ -64,9 +64,9 @@ export interface RunOptions {
 }
 
 /**
- * 推进评测直到目标：每次调用云函数执行一到多步；
- * 等不到返回或已有步骤在运行时，轮询练习状态直到这一步结束。
- * 每轮都调用目标对应的接口：云端对同一条录音只扣一次，请求没送达时也能重新发起。
+ * Advance the assessment up to the target: each cloud function call runs one or more steps;
+ * if the call doesn't return in time or a step is already running, poll the practice status until that step ends.
+ * Call the target's action every round: the cloud deducts only once per recording, and a request that never arrived gets sent again.
  */
 export async function runPractice(
   practiceId: string,
@@ -110,7 +110,7 @@ export async function runPractice(
 
 const wordAudioCache = new Map<string, string>()
 
-/** 单词的标准发音：云端返回 base64 mp3，写成本地临时文件播放 */
+/** Reference pronunciation of a word: the cloud returns a base64 mp3, written to a local temp file for playback */
 export async function wordAudioPath(word: string): Promise<string> {
   const key = word.toLowerCase()
   const hit = wordAudioCache.get(key)

@@ -89,7 +89,7 @@
                   >{{ p.text }}</text
                 >
               </view>
-              <!-- 解析里推荐的说法不一定出现在原文里 -->
+              <!-- Phrases suggested by the analysis may not appear in the original text -->
               <text v-else class="usage__none">解析里推荐的说法，原文没有直接用到</text>
               <text class="usage__meta">{{ sourceMeta(s) }}</text>
             </view>
@@ -213,7 +213,7 @@ onUnload(() => {
 const bottomInset = computed(() => `height:${metrics.value.safeAreaBottom + 24}px`)
 const speakable = computed(() => /^[A-Za-z][A-Za-z' -]{0,59}$/.test(expression.value?.text ?? ''))
 const folderName = computed(() => {
-  // 文件夹数据还没到时不能说成「未归类」
+  // Don't say "Uncategorized" (「未归类」) before the folder data arrives
   if (!store.loaded) return '—'
   const path = folderPath(folders.value, expression.value?.folderId ?? null)
   return path.length ? path.map((f) => f.name).join(' › ') : '未归类'
@@ -257,7 +257,10 @@ async function loadUsages() {
   }
 }
 
-/** 补全释义：页面打开时还在生成就等结果；失败时点重试 */
+/**
+ * Fill in the definition: if it's still generating when the page opens, wait for the result; on
+ * failure, tap to retry
+ */
 async function fill() {
   if (filling.value || !expression.value) return
   filling.value = true

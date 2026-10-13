@@ -3,7 +3,7 @@ import type { TimedText } from '@shared/types'
 import { activeTokenIndex, firstLetters, nextHint, scoreTone, tokenize } from './recite'
 
 describe('tokenize', () => {
-  it('按空白切词并记录位置', () => {
+  it('splits on whitespace and records positions', () => {
     expect(tokenize("I'm  going hiking.")).toEqual([
       { text: "I'm", start: 0, end: 3 },
       { text: 'going', start: 5, end: 10 },
@@ -26,7 +26,7 @@ describe('firstLetters', () => {
 })
 
 describe('nextHint', () => {
-  it('遮住 → 首字母 → 原文 → 遮住', () => {
+  it('hidden → initials → full text → hidden', () => {
     expect([nextHint(0), nextHint(1), nextHint(2)]).toEqual([1, 2, 0])
   })
 })
@@ -47,11 +47,11 @@ describe('activeTokenIndex', () => {
     [300, 1],
     [600, 2],
     [920, 2],
-  ])('%ims → 第 %i 个词', (ms, index) => {
+  ])('%ims → word %i', (ms, index) => {
     expect(activeTokenIndex(tokens, words, ms)).toBe(index)
   })
 
-  it('没有时间戳时不高亮', () => {
+  it('highlights nothing without timestamps', () => {
     expect(activeTokenIndex(tokens, [], 100)).toBe(-1)
   })
 })

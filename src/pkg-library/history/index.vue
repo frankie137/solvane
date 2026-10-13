@@ -70,7 +70,10 @@ const { metrics } = storeToRefs(useSystemStore())
 const items = ref<SessionSummary[]>([])
 const loaded = ref(false)
 const loadingMore = ref(false)
-/** 翻页失败：已经在底部时不会再触发上滑加载，给一个点击重试的入口 */
+/**
+ * Loading the next page failed: when already at the bottom, scrolling won't trigger loading again,
+ * so offer a tap to retry
+ */
 const moreFailed = ref(false)
 const hasMore = ref(false)
 const error = ref('')
@@ -83,7 +86,7 @@ const footer = computed(() => {
   return `共 ${items.value.length} 个对话`
 })
 
-/** 换关键词时加一：旧关键词的第一页和翻页结果都作废 */
+/** Bumped on keyword change: first-page and next-page results for the old keyword are discarded */
 let generation = 0
 let reloading = false
 let shownOnce = false
@@ -95,7 +98,10 @@ function fetchPage(offset: number) {
   })
 }
 
-/** 重新取第一页；keep 为 true 时保留已经翻过的后面几页（从对话页返回时用，不丢位置） */
+/**
+ * Refetch the first page; when keep is true, keep the later pages already loaded (used when
+ * returning from a session page, so the position isn't lost)
+ */
 async function reload(keep = false) {
   const gen = keep ? generation : ++generation
   error.value = ''
@@ -127,7 +133,7 @@ async function loadMore() {
   try {
     const res = await fetchPage(items.value.length)
     if (gen !== generation) return
-    // 翻页期间对话可能更新了顺序，按 id 去重
+    // Sessions may have been reordered while paging; dedupe by id
     const seen = new Set(items.value.map((s) => s.id))
     items.value = [...items.value, ...res.items.filter((s) => !seen.has(s.id))]
     hasMore.value = res.hasMore
@@ -144,7 +150,7 @@ async function loadMore() {
   }
 }
 
-/** 重试：先显示加载中，不闪空状态 */
+/** Retry: show loading first instead of flashing the empty state */
 function retry() {
   loaded.value = false
   void reload()
@@ -160,7 +166,8 @@ onLoad(() => {
   void reload()
 })
 
-// 从对话页回来时刷新第一页（可能新收藏了或者改了内容），已经翻过的保留
+// Refresh the first page when returning from a session page (it may have been saved or revised);
+// keep the pages already loaded
 onShow(() => {
   if (shownOnce) void reload(true)
   shownOnce = true

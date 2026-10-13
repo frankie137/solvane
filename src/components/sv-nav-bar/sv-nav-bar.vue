@@ -13,7 +13,7 @@
         >
           <sv-icon name="chevron.left" :size="26" :weight="2.2" />
         </view>
-        <!-- 返回按钮后面的操作位（右侧是微信胶囊按钮，放不了） -->
+        <!-- Action slot after the back button (the right side is taken by WeChat's capsule button) -->
         <view class="sv-nav__leading" :class="{ 'has-back': back }" :style="backStyle">
           <slot name="leading" />
         </view>
@@ -21,7 +21,7 @@
       </view>
     </view>
 
-    <!-- 固定导航栏的占位，让内容从导航栏下方开始 -->
+    <!-- Placeholder for the fixed nav bar so content starts below it -->
     <view :style="spacerStyle" />
 
     <view v-if="large" class="sv-nav__large" :class="{ 'is-collapsed': collapsed }">
@@ -41,9 +41,9 @@ defineOptions({ options: { virtualHost: true, styleIsolation: 'apply-shared' } }
 const props = withDefaults(
   defineProps<{
     title: string
-    /** 大标题模式：标题先以大字号显示在内容顶部，滚动后收进导航栏 */
+    /** Large title mode: the title first shows large at the top of the content and collapses into the nav bar on scroll */
     large?: boolean
-    /** 大标题模式下是否已经滚动收起，由页面根据滚动位置传入 */
+    /** Whether the large title has collapsed on scroll; passed in by the page based on scroll position */
     collapsed?: boolean
     back?: boolean
   }>(),
@@ -57,7 +57,7 @@ const solid = computed(() => !props.large || props.collapsed)
 const barStyle = computed(
   () => `height:${metrics.value.totalHeight}px;padding-top:${metrics.value.statusBarHeight}px`,
 )
-// 左右对称留出胶囊按钮的宽度，保证标题真正居中
+// Reserve the capsule button's width on both sides so the title is truly centered
 const innerStyle = computed(
   () => `height:${metrics.value.navBarHeight}px;padding:0 ${metrics.value.capsuleReserve}px`,
 )
@@ -83,7 +83,7 @@ function goBack() {
   box-sizing: border-box;
 }
 
-// 背景层单独做透明度过渡，毛玻璃本身无法平滑过渡
+// Fade the background layer's opacity separately, since the frosted-glass blur itself can't transition smoothly
 .sv-nav__bg {
   position: absolute;
   top: 0;

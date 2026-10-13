@@ -13,7 +13,7 @@ import { scoreTone } from '@/utils/recite'
 
 const props = defineProps<{ score: number }>()
 
-/** 分数从 0 数到目标值，约 0.6 秒 */
+/** Count the score up from 0 to the target in about 0.6 s */
 const shown = ref(0)
 let timer: ReturnType<typeof setInterval> | null = null
 
@@ -24,7 +24,7 @@ watch(
     const start = Date.now()
     timer = setInterval(() => {
       const t = Math.min(1, (Date.now() - start) / 600)
-      // 先快后慢
+      // Fast at first, then slower
       shown.value = Math.round(target * (1 - (1 - t) ** 3))
       if (t >= 1 && timer) {
         clearInterval(timer)

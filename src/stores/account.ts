@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import type { Account } from '@shared/types'
 import { callCloud } from '@/services/cloud'
 
-/** 自己的会员状态：「我的」页、新建对话、评分、Pro 面板共享 */
+/** The user's own membership status, shared by the Me tab, new sessions, scoring and the Pro sheet */
 export const useAccountStore = defineStore('account', () => {
   const account = ref<Account | null>(null)
 
@@ -12,7 +12,7 @@ export const useAccountStore = defineStore('account', () => {
     return account.value
   }
 
-  /** 新建对话、评分以后次数变了：后台刷新，失败时保留原来的 */
+  /** Uses change after a new session or scoring: refresh in the background, keeping the old value on failure */
   function refresh() {
     void load().catch(() => {})
   }

@@ -1,12 +1,12 @@
 import { onUnmounted, ref } from 'vue'
 import { ensureAudioOption } from './useAudio'
 
-/** 跳转后等待生效的最长时间；个别机型不触发 onSeeked，到时间后照常读进度 */
+/** Max wait for a seek to take effect; some devices never fire onSeeked, so read progress as usual after this */
 const SEEK_SETTLE_MS = 600
 
 /**
- * 整段音频的播放器（歌词页用）：播放 / 暂停、跳转、进度和时长。
- * 进度按 tickMs 读取，只在变化时更新。
+ * Full-track audio player (used by the lyrics player): play / pause, seek, progress and duration.
+ * Progress is read every tickMs and updated only when it changes.
  */
 export function useTrackPlayer(tickMs = 80) {
   const playing = ref(false)
@@ -16,7 +16,7 @@ export function useTrackPlayer(tickMs = 80) {
 
   let ctx: WechatMiniprogram.InnerAudioContext | null = null
   let timer: ReturnType<typeof setInterval> | null = null
-  /** 停止或播完时 seek 不一定生效：记下来，开始播放后再跳 */
+  /** Seek may not take effect when stopped or finished: remember it and seek once playback starts */
   let pendingSeek: number | null = null
   let settleUntil = 0
 
@@ -78,7 +78,7 @@ export function useTrackPlayer(tickMs = 80) {
 
   function play() {
     if (!ctx) return
-    // 播完以后再点播放，从头开始
+    // Pressing play after it finished starts from the beginning
     if (durationMs.value > 0 && positionMs.value >= durationMs.value) seek(0)
     else ctx.play()
   }
@@ -92,7 +92,7 @@ export function useTrackPlayer(tickMs = 80) {
     else play()
   }
 
-  /** 跳到某个位置；autoplay 为 false 时只记下位置，下次播放从这里开始 */
+  /** Seek to a position; with autoplay false, just remember it so the next play starts there */
   function seek(ms: number, autoplay = true) {
     if (!ctx) return
     const target = Math.max(0, durationMs.value > 0 ? Math.min(ms, durationMs.value) : ms)

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { ICON_NAMES, iconDataUri } from './icons'
 
 describe('iconDataUri', () => {
-  it('每个图标都能生成合法的 SVG data URI', () => {
+  it('generates a valid SVG data URI for every icon', () => {
     for (const name of ICON_NAMES) {
       const uri = iconDataUri(name)
       expect(uri.startsWith('data:image/svg+xml;charset=utf-8,')).toBe(true)
@@ -11,13 +11,13 @@ describe('iconDataUri', () => {
     }
   })
 
-  it('编码结果中不含会截断 CSS url() 的字符', () => {
+  it('encodes no characters that would cut off a CSS url()', () => {
     for (const name of ICON_NAMES) {
       expect(iconDataUri(name)).not.toMatch(/["'()\s]/)
     }
   })
 
-  it('线宽写进 SVG，且按线宽分别缓存', () => {
+  it('writes the stroke width into the SVG and caches per stroke width', () => {
     const thin = iconDataUri('mic', 1.5)
     const bold = iconDataUri('mic', 2.4)
     expect(thin).not.toBe(bold)

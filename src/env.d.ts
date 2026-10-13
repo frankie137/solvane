@@ -8,7 +8,7 @@ declare module '*.vue' {
 }
 
 interface ImportMetaEnv {
-  /** 云开发环境 ID；不填则使用小程序的默认环境 */
+  /** CloudBase environment ID; uses the mini program's default environment if empty */
   readonly VITE_CLOUD_ENV?: string
 }
 
@@ -16,5 +16,5 @@ interface ImportMeta {
   readonly env: ImportMetaEnv
 }
 
-/** 构建时注入的版本号，来自 package.json */
+/** Version number injected at build time, from package.json */
 declare const __APP_VERSION__: string

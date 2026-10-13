@@ -71,7 +71,7 @@ import { navigateTo } from '@/utils/nav'
 import { formatRelative } from '@/utils/time'
 
 const { metrics: systemMetrics } = storeToRefs(useSystemStore())
-// 底部留出安全区，最后的内容不贴着手势条
+// Leave room for the bottom safe area so the last item doesn't touch the home indicator
 const bottomInset = computed(() => `height:${systemMetrics.value.safeAreaBottom + 24}px`)
 
 const { collapsed, onScroll } = useCollapsingTitle()
@@ -90,13 +90,13 @@ async function load() {
   }
 }
 
-/** 重试：先显示加载中，不闪空状态 */
+/** Retry: show loading first instead of flashing the empty state */
 function retry() {
   loaded.value = false
   void load()
 }
 
-// 从歌词页回来时也刷新
+// Also refresh when returning from the lyrics player
 onShow(() => void load())
 
 function meta(item: ShareSummary): string {

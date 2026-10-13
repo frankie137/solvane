@@ -14,7 +14,8 @@
       </view>
     </scroll-view>
     <view class="revise__row">
-      <!-- 输入时不回写内容，避免打断中文输入法；发送后换新的输入框来清空 -->
+      <!-- Don't write the value back while typing, so the Chinese IME isn't interrupted; clear
+           it by swapping in a new input after sending -->
       <input
         :key="inputVersion"
         class="revise__input"
@@ -56,7 +57,7 @@ function onKeyboard(res: { height: number }) {
   if (res.height !== keyboardHeight.value) keyboardHeight.value = res.height
 }
 
-// 外部把内容清空时（发送成功），换一个新的输入框
+// When the parent clears the content (sent successfully), swap in a new input
 watch(
   () => props.modelValue,
   (value) => {
@@ -67,7 +68,7 @@ const unwatchKeyboard = watchKeyboard(onKeyboard)
 onUnmounted(unwatchKeyboard)
 
 const barStyle = computed(() => {
-  // 键盘弹起时贴着键盘，不再留安全区
+  // Sit right on the keyboard while it is up, without the safe area
   const padding = keyboardHeight.value > 0 ? 8 : metrics.value.safeAreaBottom + 8
   return `padding-bottom:${padding}px;bottom:${keyboardHeight.value}px`
 })

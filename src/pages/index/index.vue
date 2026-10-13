@@ -6,7 +6,7 @@
       class="shell__pane"
       :class="{ 'is-active': active === tab.key }"
     >
-      <!-- 首次切到某个 tab 才挂载，之后保留状态 -->
+      <!-- Mount a tab the first time it's opened, then keep its state -->
       <template v-if="visited[tab.key]">
         <practice-tab v-if="tab.key === 'practice'" />
         <library-tab v-else-if="tab.key === 'library'" />
@@ -44,21 +44,23 @@ watch(active, (key) => {
   visited[key] = true
 })
 
-// 每次回到首页都刷新最近对话和收藏（从对话页、收藏详情返回时能看到最新状态）
+// Refresh recent sessions and saved items every time the home page shows (so the latest state is
+// visible after returning from a session or a saved item)
 const sessionsStore = useSessionsStore()
 const libraryStore = useLibraryStore()
 const profileStore = useProfileStore()
 const accountStore = useAccountStore()
 onShow(() => {
   void sessionsStore.refresh()
-  // 会员状态：剩余次数可能刚用掉，也可能刚被管理员开通了 Pro；第一次打开时建档
+  // Membership status: a free use may have just been spent, or an admin may have just granted Pro;
+  // creates the record on first open
   accountStore.refresh()
   if (visited.library) libraryStore.touch()
-  // 「我的」页一直不卸载，头像临时链接快过期时换新的
+  // The "Me" tab (「我的」) is never unmounted; renew the temporary avatar URL before it expires
   if (visited.me) void profileStore.refreshIfStale()
 })
 
-// 支持 /pages/index/index?tab=me 直接打开某个 tab（冒烟测试和以后的深链接用）
+// Open a tab directly via /pages/index/index?tab=me (for the smoke test and future deep links)
 onLoad((query) => {
   const tab = TABS.find((t) => t.key === query?.tab)
   if (tab) active.value = tab.key
@@ -83,7 +85,7 @@ onLoad((query) => {
   visibility: hidden;
   pointer-events: none;
   transform: scale(0.985);
-  // 后台 tab 里的循环动画暂停（CSS 变量能穿透组件边界继承下去）
+  // Pause looping animations in background tabs (CSS variables inherit across components)
   --sv-play: paused;
   transition:
     opacity var(--sv-dur-2) var(--sv-ease),

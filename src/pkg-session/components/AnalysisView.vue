@@ -87,13 +87,13 @@ import type { Analysis } from '@shared/types'
 const props = withDefaults(
   defineProps<{
     analysis: Analysis
-    /** 已收藏表达的合并键 → id，用来显示实心的收藏图标 */
+    /** Merge key of saved expressions → id, used to show the filled save icon */
     savedKeys?: Record<string, string>
   }>(),
   { savedKeys: () => ({}) },
 )
 
-/** 点收藏：关键表达或俚语里的第几条 */
+/** Save tapped: index of the item within key expressions or slang */
 const emit = defineEmits<{ save: [kind: 'phrase' | 'slang', index: number] }>()
 
 const isSaved = (phrase: string) => Boolean(props.savedKeys[expressionKey(phrase)])

@@ -1,8 +1,8 @@
 import { wrapText } from './lyrics'
 
 /**
- * 分享卡片封面（5:4）。画布用不了 CSS 变量，颜色取自 tokens.scss 里的
- * --sv-accent-gradient（浅色版），改设计变量时这里一起改。
+ * Share card cover (5:4). Canvas can't use CSS variables, so the colors come from
+ * --sv-accent-gradient (light version) in tokens.scss; update them here when changing the tokens.
  */
 const GRADIENT = ['#0a84ff', '#5e5ce6', '#8e5cf7'] as const
 const WIDTH = 500
@@ -24,7 +24,7 @@ interface Canvas2D {
   getContext(type: '2d'): CanvasRenderingContext2D
 }
 
-/** 在 2d 画布上画封面；dpr 为像素比，画好后由调用方导出图片 */
+/** Draw the cover on a 2d canvas; dpr is the pixel ratio; the caller exports the image afterwards */
 export function drawCover(canvas: Canvas2D, text: CoverText, dpr = 2): void {
   canvas.width = WIDTH * dpr
   canvas.height = HEIGHT * dpr
@@ -38,7 +38,7 @@ export function drawCover(canvas: Canvas2D, text: CoverText, dpr = 2): void {
   ctx.fillStyle = bg
   ctx.fillRect(0, 0, WIDTH, HEIGHT)
 
-  // 右上角一个淡淡的圆，增加层次
+  // A faint circle in the top-right corner adds depth
   ctx.fillStyle = 'rgba(255, 255, 255, 0.08)'
   ctx.beginPath()
   ctx.arc(WIDTH - 40, 40, 150, 0, Math.PI * 2)

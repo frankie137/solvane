@@ -1,19 +1,19 @@
 import { onUnmounted, ref } from 'vue'
 
 export interface PlayOptions {
-  /** 从这里开始播放（毫秒） */
+  /** Start playback here (ms) */
   startMs?: number
-  /** 播到这里停止（毫秒）；不填播到结尾 */
+  /** Stop here (ms); plays to the end if omitted */
   endMs?: number
-  /** 自然播完（包括到达 endMs）时调用；被打断时不调用 */
+  /** Called when playback finishes naturally (including reaching endMs); not called when interrupted */
   onEnded?: () => void
 }
 
 let audioOptionSet = false
-/** 等待跳转完成的最长时间；个别机型不触发 onSeeked，到时间后照常读进度 */
+/** Max wait for a seek to finish; some devices never fire onSeeked, so read progress as usual after this */
 const SEEK_SETTLE_MS = 600
 
-/** 静音模式下也要能听示范；只需设置一次 */
+/** Demos must be audible even in silent mode; only needs setting once */
 export function ensureAudioOption() {
   if (audioOptionSet) return
   audioOptionSet = true
@@ -21,8 +21,8 @@ export function ensureAudioOption() {
 }
 
 /**
- * 单个音频播放器：支持片段播放，播放进度按 tickMs 读取，只在变化时更新。
- * 播放新的音频会打断正在播放的。
+ * Single audio player: supports clip playback; progress is read every tickMs and updated only when it changes.
+ * Playing new audio interrupts whatever is playing.
  */
 export function useAudio(tickMs = 60, options: { onError?: () => void } = {}) {
   const playing = ref(false)
@@ -32,9 +32,9 @@ export function useAudio(tickMs = 60, options: { onError?: () => void } = {}) {
   let timer: ReturnType<typeof setInterval> | null = null
   let endAt: number | null = null
   let onEnded: (() => void) | undefined
-  /** 重播同一个音频时要跳到的位置（秒）：停止状态下 seek 不一定生效，等开始播放后再跳 */
+  /** Position to seek to when replaying the same audio (s): seek may not take effect while stopped, so seek once playback starts */
   let pendingSeek: number | null = null
-  /** 跳转完成前 currentTime 还是旧值，这段时间不读进度，避免误判已到 endMs */
+  /** currentTime keeps the old value until a seek completes; skip progress reads meanwhile so endMs is not falsely detected */
   let settleUntil = 0
 
   function clearTimer() {
@@ -67,7 +67,7 @@ export function useAudio(tickMs = 60, options: { onError?: () => void } = {}) {
       settleUntil = 0
     })
     ctx.onError(() => {
-      // 多半是临时链接过期：让调用方作废缓存，下次换新链接
+      // Most likely an expired temporary URL: let the caller invalidate its cache and use a new URL next time
       options.onError?.()
       if (!playing.value) return
       finish(false)

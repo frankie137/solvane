@@ -45,7 +45,7 @@
           </sv-card>
         </view>
 
-        <!-- 还没有任何版本：生成中或失败 -->
+        <!-- No version yet: generating or failed -->
         <template v-if="!current">
           <sv-card v-if="genError" :padding="24">
             <sv-state
@@ -297,7 +297,7 @@ const { metrics } = storeToRefs(useSystemStore())
 const sessionsStore = useSessionsStore()
 const accountStore = useAccountStore()
 const { account } = storeToRefs(accountStore)
-/** 免费次数用完时说明 Pro */
+/** Explain Pro when free uses run out */
 const showPro = ref(false)
 
 const current = computed<Version | null>(() => {
@@ -308,7 +308,10 @@ const current = computed<Version | null>(() => {
 
 const navTitle = computed(() => session.value?.title || '新的表达')
 
-/** 有任务在运行（包括上次离开前发起、还没结束的任务）时不能再提修改 */
+/**
+ * No revisions while a job is running (including jobs started before the user last left that
+ * haven't finished)
+ */
 const busy = computed(() => generating.value || revising.value || analyzing.value)
 const busyHint = computed(() => {
   if (analyzing.value) return '解析生成中，稍后就可以修改'
@@ -316,7 +319,7 @@ const busyHint = computed(() => {
   return ''
 })
 
-/** 页面关闭后停止所有等待，不再发起新的任务 */
+/** After the page closes, stop all waiting and start no new jobs */
 let disposed = false
 onUnload(() => {
   disposed = true
@@ -328,7 +331,7 @@ const bottomInset = computed(() => {
   return `height:${bar + metrics.value.safeAreaBottom + 24}px`
 })
 
-// 生成时轮换提示文案，让等待不显得卡住
+// Rotate hint text while generating, so the wait doesn't feel stuck
 let progressTimer: ReturnType<typeof setInterval> | null = null
 watch(generating, (on) => {
   if (progressTimer) clearInterval(progressTimer)
@@ -355,7 +358,7 @@ function versionLabel(v: Version, index: number): string {
 
 onLoad((query) => {
   sessionId.value = String(query?.id ?? '')
-  // 从收藏溯源过来：打开那个版本，并突出那一句
+  // Arriving from a saved item: open that version and highlight the sentence
   if (query?.vid) {
     locateTarget = { vid: String(query.vid), sentence: Number(query.s ?? -1) }
   }
@@ -363,7 +366,8 @@ onLoad((query) => {
   if (!libraryStore.loaded) void libraryStore.refresh()
 })
 
-// 从"大模型配置"回来时自动重试；从背诵 / 报告页回来时刷新练习记录
+// Retry automatically when returning from "LLM config" (「大模型配置」);
+// refresh practice records when returning from the recitation / report page
 onShow(() => {
   if (genError.value?.code === 'NOT_CONFIGURED') void generate()
   if (session.value) void loadPractices()
@@ -373,7 +377,7 @@ onHide(() => {
   stopDemo()
 })
 
-// --- 示范朗读 ---------------------------------------------------------------
+// --- Demo reading -----------------------------------------------------------
 
 const currentVid = computed(() => current.value?.vid ?? null)
 const {
@@ -390,7 +394,7 @@ function toggleDemo() {
   else void playAll()
 }
 
-// --- 背诵练习 ---------------------------------------------------------------
+// --- Recitation practice ----------------------------------------------------
 
 const practices = ref<PracticeSummary[]>([])
 
@@ -398,7 +402,7 @@ async function loadPractices() {
   try {
     practices.value = await listPractices(sessionId.value)
   } catch {
-    // 练习记录不影响对话本身，加载失败时不打扰
+    // Practice records don't affect the session itself; stay quiet if loading fails
   }
 }
 
@@ -450,7 +454,7 @@ async function reload() {
   await ensure()
 }
 
-// --- 收藏 -------------------------------------------------------------------
+// --- Save -------------------------------------------------------------------
 
 const libraryStore = useLibraryStore()
 const { keys: savedKeys } = storeToRefs(libraryStore)
@@ -465,8 +469,9 @@ onUnmounted(() => {
 })
 
 /**
- * 切到那个版本，滚到英文并突出那一句。
- * 和点版本标签一样保存为当前版本，否则之后的任务结果（以云端为准）会把页面切回原来的版本。
+ * Switch to that version, scroll to the English and highlight the sentence.
+ * Save it as the current version, as tapping a version tab does; otherwise later job results (the
+ * cloud is the source of truth) would switch the page back to the old version.
  */
 async function applyLocate() {
   const s = session.value
@@ -478,7 +483,7 @@ async function applyLocate() {
     try {
       await setCurrentVersion(sessionId.value, target.vid)
     } catch {
-      // 保存失败只影响下次打开时的默认版本，这次照常定位
+      // A failed save only affects next time's default version; still locate as usual this time
     }
   }
   located.value = target.sentence
@@ -486,16 +491,16 @@ async function applyLocate() {
   scrollTimer = setTimeout(() => {
     scrollTarget.value = 'english'
   }, 50)
-  // 比 SentenceList 里突出的动画稍长，动画放完再去掉
+  // A bit longer than SentenceList's highlight animation; clear it after the animation ends
   locateTimer = setTimeout(() => {
     located.value = -1
   }, LOCATE_HIGHLIGHT_MS + 200)
 }
 
-/** 收藏提示离开底部的修改栏 */
+/** Keep the save toast clear of the revise bar at the bottom */
 const toastBottom = computed(() => REVISE_BAR_HEIGHT + metrics.value.safeAreaBottom + 12)
 
-/** 收藏请求进行中：连点只发一次 */
+/** A save request is in flight: repeated taps send it only once */
 let starring = false
 const savingPhrases = new Set<string>()
 
@@ -540,7 +545,7 @@ async function saveFromAnalysis(kind: 'phrase' | 'slang', index: number) {
   const item =
     kind === 'phrase' ? version?.analysis?.keyPhrases[index] : version?.analysis?.slang[index]
   if (!version || !item) return
-  // 已经收藏过的直接打开卡片
+  // Already saved: open the card directly
   const existing = libraryStore.savedId(item.phrase)
   if (existing) return openExpression(existing)
   if (savingPhrases.has(item.phrase)) return
@@ -599,7 +604,10 @@ async function saveFromSentence(text: string) {
   }
 }
 
-/** 打开页面时补齐缺的内容：先等正在运行的任务，再生成第一版，最后生成解析 */
+/**
+ * Fill in missing content when the page opens: wait for running jobs first, then generate the first
+ * version, then the analysis
+ */
 async function ensure() {
   const s = session.value
   if (!s) return
@@ -612,7 +620,7 @@ async function ensure() {
         isCancelled,
       })
     } catch {
-      // 等待失败时按当前数据继续，下面会重新发起需要的任务
+      // If waiting fails, continue with the current data; the needed jobs are restarted below
     } finally {
       watching.value = false
     }
@@ -640,7 +648,7 @@ async function generate() {
     return
   } finally {
     generating.value = false
-    // 生成第一版扣了一次（失败会退回），刷新剩余次数
+    // The first version used one free use (refunded on failure); refresh the remaining count
     accountStore.refresh()
   }
   await ensureAnalysis()
@@ -668,7 +676,7 @@ async function ensureAnalysis(retry = false) {
   } finally {
     analyzing.value = false
   }
-  // 解析期间可能切换了版本，补上新版本的解析
+  // The version may have changed during analysis; fill in the analysis for the new version
   if (current.value && !current.value.analysis) await ensureAnalysis()
 }
 

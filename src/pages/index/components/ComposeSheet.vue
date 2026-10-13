@@ -15,7 +15,8 @@
       </view>
 
       <view v-else class="compose__edit">
-        <!-- 只在打开或识别完成时写入初始内容，打字过程中不回写，避免打断中文输入法 -->
+        <!-- Write the initial content only on open or when recognition finishes; don't write
+             back while typing, so the Chinese IME isn't interrupted -->
         <textarea
           :key="seedVersion"
           class="compose__textarea"
@@ -59,7 +60,7 @@ const props = defineProps<{
   text: string
   errorMessage: string
   submitting: boolean
-  /** 免费用户的剩余次数提示；Pro 不显示 */
+  /** Remaining free uses hint for free users; hidden for Pro */
   quotaHint?: string
 }>()
 
@@ -73,11 +74,11 @@ const emit = defineEmits<{
 
 const title = computed(() => (props.mode === 'voice' ? '确认你说的话' : '写下你想说的'))
 
-/** 写进输入框的初始内容；打字时不跟着变 */
+/** Initial content written into the input; doesn't follow typing */
 const seed = ref('')
-/** 每次重新进入编辑都换一个新的输入框，避免沿用上一次没清掉的内容 */
+/** Use a fresh input each time editing starts, so leftover content from last time isn't reused */
 const seedVersion = ref(0)
-/** 只在进入编辑时请求一次聚焦；键盘收起后不再抢焦点 */
+/** Request focus once when editing starts; don't grab it again after the keyboard closes */
 const focusRequested = ref(false)
 
 watch(
@@ -90,7 +91,7 @@ watch(
     if (!entering) return
     seed.value = props.text
     seedVersion.value++
-    // 打字输入时自动弹出键盘；语音识别后先让人看一眼结果
+    // Pop up the keyboard for typing; after speech recognition, let the user check the result first
     focusRequested.value = mode === 'text'
   },
   { immediate: true },

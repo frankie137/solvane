@@ -1,6 +1,7 @@
 /**
- * 出错时写微信的实时日志（公众平台「开发 → 开发管理 → 运维中心 → 实时日志」可查），
- * 方便排查真机上的问题。只记位置、错误码和错误文案，不记录用户的内容、参数和密钥。
+ * On errors, write to WeChat's realtime log (WeChat MP console: Development → Development Management →
+ * Ops Center → Realtime Logs, 开发 → 开发管理 → 运维中心 → 实时日志) to help debug issues on real devices.
+ * Logs only the location, error code and error message; never user content, parameters or secrets.
  */
 type RealtimeLog = {
   error(...args: unknown[]): void
@@ -20,7 +21,7 @@ function getLogger(): RealtimeLog | null {
   return manager
 }
 
-/** 这些是正常的业务结果，不算故障，不写日志 */
+/** These are normal business outcomes, not failures, so they aren't logged */
 const EXPECTED = new Set(['BAD_REQUEST', 'NOT_FOUND', 'CANCELLED'])
 
 export function logError(where: string, err: unknown): void {

@@ -18,8 +18,8 @@ function ensureCloud(): void {
 }
 
 /**
- * 类型安全地调用云函数：入参出参都由 shared/api.ts 约束。
- * 成功返回 data；任何失败都抛出 CloudError，message 可直接展示给用户。
+ * Type-safe cloud function call: inputs and outputs are constrained by shared/api.ts.
+ * Returns data on success; any failure throws a CloudError whose message can be shown to the user as is.
  */
 export async function callCloud<F extends FunctionName, A extends ActionName<F>>(
   name: F,
@@ -55,7 +55,7 @@ export async function callCloud<F extends FunctionName, A extends ActionName<F>>
   return raw.data as ActionRes<F, A>
 }
 
-/** 上传本地临时文件到云存储，返回 fileID */
+/** Upload a local temp file to cloud storage and return its fileID */
 export async function uploadFile(filePath: string, cloudPath: string): Promise<string> {
   ensureCloud()
   try {

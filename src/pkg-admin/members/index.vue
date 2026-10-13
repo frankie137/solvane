@@ -77,14 +77,14 @@ import { chooseAction, confirmAction, toast } from '@/utils/dialog'
 import { formatDate } from '@/utils/time'
 
 const { metrics: systemMetrics } = storeToRefs(useSystemStore())
-// 底部留出安全区，最后的内容不贴着手势条
+// Leave room for the bottom safe area so the last item doesn't touch the home indicator
 const bottomInset = computed(() => `height:${systemMetrics.value.safeAreaBottom + 24}px`)
 
 const { collapsed, onScroll } = useCollapsingTitle()
 const members = ref<Member[]>([])
 const loaded = ref(false)
 const error = ref('')
-/** 正在开通或结束的成员，防止连点 */
+/** Member whose Pro is being granted or ended, to prevent double taps */
 const busyId = ref('')
 
 async function load() {
@@ -98,13 +98,13 @@ async function load() {
   }
 }
 
-/** 重试：先显示加载中，不闪空列表 */
+/** Retry: show loading first instead of flashing an empty list */
 function retry() {
   loaded.value = false
   void load()
 }
 
-// 头像是临时链接，每次进来都重新取
+// Avatars are temporary URLs; refetch them every time the page is entered
 onShow(() => void load())
 
 const summary = computed(() => {

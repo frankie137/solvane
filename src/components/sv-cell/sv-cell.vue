@@ -36,11 +36,11 @@ const props = withDefaults(
     title: string
     value?: string
     icon?: IconName
-    /** 图标底色，参考 iOS 设置页的彩色方块 */
+    /** Icon background color, modeled on the colored squares in iOS Settings */
     iconBg?: string
     arrow?: boolean
     clickable?: boolean
-    /** 组内最后一项传 false，去掉底部分隔线 */
+    /** Pass false for the last item in a group to remove the bottom divider */
     divider?: boolean
   }>(),
   {

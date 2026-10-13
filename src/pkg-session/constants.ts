@@ -1,5 +1,11 @@
-/** 修改栏的内容高度（不含安全区），对话页据此留出底部空白 */
+/**
+ * Content height of the revise bar (excluding the safe area); the session page reserves this much
+ * bottom space
+ */
 export const REVISE_BAR_HEIGHT = 108
 
-/** 从收藏溯源过来时，突出那一句的动画时长（SentenceList 和对话页共用） */
+/**
+ * Duration of the highlight on the target sentence when arriving from a saved item (shared by
+ * SentenceList and the session page)
+ */
 export const LOCATE_HIGHLIGHT_MS = 2_400

@@ -1,4 +1,4 @@
-// 全局基础样式与字号体系（参考 iOS 动态字体的默认档）
+// Global base styles and type scale (based on the default iOS Dynamic Type sizes)
 
 page {
   min-height: 100%;
@@ -11,7 +11,7 @@ page {
   -webkit-tap-highlight-color: transparent;
 }
 
-// 原生 button 的默认样式全部清掉，统一由组件控制
+// Clear all native button default styles; components style buttons themselves
 button {
   margin: 0;
   padding: 0;

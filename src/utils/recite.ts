@@ -1,13 +1,13 @@
 import type { TimedText } from '@shared/types'
 
-/** 句子里的一个词和它在原文中的字符范围 */
+/** A word in a sentence and its character range in the original text */
 export interface Token {
   text: string
   start: number
   end: number
 }
 
-/** 按空白切词，保留每个词在原文里的位置，用于和语音合成的时间戳对应 */
+/** Split on whitespace, keeping each word's position in the original text to match against TTS timestamps */
 export function tokenize(sentence: string): Token[] {
   const tokens: Token[] = []
   for (const m of sentence.matchAll(/\S+/g)) {
@@ -17,12 +17,12 @@ export function tokenize(sentence: string): Token[] {
   return tokens
 }
 
-/** 背诵提示的三级：0 全部遮住、1 只露首字母、2 显示原文 */
+/** Three recitation hint levels: 0 hides everything, 1 shows only initials, 2 shows the full text */
 export type HintLevel = 0 | 1 | 2
 
 /**
- * 首字母提示：每个词只保留第一个字母，其余字母换成下划线，标点保留。
- * 连字符后面的部分也保留首字母（well-known → w___-k____）；撇号不算分隔（I'm → I'_）。
+ * Initials hint: keep only each word's first letter, replace the other letters with underscores, and keep punctuation.
+ * Parts after a hyphen also keep their initial (well-known → w___-k____); apostrophes don't split words (I'm → I'_).
  */
 export function firstLetters(word: string): string {
   let seenLetter = false
@@ -44,8 +44,8 @@ export function nextHint(level: HintLevel): HintLevel {
 }
 
 /**
- * 播放到 positionMs 时应该高亮第几个词。
- * 用语音合成返回的字符范围找到对应的词；在两个词之间的停顿时保持上一个词。
+ * Which word to highlight at positionMs.
+ * Uses the character ranges returned by TTS to find the word; during a pause between two words, keep the previous one.
  */
 export function activeTokenIndex(tokens: Token[], words: TimedText[], positionMs: number): number {
   let current: TimedText | undefined
@@ -57,7 +57,7 @@ export function activeTokenIndex(tokens: Token[], words: TimedText[], positionMs
   const at = current.beginIndex
   const index = tokens.findIndex((t) => at >= t.start && at < t.end)
   if (index !== -1) return index
-  // 字符范围对不上（例如标点单独成段）时，取起点之前最近的词
+  // When character ranges don't line up (e.g. punctuation as its own segment), take the nearest word before the start
   for (let i = tokens.length - 1; i >= 0; i--) {
     if (tokens[i]!.start <= at) return i
   }
@@ -66,7 +66,7 @@ export function activeTokenIndex(tokens: Token[], words: TimedText[], positionMs
 
 export type ScoreTone = 'good' | 'fair' | 'poor' | 'none'
 
-/** 单词着色：85 分以上绿、60～85 黄、60 以下红；无法评测时不着色 */
+/** Word coloring: green at 85 and above, yellow for 60–85, red below 60; no color when it couldn't be assessed */
 export function scoreTone(accuracy: number): ScoreTone {
   if (accuracy < 0) return 'none'
   if (accuracy >= 85) return 'good'

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { computeNavMetrics } from './layout'
 
 describe('computeNavMetrics', () => {
-  it('按胶囊按钮位置计算导航区高度（iPhone 15 实测数据）', () => {
+  it('computes the nav area height from the capsule button position (measured on iPhone 15)', () => {
     const m = computeNavMetrics({
       statusBarHeight: 59,
       windowWidth: 393,
@@ -16,7 +16,7 @@ describe('computeNavMetrics', () => {
     expect(m.safeAreaBottom).toBe(34)
   })
 
-  it('胶囊信息无效时使用默认值', () => {
+  it('uses defaults when capsule info is invalid', () => {
     const m = computeNavMetrics({
       statusBarHeight: 20,
       windowWidth: 375,
@@ -28,7 +28,7 @@ describe('computeNavMetrics', () => {
     expect(m.totalHeight).toBe(64)
   })
 
-  it('没有安全区信息时底部为 0', () => {
+  it('uses 0 for the bottom without safe-area info', () => {
     const m = computeNavMetrics({ windowWidth: 375, screenHeight: 667, safeArea: null })
     expect(m.safeAreaBottom).toBe(0)
     expect(m.statusBarHeight).toBe(20)

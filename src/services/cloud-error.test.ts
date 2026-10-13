@@ -37,12 +37,12 @@ describe('toCloudError', () => {
     expect(e.message).toBe(message)
   })
 
-  it('已经是 CloudError 时原样返回', () => {
+  it('returns a CloudError unchanged', () => {
     const original = new CloudError('FORBIDDEN', '没有权限')
     expect(toCloudError(original)).toBe(original)
   })
 
-  it('非对象错误也能处理', () => {
+  it('handles non-object errors', () => {
     expect(toCloudError('boom').code).toBe('INTERNAL')
     expect(toCloudError(undefined).code).toBe('INTERNAL')
   })

@@ -11,17 +11,17 @@ defineOptions({ options: { virtualHost: true } })
 const props = withDefaults(
   defineProps<{
     name: IconName
-    /** 边长，单位 px */
+    /** Side length in px */
     size?: number
-    /** 默认跟随文字颜色 */
+    /** Defaults to the current text color */
     color?: string
-    /** 线宽 */
+    /** Stroke width */
     weight?: number
   }>(),
   { size: 22, color: 'currentColor', weight: 1.8 },
 )
 
-// 小程序里对象形式的 style 会丢掉 -webkit- 前缀，这里直接拼字符串
+// Object-style style bindings drop the -webkit- prefix in mini programs, so build the string directly
 const style = computed(() => {
   const url = `url(${iconDataUri(props.name, props.weight)})`
   return [

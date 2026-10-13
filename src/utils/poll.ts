@@ -1,7 +1,7 @@
 export interface PollOptions {
   intervalMs: number
   timeoutMs: number
-  /** 返回 true 时立即停止（例如页面已关闭） */
+  /** Stop immediately when this returns true (e.g. the page has closed) */
   isCancelled?: () => boolean
   sleep?: (ms: number) => Promise<void>
   now?: () => number
@@ -10,8 +10,8 @@ export interface PollOptions {
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
 /**
- * 每隔 intervalMs 调用一次 load，直到 done 返回 true 或超时。
- * 单次 load 失败不会中断轮询；超时后返回最后一次成功取到的值。
+ * Call load every intervalMs until done returns true or it times out.
+ * A single failed load doesn't stop polling; on timeout, returns the last value loaded successfully.
  */
 export async function pollUntil<T>(
   load: () => Promise<T>,
@@ -32,7 +32,7 @@ export async function pollUntil<T>(
       value = await load()
       if (done(value)) return { value, timedOut: false, cancelled: false }
     } catch {
-      // 网络抖动时继续等下一轮
+      // On a network hiccup, keep waiting for the next round
     }
   }
   return { value, timedOut: true, cancelled: false }

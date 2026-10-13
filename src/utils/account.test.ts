@@ -13,7 +13,7 @@ const base: Account = {
 }
 
 describe('planLabel', () => {
-  it('管理员、Pro、免费三种状态', () => {
+  it('admin, Pro and free states', () => {
     expect(planLabel({ ...base, isAdmin: true, pro: true })).toBe('管理员 · 不限次数')
     expect(planLabel({ ...base, pro: true, proUntil: new Date(2026, 10, 10).getTime() }, NOW)).toBe(
       'Pro · 11月10日到期',
@@ -22,13 +22,13 @@ describe('planLabel', () => {
     expect(planLabel({ ...base, freeUsed: 5, freeLeft: 0 })).toBe('免费体验已用完')
   })
 
-  it('Pro 过期后按免费次数显示', () => {
+  it('shows free uses after Pro expires', () => {
     expect(planLabel({ ...base, proUntil: 1, freeLeft: 1 })).toBe('免费体验 · 剩 1 次')
   })
 })
 
 describe('canUse', () => {
-  it('还没取到状态时不拦，交给云端判断', () => {
+  it('does not block before the status loads and leaves it to the cloud', () => {
     expect(canUse(null)).toBe(true)
     expect(canUse({ ...base, freeLeft: 0 })).toBe(false)
     expect(canUse({ ...base, freeLeft: 0, pro: true, proUntil: 1 })).toBe(true)

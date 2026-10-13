@@ -1,7 +1,7 @@
 <template>
   <view class="search">
     <sv-icon name="search" :size="16" :weight="2" color="var(--sv-text-3)" />
-    <!-- 输入时不回写内容，避免打断中文输入法；清空时换新的输入框 -->
+    <!-- Don't write the value back while typing, which would interrupt Chinese IME input; clearing swaps in a fresh input -->
     <input
       :key="version"
       class="search__input"
@@ -22,7 +22,7 @@
 import { onUnmounted, ref } from 'vue'
 
 defineProps<{ placeholder: string }>()
-/** 停止输入 300ms 后、按搜索键或清空时发出关键词（已去掉首尾空白，没变化时不发） */
+/** Emit the keyword 300ms after typing stops, on the search key, or on clear (trimmed; not emitted if unchanged) */
 const emit = defineEmits<{ search: [keyword: string] }>()
 
 const DEBOUNCE_MS = 300

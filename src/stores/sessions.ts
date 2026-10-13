@@ -4,7 +4,7 @@ import type { SessionSummary } from '@shared/types'
 import { CloudError } from '@/services/cloud'
 import { listRecentSessions } from '@/services/sessions'
 
-/** 练习页的最近对话 */
+/** Recent sessions on the practice tab */
 export const useSessionsStore = defineStore('sessions', () => {
   const recent = ref<SessionSummary[]>([])
   const loaded = ref(false)

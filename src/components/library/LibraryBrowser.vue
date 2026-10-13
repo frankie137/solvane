@@ -13,7 +13,7 @@
     </view>
 
     <view v-else class="browser__content">
-      <!-- 已经有内容时刷新失败：保留内容，在上方提示 -->
+      <!-- Refresh failed while content is already shown: keep the content and show a notice above -->
       <view v-if="shownError" class="browser__stale" hover-class="is-pressed" @tap="retry">
         <sv-icon name="alert" :size="14" color="var(--sv-danger)" />
         <text class="browser__stale-text">没能刷新 · 点这里重试</text>
@@ -81,7 +81,7 @@ import SessionRows from './SessionRows.vue'
 const props = withDefaults(
   defineProps<{
     tab: LibraryTab
-    /** 当前所在的文件夹，null 为根目录 */
+    /** Current folder; null means the root */
     folderId: string | null
     tag?: string
     keyword?: string
@@ -105,7 +105,7 @@ const loaded = ref(false)
 const error = ref('')
 const editing = ref(false)
 
-/** 搜索和按标签筛选时不显示文件夹 */
+/** Hide folders while searching or filtering by tag */
 const flat = computed(() => Boolean(props.keyword || props.tag))
 const folders = computed(() => (flat.value ? [] : childrenOf(allFolders.value, props.folderId)))
 const counts = computed(() => allCounts.value[props.tab])
@@ -142,12 +142,12 @@ const empty = computed<{ icon: IconName; title: string; description: string }>((
 
 let requestId = 0
 
-/** 文件夹数据也到了才算加载完，避免文件夹区块后冒出来、页面跳一下 */
+/** Loaded only once folder data has arrived too, so the folder section doesn't pop in later and make the page jump */
 const ready = computed(() => loaded.value && foldersLoaded.value)
-/** 自己的列表或文件夹数据，哪个失败都提示 */
+/** Show an error if either this list or the folder data failed */
 const shownError = computed(() => error.value || foldersError.value)
 
-/** 重试：先显示加载中，不闪空状态 */
+/** Retry: show loading first instead of flashing the empty state */
 function retry() {
   loaded.value = false
   if (foldersError.value) void store.refresh()
@@ -163,7 +163,7 @@ async function load() {
       ...(props.tag ? { tag: props.tag } : {}),
       ...(props.keyword ? { keyword: props.keyword } : {}),
     })
-    // 只用最后一次请求的结果，避免切换太快时旧结果覆盖新结果
+    // Only use the latest request's result so a stale one can't overwrite a newer one when switching quickly
     if (id !== requestId) return
     expressions.value = res.expressions
     sessions.value = res.sessions
@@ -175,7 +175,7 @@ async function load() {
   }
 }
 
-// 换了要看的内容时先显示加载中，不显示上一次的结果或空状态；收藏有变化时原地刷新
+// When the content to show changes, show loading rather than the previous result or empty state; when saved items change, refresh in place
 watch(
   () => [props.tab, props.folderId, props.tag, props.keyword],
   () => {

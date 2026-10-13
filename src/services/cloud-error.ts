@@ -12,15 +12,15 @@ export class CloudError extends Error {
   }
 }
 
-/** 超时或断网：请求可能已经到达云端、任务可能仍在运行，值得去查一下结果 */
+/** Timeout or network loss: the request may have reached the cloud and the job may still be running, so it's worth checking for a result */
 export function mayStillRun(err: unknown): err is CloudError {
   return err instanceof CloudError && (err.code === 'TIMEOUT' || err.code === 'NETWORK')
 }
 
 /**
- * 把 wx.cloud.callFunction 抛出的原始错误（errMsg 字符串）归类成用户能看懂的提示。
- * 注意顺序：超时也会带着 -404011（云函数执行错误），所以先判断超时；
- * -404011 本身只代表"函数执行出错"，只有找不到函数名时才是"没有部署"。
+ * Classify raw errors thrown by wx.cloud.callFunction (errMsg strings) into messages users can understand.
+ * Order matters: timeouts also carry -404011 (cloud function execution error), so check for timeouts first;
+ * -404011 by itself only means "function execution failed"; it means "not deployed" only when the function name can't be found.
  */
 export function toCloudError(err: unknown): CloudError {
   if (err instanceof CloudError) return err
@@ -32,7 +32,7 @@ export function toCloudError(err: unknown): CloudError {
   if (/timed? ?out/i.test(errMsg)) {
     return new CloudError('TIMEOUT', '请求超时，请稍后再试')
   }
-  // 所有 errMsg 都以 cloud.callFunction:fail 开头，正则不能宽松匹配 function / not exist
+  // Every errMsg starts with cloud.callFunction:fail, so regexes must not loosely match function / not exist
   if (/-501000|env not exists?|invalid env/i.test(errMsg)) {
     return new CloudError('NOT_CONFIGURED', '云开发环境还没有开通')
   }

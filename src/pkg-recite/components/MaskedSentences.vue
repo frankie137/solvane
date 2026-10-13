@@ -35,7 +35,7 @@ const props = withDefaults(
   defineProps<{
     sentences: SentencePair[]
     levels: HintLevel[]
-    /** 正在朗读的句子，-1 表示没有 */
+    /** Sentence being read aloud; -1 for none */
     activeSentence?: number
   }>(),
   { activeSentence: -1 },
@@ -43,7 +43,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{ 'tap-sentence': [index: number] }>()
 
-/** 告诉对方点一下会发生什么 */
+/** Tell the user what the next tap will do */
 const HINT_LABEL: Record<HintLevel, string> = {
   0: '点一下看首字母',
   1: '再点看整句',
@@ -54,7 +54,10 @@ const tokens = computed(() => props.sentences.map((s) => tokenize(s.en)))
 const tokensOf = (i: number) => tokens.value[i] ?? []
 const levelOf = (i: number): HintLevel => props.levels[i] ?? 0
 
-/** 完全遮住时仍渲染原词（文字透明、底色可见），这样遮挡块和原文一样长，不会泄露也不会跳动 */
+/**
+ * When fully masked, still render the original word (transparent text, visible background) so the
+ * mask is as long as the text: nothing leaks and nothing jumps
+ */
 function display(text: string, level: HintLevel): string {
   return level === 1 ? firstLetters(text) : text
 }
@@ -112,7 +115,8 @@ function display(text: string, level: HintLevel): string {
   }
 }
 
-// 正在朗读的句子：整句底色变浅强调色，露出来的字用强调色，遮住的块保持原样
+// Sentence being read aloud: light accent background for the whole sentence, revealed words in the
+// accent color, masked blocks unchanged
 .masked__item.is-active .masked__token:not(.is-level-0) {
   color: var(--sv-accent);
 }

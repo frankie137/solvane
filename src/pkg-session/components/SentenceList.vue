@@ -27,11 +27,11 @@ import { LOCATE_HIGHLIGHT_MS } from '../constants'
 const props = withDefaults(
   defineProps<{
     sentences: SentencePair[]
-    /** 正在朗读的句子，-1 表示没有 */
+    /** Sentence being read aloud; -1 for none */
     activeSentence?: number
-    /** 点句子可以单独重听，长按可以挑词收藏 */
+    /** Tap a sentence to replay it alone; long-press to pick words to save */
     interactive?: boolean
-    /** 从收藏溯源过来时要突出的那一句，-1 表示没有 */
+    /** Sentence to highlight when arriving from a saved item; -1 for none */
     located?: number
   }>(),
   { activeSentence: -1, interactive: false, located: -1 },

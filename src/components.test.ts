@@ -14,7 +14,7 @@ const toPascal = (name: string) =>
 describe('components.d.ts', () => {
   const names = readdirSync(componentsDir).filter((n) => n.startsWith('sv-'))
 
-  it.each(names)('%s 已登记全局组件类型', (name) => {
+  it.each(names)('%s is declared as a global component type', (name) => {
     expect(declarations).toContain(
       `${toPascal(name)}: (typeof import('./components/${name}/${name}.vue'))['default']`,
     )

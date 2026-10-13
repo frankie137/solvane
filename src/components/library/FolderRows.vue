@@ -49,7 +49,7 @@ import type { Folder } from '@shared/types'
 const props = withDefaults(
   defineProps<{
     folders: Folder[]
-    /** 文件夹 id → 里面直接放着的这一栏收藏数 */
+    /** Folder id → number of this tab's saved items directly inside it */
     counts: Record<string, number>
     editing?: boolean
   }>(),

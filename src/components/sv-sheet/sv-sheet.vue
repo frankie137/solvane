@@ -26,7 +26,7 @@ const props = withDefaults(
   defineProps<{
     show: boolean
     title?: string
-    /** 点遮罩是否关闭 */
+    /** Whether tapping the scrim closes the sheet */
     maskClosable?: boolean
   }>(),
   { title: '', maskClosable: true },
@@ -34,7 +34,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{ 'update:show': [value: boolean]; closed: [] }>()
 
-/** 与 tokens.scss 里的 --sv-dur-3 保持一致 */
+/** Keep in sync with --sv-dur-3 in tokens.scss */
 const ANIMATION_MS = 450
 
 const { metrics } = storeToRefs(useSystemStore())
@@ -46,15 +46,15 @@ let unwatchKeyboard: (() => void) | null = null
 
 const panelStyle = computed(() => {
   const keyboard = keyboardHeight.value
-  // 键盘弹起时贴着键盘，不再留安全区
+  // When the keyboard is up, sit right on it without the safe-area inset
   const padding = keyboard > 0 ? 12 : Math.max(metrics.value.safeAreaBottom, 12)
-  // 键盘偏移用 bottom、打开关闭用 transform，两者各自过渡，互不干扰
+  // The keyboard offset uses bottom and open/close uses transform, so each transitions independently
   const transform = visible.value ? 'translateY(0)' : 'translateY(100%)'
   return `padding-bottom:${padding}px;bottom:${keyboard}px;transform:${transform}`
 })
 
 function onKeyboard(res: { height: number }) {
-  // 打中文时候选栏出现 / 消失会反复触发，值没变就不更新
+  // Fires repeatedly as the IME candidate bar appears / disappears while typing Chinese; skip updates when the value hasn't changed
   if (res.height !== keyboardHeight.value) keyboardHeight.value = res.height
 }
 
@@ -65,7 +65,7 @@ watch(
     if (show) {
       rendered.value = true
       unwatchKeyboard ??= watchKeyboard(onKeyboard)
-      // 先渲染到起始位置，下一帧再加 is-open，过渡动画才会生效
+      // Render at the start position first and add is-open on the next frame so the transition runs
       timer = setTimeout(() => (visible.value = true), 30)
     } else {
       visible.value = false
@@ -134,7 +134,7 @@ onUnmounted(() => {
   border-radius: var(--sv-radius-l) var(--sv-radius-l) 0 0;
   background-color: var(--sv-surface);
   box-shadow: var(--sv-shadow-float);
-  // 跟随键盘要快（和系统键盘动画同步），打开关闭可以慢一点
+  // Following the keyboard must be fast (in sync with the system keyboard animation); open/close can be slower
   transition:
     transform var(--sv-dur-3) var(--sv-ease),
     bottom var(--sv-dur-keyboard) var(--sv-ease-out);

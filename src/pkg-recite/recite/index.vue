@@ -82,7 +82,7 @@ import { nextHint, type HintLevel } from '@/utils/recite'
 import MaskedSentences from '../components/MaskedSentences.vue'
 import RecitePanel from '../components/RecitePanel.vue'
 
-/** 底部录音面板的内容高度（不含安全区） */
+/** Content height of the bottom recording panel (excluding the safe area) */
 const PANEL_HEIGHT = 150
 
 const sessionId = ref('')
@@ -117,7 +117,7 @@ async function load() {
   }
 }
 
-// --- 提示 -------------------------------------------------------------------
+// --- Hints ------------------------------------------------------------------
 
 function cycleHint(index: number) {
   levels.value = levels.value.map((l, i) => (i === index ? nextHint(l) : l))
@@ -131,7 +131,7 @@ function hideAll() {
   levels.value = levels.value.map(() => 0)
 }
 
-// --- 示范朗读 ---------------------------------------------------------------
+// --- Demo reading -----------------------------------------------------------
 
 const {
   playing: demoPlaying,
@@ -150,7 +150,7 @@ onHide(() => {
   stopDemo()
 })
 
-// --- 录音与提交 -------------------------------------------------------------
+// --- Recording and submission -----------------------------------------------
 
 const recorder = useRecorder(submit, { maxMs: LIMITS.reciteMaxMs })
 
@@ -159,10 +159,13 @@ function startRecording() {
   void recorder.start()
 }
 
-/** 提交失败时保留录音，可以重新提交；结果不确定时连同已上传的文件一起保留，重新提交不会重复建 */
+/**
+ * Keep the recording when submission fails so it can be resubmitted; if the outcome is uncertain,
+ * keep the uploaded file too, so resubmitting doesn't create a duplicate
+ */
 const failedRecording = ref<{ result: RecordingResult; fileID: string | null } | null>(null)
 
-/** 放弃重新提交：留着的上传文件也删掉 */
+/** Give up resubmitting: also delete the kept uploaded file */
 function discardFailed() {
   const fileID = failedRecording.value?.fileID
   if (fileID) wx.cloud.deleteFile({ fileList: [fileID], fail: () => {} })
@@ -182,7 +185,7 @@ async function submit(result: RecordingResult, uploaded: string | null = null) {
   try {
     fileID ??= await uploadRecitation(result)
     const practiceId = await startPractice(sessionId.value, vid.value, fileID, result)
-    // 替换当前页：报告页返回时直接回到对话页
+    // Replace the current page, so going back from the report returns straight to the session page
     uni.redirectTo({ url: `/pkg-recite/report/index?practiceId=${encodeURIComponent(practiceId)}` })
   } catch (err) {
     failedRecording.value = { result, fileID: fileID && mayStillRun(err) ? fileID : null }
@@ -232,7 +235,8 @@ async function submit(result: RecordingResult, uploaded: string | null = null) {
 .tools {
   display: flex;
   flex-wrap: wrap;
-  // 行距不小于 chip 上下各扩出的点击区，换行后两行的点击区不重叠
+  // Row gap is at least the hit area each chip extends above and below, so wrapped rows' hit areas
+  // don't overlap
   gap: 12px 8px;
 }
 

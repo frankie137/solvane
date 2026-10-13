@@ -58,13 +58,13 @@ describe('runSessionJob', () => {
     getSessionMock.mockReset()
   })
 
-  it('直接返回结果时不轮询', async () => {
+  it('does not poll when the result comes back directly', async () => {
     const res = await runSessionJob('s1', async () => ({ session: ready }), { isDone })
     expect(res).toBe(ready)
     expect(getSessionMock).not.toHaveBeenCalled()
   })
 
-  it('请求超时后轮询拿到结果', async () => {
+  it('polls for the result after a request timeout', async () => {
     getSessionMock
       .mockResolvedValueOnce({ session: running })
       .mockResolvedValueOnce({ session: ready })
@@ -78,7 +78,7 @@ describe('runSessionJob', () => {
     expect(res).toBe(ready)
   })
 
-  it('别人正在生成时轮询等待', async () => {
+  it('polls while another request is generating', async () => {
     getSessionMock.mockResolvedValueOnce({ session: ready })
     const res = await runSessionJob('s1', async () => ({ session: running }), {
       isDone,
@@ -87,7 +87,7 @@ describe('runSessionJob', () => {
     expect(res).toBe(ready)
   })
 
-  it('任务失败时抛出记录的错误', async () => {
+  it('throws the recorded error when the job fails', async () => {
     const failed = session({
       lastError: {
         kind: 'generate',
@@ -109,7 +109,7 @@ describe('runSessionJob', () => {
     expect(err).toMatchObject({ code: 'NOT_CONFIGURED', message: '还没有配置大模型' })
   })
 
-  it('不可恢复的错误直接抛出，不轮询', async () => {
+  it('throws unrecoverable errors right away without polling', async () => {
     const err = await runSessionJob(
       's1',
       async () => {
@@ -121,7 +121,7 @@ describe('runSessionJob', () => {
     expect(getSessionMock).not.toHaveBeenCalled()
   })
 
-  it('网络失败且任务没跑过时，抛出原始网络错误', async () => {
+  it('throws the original network error when the network failed and the job never ran', async () => {
     getSessionMock.mockResolvedValueOnce({ session: session() })
     const err = await runSessionJob(
       's1',
@@ -133,7 +133,7 @@ describe('runSessionJob', () => {
     expect(err).toMatchObject({ code: 'NETWORK' })
   })
 
-  it('页面关闭后停止轮询', async () => {
+  it('stops polling after the page closes', async () => {
     getSessionMock.mockResolvedValue({ session: running })
     let closed = false
     const err = await runSessionJob(
@@ -148,7 +148,7 @@ describe('runSessionJob', () => {
     expect(getSessionMock).not.toHaveBeenCalled()
   })
 
-  it('一直没有结束时报超时', async () => {
+  it('reports a timeout when the job never finishes', async () => {
     getSessionMock.mockResolvedValue({ session: running })
     const err = await runSessionJob('s1', async () => ({ session: running }), {
       isDone,

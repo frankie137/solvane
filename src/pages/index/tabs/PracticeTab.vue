@@ -114,7 +114,7 @@ const bottomInset = useTabBarInset()
 const sessionsStore = useSessionsStore()
 const maxSeconds = Math.round(LIMITS.recordMaxMs / 1000)
 
-// --- 免费次数：用完时先说明 Pro，不让开始说话或打字 ------------------------
+// --- Free uses: once used up, explain Pro instead of starting voice or typing ---
 
 const accountStore = useAccountStore()
 const { account } = storeToRefs(accountStore)
@@ -138,7 +138,9 @@ const sheet = reactive<{
   submitting: boolean
 }>({ show: false, mode: 'voice', phase: 'editing', text: '', error: '', submitting: false })
 
-/** 每次识别的编号：面板关掉或重新开始后，旧的识别结果直接丢弃 */
+/**
+ * Sequence number of each recognition: once the sheet closes or restarts, stale results are dropped
+ */
 let recognizeToken = 0
 
 watch(
@@ -172,7 +174,7 @@ async function recognize(result: RecordingResult) {
   }
 }
 
-/** 识别失败后重新说：关掉面板，再开始录音 */
+/** Speak again after recognition fails: close the sheet, then start recording */
 function retryVoice() {
   sheet.show = false
   startRecording()
@@ -274,7 +276,7 @@ function openSession(id: string) {
   }
 }
 
-// 两圈错开的呼吸光晕，提示这里可以按
+// Two staggered breathing halos, hinting that this can be tapped
 .hero__ring {
   position: absolute;
   width: 84px;

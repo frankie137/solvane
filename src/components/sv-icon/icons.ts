@@ -1,6 +1,6 @@
 /**
- * 线性图标集（24×24 网格，圆角端点）。图标通过 CSS mask 渲染，颜色由 color 决定，
- * 因此深浅色模式下无需准备两套图片。带 .fill 后缀的是实心版本，用于选中态。
+ * Line icon set (24×24 grid, round caps). Icons render via CSS mask and take their color from color,
+ * so light and dark modes don't need separate images. Names ending in .fill are solid variants for selected states.
  */
 const ICONS = {
   waveform: '<path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/>',
@@ -73,7 +73,7 @@ export const ICON_NAMES = Object.keys(ICONS) as IconName[]
 
 const cache = new Map<string, string>()
 
-/** 生成可用于 mask-image 的 SVG data URI；同一图标和线宽只编码一次 */
+/** Build an SVG data URI for mask-image; each icon and stroke width is encoded only once */
 export function iconDataUri(name: IconName, weight = 1.8): string {
   const key = `${name}@${weight}`
   const hit = cache.get(key)

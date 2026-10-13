@@ -108,10 +108,10 @@ import { useSettingsStore } from '@/stores/settings'
 import { useSystemStore } from '@/stores/system'
 
 const { metrics: systemMetrics } = storeToRefs(useSystemStore())
-// 底部留出安全区，最后的内容不贴着手势条
+// Leave room for the bottom safe area so the last item doesn't touch the home indicator
 const bottomInset = computed(() => `height:${systemMetrics.value.safeAreaBottom + 24}px`)
 
-/** 只有管理员能进这个页面；所有成员共用这一份配置 */
+/** Only admins can open this page; all members share this one config */
 const settingsStore = useSettingsStore()
 const saved = ref<LlmConfigView | null>(null)
 const loaded = ref(false)
@@ -176,7 +176,8 @@ function choosePreset() {
       const previous = preset.value
       form.preset = next.id
       if (next.id !== 'custom') form.baseUrl = next.baseUrl
-      // 模型名没改过（为空或还是上一个预设的默认值）时，换成新预设的默认值
+      // If the model name hasn't been changed (empty or still the previous preset's default),
+      // switch to the new preset's default
       if (!form.model || form.model === previous.defaultModel) form.model = next.defaultModel
       testResult.value = null
     },
@@ -231,7 +232,7 @@ function clear() {
     title: '清除配置',
     content: '清除后，所有成员都无法生成和评分，直到重新配置。',
     confirmText: '清除',
-    // 原生弹窗不支持 CSS 变量，这里用和 --sv-danger 一致的色值
+    // Native modals don't support CSS variables; use the same color value as --sv-danger
     confirmColor: '#ff3b30',
     success: async (res) => {
       if (!res.confirm) return

@@ -72,10 +72,10 @@ import { canCreateIn, canMoveInto, flattenTree } from '@/utils/folders'
 const props = withDefaults(
   defineProps<{
     show: boolean
-    /** 现在所在的文件夹，null 为未归类 / 根目录 */
+    /** Current folder; null means uncategorized / root */
     current: string | null
     title?: string
-    /** 移动文件夹时传入：不能移进它自己的子树，也不能超过三级 */
+    /** Passed when moving a folder: it can't move into its own subtree or go deeper than three levels */
     movingFolderId?: string
   }>(),
   { title: '移动到', movingFolderId: '' },
@@ -114,7 +114,7 @@ function pick(folderId: string | null) {
   emit('update:show', false)
 }
 
-/** 新建文件夹：在某个文件夹下（parent）或根目录；建好直接选中 */
+/** Create a folder under a folder (parent) or at the root; select it once created */
 async function create(parent: Folder | null) {
   if (creating.value) return
   const name = await promptText({
