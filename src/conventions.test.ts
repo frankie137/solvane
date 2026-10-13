@@ -25,4 +25,15 @@ describe('template conventions', () => {
       expect(offenders).toEqual([])
     },
   )
+
+  // Component styles are isolated too, so a tab can't rely on another tab's .tab-scroll rule;
+  // without a height its scroll-view grows with the content and can't scroll (found during M7)
+  it.each(
+    files
+      .filter((f) => /class="tab-scroll"/.test(readFileSync(f, 'utf8')))
+      .map((f) => [relative(__dirname, f), f]),
+  )('%s gives its .tab-scroll a height', (_, file) => {
+    const style = readFileSync(file, 'utf8').split('<style')[1] ?? ''
+    expect(style).toMatch(/\.tab-scroll\s*\{[^}]*height:\s*100%/)
+  })
 })

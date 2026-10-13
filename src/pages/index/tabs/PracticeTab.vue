@@ -221,6 +221,7 @@ function openSession(id: string) {
 <style lang="scss">
 @import '@/styles/mixins.scss';
 
+// Every tab defines this itself: component styles are isolated, so another tab's rule doesn't apply
 .tab-scroll {
   height: 100%;
 }

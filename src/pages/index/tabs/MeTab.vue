@@ -422,6 +422,11 @@ onMounted(() => {
 </script>
 
 <style lang="scss">
+// Every tab defines this itself: component styles are isolated, so another tab's rule doesn't apply
+.tab-scroll {
+  height: 100%;
+}
+
 .me {
   display: flex;
   flex-direction: column;
