@@ -1,0 +1,1865 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Solvane core flow</title>
+    <!--
+      README showcase: one card morphs through Solvane's core flow without a cut
+      (speak → transcribe → translate → learn → listen → recite → score → share → back to the mic).
+
+      Every frame is a pure function of time: seek(t) computes every style from t, with no CSS
+      transitions, timers or state carried between frames, so the exporter can render frames in any
+      order and the last frame flows into the first. Springs are closed-form step responses; a value
+      that changes target several times is the sum of one spring per change, including the previous
+      loop's changes, which is what makes the loop seamless.
+
+      Query parameters:
+        ?theme=dark   dark mode
+        ?render       bare 1440×1440 frame for the exporter (no controls, no playback)
+        ?t=<seconds>  start paused at that time
+
+      Text inside the card is the mini program's own UI text and stays Chinese.
+    -->
+    <style>
+      :root {
+        --bg: #f5f5f7;
+        --surface: #ffffff;
+        --fill: rgba(120, 120, 128, 0.12);
+        --fill-strong: rgba(120, 120, 128, 0.2);
+        --text: #1d1d1f;
+        --text-2: rgba(60, 60, 67, 0.6);
+        --text-3: rgba(60, 60, 67, 0.3);
+        --separator: rgba(60, 60, 67, 0.16);
+        --on-accent: #ffffff;
+        --accent: #5e5ce6;
+        --accent-gradient: linear-gradient(135deg, #0a84ff 0%, #5e5ce6 55%, #8e5cf7 100%);
+        --accent-soft: rgba(94, 92, 230, 0.12);
+        --accent-glow: rgba(94, 92, 230, 0.35);
+        --success: #34c759;
+        --danger: #ff3b30;
+        --toast-bg: rgba(29, 29, 31, 0.9);
+        --touch-fill: rgba(60, 60, 67, 0.24);
+        --touch-ring: rgba(255, 255, 255, 0.92);
+        --font:
+          -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Helvetica Neue',
+          'Microsoft YaHei', sans-serif;
+        --font-en:
+          -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+
+        /* Lyrics stage: always dark, like the share page */
+        --stage-bg: linear-gradient(160deg, #1c1b3a 0%, #121226 45%, #0b0b14 100%);
+        --stage-glow: radial-gradient(
+          60% 40% at 50% 0%,
+          rgba(125, 122, 255, 0.35) 0%,
+          transparent 100%
+        );
+        --stage-line: rgba(255, 255, 255, 0.38);
+        --stage-line-active: #ffffff;
+        --stage-track: rgba(255, 255, 255, 0.18);
+        --stage-fill: rgba(255, 255, 255, 0.12);
+        --stage-accent: #a9a7ff;
+        --stage-text-2: rgba(235, 235, 245, 0.6);
+      }
+
+      :root[data-theme='dark'] {
+        --bg: #000000;
+        --surface: #1c1c1e;
+        --fill: rgba(118, 118, 128, 0.24);
+        --fill-strong: rgba(118, 118, 128, 0.36);
+        --text: #f5f5f7;
+        --text-2: rgba(235, 235, 245, 0.6);
+        --text-3: rgba(235, 235, 245, 0.3);
+        --separator: rgba(84, 84, 88, 0.6);
+        --accent: #7d7aff;
+        --accent-gradient: linear-gradient(135deg, #409cff 0%, #7d7aff 55%, #a78bfa 100%);
+        --accent-soft: rgba(125, 122, 255, 0.18);
+        --accent-glow: rgba(125, 122, 255, 0.4);
+        --success: #30d158;
+        --danger: #ff453a;
+        --toast-bg: rgba(58, 58, 60, 0.96);
+        --touch-fill: rgba(235, 235, 245, 0.26);
+        --touch-ring: rgba(255, 255, 255, 0.72);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+      }
+
+      body {
+        font-family: var(--font);
+        color: var(--text);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .en {
+        font-family: var(--font-en);
+      }
+
+      .num {
+        font-variant-numeric: tabular-nums;
+      }
+
+      svg.icon {
+        display: block;
+        flex: none;
+      }
+
+      /* ---- Frame and camera ---------------------------------------------------------------- */
+
+      #frame {
+        position: relative;
+        width: 1440px;
+        height: 1440px;
+        overflow: hidden;
+        background: var(--bg);
+      }
+
+      #world {
+        position: absolute;
+        left: 0;
+        top: 0;
+        transform-origin: 0 0;
+      }
+
+      #shape {
+        position: absolute;
+        overflow: hidden;
+      }
+
+      #shape > .bg {
+        position: absolute;
+        inset: 0;
+      }
+
+      .bg--surface {
+        background: var(--surface);
+      }
+
+      .bg--accent {
+        background: var(--accent-gradient);
+      }
+
+      .bg--stage {
+        background: var(--stage-glow), var(--stage-bg);
+      }
+
+      .layer {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+      }
+
+      .halo {
+        position: absolute;
+        left: -42px;
+        top: -42px;
+        width: 84px;
+        height: 84px;
+        border-radius: 50%;
+        background: var(--accent-soft);
+      }
+
+      #mic-hint {
+        position: absolute;
+        left: 0;
+        top: 78px;
+        white-space: nowrap;
+        font-size: 13px;
+        line-height: 18px;
+        color: var(--text-2);
+      }
+
+      #toast {
+        position: absolute;
+        left: 0;
+        top: 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 16px;
+        border-radius: 999px;
+        background: var(--toast-bg);
+        color: #ffffff;
+        font-size: 15px;
+        line-height: 20px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .touch {
+        position: absolute;
+        left: 0;
+        top: 0;
+      }
+
+      .touch__dot,
+      .touch__ripple {
+        position: absolute;
+        left: -22px;
+        top: -22px;
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+      }
+
+      .touch__dot {
+        background: var(--touch-fill);
+        border: 2.5px solid var(--touch-ring);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+      }
+
+      .touch__ripple {
+        border: 2px solid var(--touch-fill);
+      }
+
+      /* ---- Brand and captions (screen space) --------------------------------------------- */
+
+      #brand {
+        position: absolute;
+        left: 72px;
+        top: 68px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
+
+      .brand__mark {
+        width: 60px;
+        height: 60px;
+        border-radius: 17px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--accent-gradient);
+        color: var(--on-accent);
+        box-shadow: 0 6px 20px var(--accent-glow);
+      }
+
+      .brand__name {
+        font-family: var(--font-en);
+        font-size: 38px;
+        line-height: 44px;
+        font-weight: 700;
+        letter-spacing: -0.4px;
+      }
+
+      .brand__sub {
+        font-family: var(--font-en);
+        font-size: 20px;
+        line-height: 24px;
+        color: var(--text-2);
+      }
+
+      #caption {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 80px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 24px;
+      }
+
+      #dots {
+        display: flex;
+        gap: 10px;
+      }
+
+      #dots i {
+        display: block;
+        width: 10px;
+        height: 10px;
+        border-radius: 5px;
+      }
+
+      #captions {
+        position: relative;
+        width: 100%;
+        height: 46px;
+      }
+
+      #captions div {
+        position: absolute;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-family: var(--font-en);
+        font-size: 38px;
+        line-height: 46px;
+        font-weight: 600;
+        letter-spacing: -0.3px;
+      }
+
+      /* ---- Shared mini program components (world units are the mini program's px) -------- */
+
+      .btn {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        height: 44px;
+        padding: 0 22px;
+        border-radius: 999px;
+        font-size: 17px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .btn--primary {
+        background: var(--accent-gradient);
+        color: var(--on-accent);
+        box-shadow: 0 6px 20px var(--accent-glow);
+      }
+
+      .btn--secondary {
+        background: var(--fill);
+        color: var(--accent);
+      }
+
+      .btn--plain {
+        color: var(--accent);
+      }
+
+      .btn--block {
+        display: flex;
+        width: 100%;
+      }
+
+      .btn__swap {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      #demo-busy {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+      }
+
+      .label {
+        font-size: 13px;
+        line-height: 18px;
+        font-weight: 600;
+        color: var(--text-2);
+      }
+
+      .label-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .copy {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 13px;
+        line-height: 18px;
+        color: var(--accent);
+      }
+
+      .sentences {
+        margin: 6px -16px 0;
+      }
+
+      .sentence {
+        position: relative;
+        padding: 12px 16px;
+      }
+
+      .sentence + .sentence::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 16px;
+        right: 16px;
+        height: 0.5px;
+        background: var(--separator);
+      }
+
+      .sentence__en {
+        font-size: 18px;
+        line-height: 26px;
+        font-weight: 600;
+      }
+
+      .sentence__zh {
+        margin-top: 4px;
+        font-size: 15px;
+        line-height: 21px;
+        color: var(--text-2);
+      }
+
+      .wave {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+      }
+
+      .wave i {
+        display: block;
+        width: 4px;
+        height: 4px;
+        border-radius: 2px;
+        background: var(--accent);
+      }
+
+      /* ---- Mic ---------------------------------------------------------------------------- */
+
+      #L-mic {
+        width: 84px;
+        height: 84px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--on-accent);
+      }
+
+      /* ---- Recording overlay -------------------------------------------------------------- */
+
+      #L-rec {
+        width: 300px;
+        padding: 24px 20px 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .rec__status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 18px;
+      }
+
+      .rec__dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--danger);
+      }
+
+      .rec__title {
+        font-size: 17px;
+        line-height: 22px;
+        font-weight: 600;
+      }
+
+      #rec-wave {
+        height: 48px;
+      }
+
+      .rec__time {
+        margin-top: 16px;
+        font-size: 15px;
+        line-height: 20px;
+        color: var(--text-2);
+      }
+
+      .rec__actions {
+        display: flex;
+        gap: 12px;
+        width: 100%;
+        margin-top: 20px;
+      }
+
+      .rec__actions > * {
+        flex: 1;
+      }
+
+      /* ---- Compose sheet ------------------------------------------------------------------ */
+
+      #L-compose {
+        width: 343px;
+        padding: 20px 16px 16px;
+      }
+
+      .sheet__title {
+        margin-bottom: 16px;
+        text-align: center;
+        font-size: 17px;
+        line-height: 22px;
+        font-weight: 600;
+      }
+
+      .textarea {
+        min-height: 112px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: var(--fill);
+        font-size: 17px;
+        line-height: 26px;
+      }
+
+      .compose__foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 14px;
+      }
+
+      .compose__count {
+        font-size: 13px;
+        line-height: 18px;
+        color: var(--text-3);
+      }
+
+      /* ---- Session: polished Chinese and idiomatic English -------------------------------- */
+
+      #L-translate {
+        width: 343px;
+        padding: 18px 16px 6px;
+      }
+
+      .polished {
+        margin-top: 8px;
+        font-size: 16px;
+        line-height: 24px;
+      }
+
+      #L-translate .label-row {
+        margin-top: 18px;
+      }
+
+      /* ---- Analysis ----------------------------------------------------------------------- */
+
+      #L-analysis {
+        width: 343px;
+        padding: 18px;
+      }
+
+      .item {
+        margin-top: 10px;
+      }
+
+      .item__row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .item__phrase {
+        flex: 1;
+        font-size: 19px;
+        line-height: 24px;
+        font-weight: 600;
+      }
+
+      .save {
+        position: relative;
+        width: 24px;
+        height: 24px;
+        color: var(--accent);
+      }
+
+      .save svg {
+        position: absolute;
+        left: 0;
+        top: 0;
+      }
+
+      .item__body {
+        margin-top: 6px;
+        font-size: 15px;
+        line-height: 22px;
+      }
+
+      .item__note {
+        margin-top: 2px;
+        font-size: 13px;
+        line-height: 18px;
+        color: var(--text-2);
+      }
+
+      .item__example {
+        margin-top: 8px;
+        font-size: 15px;
+        line-height: 21px;
+        font-style: italic;
+        color: var(--text-2);
+      }
+
+      .divider {
+        height: 0.5px;
+        margin: 16px 0 14px;
+        background: var(--separator);
+      }
+
+      .compare {
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+        font-size: 15px;
+        line-height: 21px;
+      }
+
+      .compare__mark {
+        width: 12px;
+        font-weight: 700;
+      }
+
+      .is-bad {
+        color: var(--danger);
+      }
+
+      .compare__text.is-bad {
+        color: var(--text-2);
+        text-decoration: line-through;
+        text-decoration-color: var(--text-3);
+      }
+
+      .is-good {
+        color: var(--success);
+        font-weight: 600;
+      }
+
+      /* ---- Demo reading ------------------------------------------------------------------- */
+
+      #L-listen {
+        width: 343px;
+        padding: 18px 16px 16px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 10px;
+      }
+
+      .actions > * {
+        flex: 1;
+      }
+
+      /* ---- Recite ------------------------------------------------------------------------- */
+
+      #L-recite {
+        width: 343px;
+        padding: 20px 18px 18px;
+      }
+
+      .recite__title {
+        text-align: center;
+        font-size: 17px;
+        line-height: 22px;
+        font-weight: 600;
+      }
+
+      .masked {
+        margin-top: 16px;
+      }
+
+      .masked p {
+        margin: 0 0 8px;
+        font-size: 18px;
+        line-height: 30px;
+        font-weight: 600;
+      }
+
+      .masked span {
+        color: transparent;
+        background: var(--fill-strong);
+        border-radius: 7px;
+      }
+
+      #recite-wave {
+        height: 40px;
+        margin-top: 6px;
+      }
+
+      #recite-wave i {
+        width: 3px;
+        border-radius: 1.5px;
+      }
+
+      .recite__bar {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        margin-top: 10px;
+      }
+
+      .recite__time {
+        font-size: 15px;
+        line-height: 20px;
+        color: var(--text-2);
+      }
+
+      .recbtn {
+        position: relative;
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: var(--accent-gradient);
+        box-shadow: 0 10px 30px var(--accent-glow);
+        color: var(--on-accent);
+      }
+
+      .recbtn > * {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+      }
+
+      .recbtn__stop {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        background: #ffffff;
+      }
+
+      /* ---- Score report ------------------------------------------------------------------- */
+
+      #L-score {
+        width: 343px;
+        padding: 22px 20px 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .ring {
+        width: 132px;
+        height: 132px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .ring__inner {
+        width: 112px;
+        height: 112px;
+        border-radius: 50%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: var(--surface);
+      }
+
+      .ring__value {
+        font-size: 40px;
+        line-height: 44px;
+        font-weight: 700;
+      }
+
+      .ring__label {
+        font-size: 13px;
+        line-height: 18px;
+        color: var(--text-2);
+      }
+
+      .metrics {
+        width: 100%;
+        margin-top: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .metric {
+        display: grid;
+        grid-template-columns: 64px 1fr 30px;
+        align-items: center;
+        gap: 10px;
+        font-size: 15px;
+        line-height: 20px;
+      }
+
+      .metric__track {
+        height: 6px;
+        border-radius: 3px;
+        background: var(--fill);
+        overflow: hidden;
+      }
+
+      .metric__fill {
+        height: 100%;
+        border-radius: 3px;
+        background: var(--success);
+      }
+
+      .metric__value {
+        text-align: right;
+        font-weight: 600;
+      }
+
+      .score__share {
+        margin-top: 12px;
+      }
+
+      /* ---- Lyrics share page -------------------------------------------------------------- */
+
+      #L-lyrics {
+        width: 343px;
+        padding: 24px 0 20px;
+        color: #ffffff;
+      }
+
+      .head {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding: 0 24px;
+      }
+
+      .head__title {
+        font-size: 20px;
+        line-height: 26px;
+        font-weight: 700;
+      }
+
+      .head__author {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .avatar {
+        width: 20px;
+        height: 20px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #409cff 0%, #7d7aff 55%, #a78bfa 100%);
+      }
+
+      .head__name {
+        font-size: 13px;
+        line-height: 18px;
+        color: var(--stage-text-2);
+      }
+
+      .lyrics {
+        position: relative;
+        height: 214px;
+        margin-top: 10px;
+        overflow: hidden;
+        -webkit-mask-image: linear-gradient(transparent 0%, #000 14%, #000 74%, transparent 96%);
+        mask-image: linear-gradient(transparent 0%, #000 14%, #000 74%, transparent 96%);
+      }
+
+      .lyrics__inner {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+      }
+
+      .line {
+        padding: 12px 24px;
+        color: var(--stage-line);
+        transform-origin: left center;
+      }
+
+      .line__en {
+        font-size: 22px;
+        line-height: 30px;
+        font-weight: 700;
+      }
+
+      .line__zh {
+        margin-top: 4px;
+        font-size: 15px;
+        line-height: 21px;
+      }
+
+      .lyr-progress {
+        margin-top: 4px;
+        padding: 0 24px;
+      }
+
+      .lyr-track {
+        height: 3px;
+        border-radius: 2px;
+        background: var(--stage-track);
+      }
+
+      .lyr-track i {
+        display: block;
+        height: 100%;
+        border-radius: 2px;
+        background: #ffffff;
+      }
+
+      .lyr-times {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 6px;
+        font-size: 12px;
+        line-height: 16px;
+        color: var(--stage-text-2);
+      }
+
+      .lyr-action {
+        margin: 14px 24px 0;
+      }
+
+      .btn--stage {
+        background: var(--stage-fill);
+        color: var(--stage-accent);
+      }
+
+      /* ---- Preview controls (not rendered in ?render mode) -------------------------------- */
+
+      body.is-preview {
+        height: 100vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      #viewport {
+        flex: 1;
+        width: 100%;
+        position: relative;
+        overflow: hidden;
+      }
+
+      body.is-preview #frame {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform-origin: 0 0;
+      }
+
+      #controls {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        max-width: 880px;
+        padding: 12px 16px 16px;
+        font: 13px/1 var(--font-en);
+        color: var(--text-2);
+      }
+
+      #controls button {
+        min-width: 64px;
+        height: 30px;
+        border: 0;
+        border-radius: 15px;
+        background: var(--fill);
+        color: var(--text);
+        font: inherit;
+        cursor: pointer;
+      }
+
+      #scrub {
+        flex: 1;
+        accent-color: var(--accent);
+      }
+
+      #clock {
+        width: 72px;
+        text-align: right;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="viewport">
+      <div id="frame">
+        <div id="brand">
+          <div class="brand__mark">
+            <i data-icon="waveform" data-size="34" data-weight="2.2"></i>
+          </div>
+          <div>
+            <div class="brand__name">Solvane</div>
+            <div class="brand__sub">Say it in Chinese, learn to say it in English</div>
+          </div>
+        </div>
+
+        <div id="world">
+          <div class="halo"></div>
+          <div class="halo"></div>
+          <div id="mic-hint">点一下开始说话 · 最长 60 秒</div>
+
+          <div id="shape">
+            <div class="bg bg--surface"></div>
+            <div class="bg bg--accent"></div>
+            <div class="bg bg--stage"></div>
+
+            <div class="layer" id="L-mic">
+              <i data-icon="mic.fill" data-size="34" data-weight="2"></i>
+            </div>
+
+            <div class="layer" id="L-rec">
+              <div class="rec__status">
+                <div class="rec__dot"></div>
+                <div class="rec__title">正在听你说</div>
+              </div>
+              <div class="wave" id="rec-wave"></div>
+              <div class="rec__time en num" id="rec-time">0:00 / 1:00</div>
+              <div class="rec__actions">
+                <div class="btn btn--secondary">取消</div>
+                <div class="btn btn--primary" data-touch="done">
+                  <i data-icon="checkmark" data-size="18" data-weight="2.4"></i>完成
+                </div>
+              </div>
+            </div>
+
+            <div class="layer" id="L-compose">
+              <div class="sheet__title">确认你说的话</div>
+              <div class="textarea" id="raw"></div>
+              <div class="compose__foot">
+                <div class="compose__count en num" id="raw-count">0 / 600</div>
+                <div class="btn btn--primary" data-touch="generate">
+                  <i data-icon="sparkles" data-size="18"></i>生成地道表达
+                </div>
+              </div>
+            </div>
+
+            <div class="layer" id="L-translate">
+              <div class="label">整理后的中文</div>
+              <div class="polished" id="polished"></div>
+              <div class="label-row" id="english-head">
+                <div class="label">地道英文</div>
+                <div class="copy"><i data-icon="copy" data-size="16"></i>复制</div>
+              </div>
+              <div class="sentences" id="translate-sentences"></div>
+            </div>
+
+            <div class="layer" id="L-analysis">
+              <div class="label">关键表达</div>
+              <div class="item">
+                <div class="item__row">
+                  <div class="item__phrase en">heads-up</div>
+                  <div class="save" data-touch="save">
+                    <i data-icon="bookmark" data-size="24"></i>
+                    <i data-icon="bookmark.fill" data-size="24"></i>
+                  </div>
+                </div>
+                <div class="item__body">提前给对方提个醒</div>
+                <div class="item__note">同事、朋友之间都常用，语气轻松不生硬</div>
+                <div class="item__example en">Just a heads-up, I'll be a few minutes late.</div>
+              </div>
+              <div class="divider"></div>
+              <div class="label">中式英语对比</div>
+              <div class="compare">
+                <span class="compare__mark is-bad">×</span>
+                <span class="compare__text is-bad en">I want to tell you in advance that…</span>
+              </div>
+              <div class="compare">
+                <span class="compare__mark is-good">✓</span>
+                <span class="compare__text is-good en">Just a heads-up: …</span>
+              </div>
+            </div>
+
+            <div class="layer" id="L-listen">
+              <div class="label-row">
+                <div class="label">地道英文</div>
+                <div class="copy"><i data-icon="copy" data-size="16"></i>复制</div>
+              </div>
+              <div class="sentences" id="listen-sentences"></div>
+              <div class="actions">
+                <div class="btn btn--secondary" data-touch="demo">
+                  <span class="btn__swap" id="demo-idle"
+                    ><i data-icon="play.fill" data-size="16"></i>听示范</span
+                  >
+                  <span class="btn__swap" id="demo-busy"
+                    ><i data-icon="stop.fill" data-size="16"></i>停止</span
+                  >
+                </div>
+                <div class="btn btn--primary" data-touch="recite">
+                  <i data-icon="mic.fill" data-size="16"></i>开始背诵
+                </div>
+              </div>
+            </div>
+
+            <div class="layer" id="L-recite">
+              <div class="recite__title">遮住原文，把这段背出来</div>
+              <div class="masked en" id="masked"></div>
+              <div class="wave" id="recite-wave"></div>
+              <div class="recite__bar">
+                <div class="recite__time en num" id="recite-time">0:00 / 1:00</div>
+                <div class="recbtn" data-touch="record">
+                  <i data-icon="mic.fill" data-size="28" data-weight="2" id="rec-mic"></i>
+                  <div class="recbtn__stop" id="rec-stop"></div>
+                </div>
+                <div></div>
+              </div>
+            </div>
+
+            <div class="layer" id="L-score">
+              <div class="ring" id="ring">
+                <div class="ring__inner">
+                  <div class="ring__value en num" id="ring-value">0</div>
+                  <div class="ring__label">非常棒</div>
+                </div>
+              </div>
+              <div class="metrics" id="metrics"></div>
+              <div class="score__share">
+                <div class="btn btn--plain" data-touch="share">
+                  <i data-icon="share" data-size="16"></i>分享这次背诵
+                </div>
+              </div>
+            </div>
+
+            <div class="layer" id="L-lyrics">
+              <div class="head">
+                <div class="head__title">项目要晚两天</div>
+                <div class="head__author">
+                  <div class="avatar"></div>
+                  <div class="head__name">小林 的朗读</div>
+                </div>
+              </div>
+              <div class="lyrics">
+                <div class="lyrics__inner" id="lyrics-inner"></div>
+              </div>
+              <div class="lyr-progress">
+                <div class="lyr-track"><i id="lyr-fill"></i></div>
+                <div class="lyr-times en num">
+                  <span id="lyr-now">0:00</span>
+                  <span>0:07</span>
+                </div>
+              </div>
+              <div class="lyr-action">
+                <div class="btn btn--stage btn--block" data-touch="metoo">我也来练</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="toast"><i data-icon="checkmark" data-size="16" data-weight="2.4"></i>已收藏</div>
+
+          <div class="touch" id="touch">
+            <div class="touch__ripple"></div>
+            <div class="touch__dot"></div>
+          </div>
+        </div>
+
+        <div id="caption">
+          <div id="dots"></div>
+          <div id="captions"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      'use strict'
+
+      // ---- Content ------------------------------------------------------------------------
+
+      const RAW = '就是…那个项目吧，可能要晚两天，嗯，但是质量会更好'
+      const POLISHED = '提前跟你说一声，这个项目可能要推迟两天。不过质量会更有保证。'
+      const SENTENCES = [
+        {
+          en: 'Just a heads-up: the project might slip by a couple of days.',
+          zh: '提前跟你说一声，这个项目可能要推迟两天。',
+        },
+        { en: 'But it’ll be in much better shape.', zh: '不过质量会更有保证。' },
+      ]
+      const SCORE = 92
+      const METRICS = [
+        ['发音', 94],
+        ['流利度', 90],
+        ['内容还原', 95],
+        ['表达正确', 89],
+      ]
+      const CAPTIONS = [
+        'Say what’s on your mind, in Chinese',
+        'Your words, transcribed',
+        'Polished, then turned into idiomatic English',
+        'Learn the expressions that matter',
+        'Hear it read aloud',
+        'Recite it with the text hidden',
+        'Get scored, word by word',
+        'Share it as a lyrics page',
+      ]
+
+      // Line icons from src/components/sv-icon/icons.ts (24×24 grid, round caps)
+      const ICONS = {
+        waveform: '<path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/>',
+        'mic.fill':
+          '<rect x="9" y="2.5" width="6" height="12" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5"/>',
+        checkmark: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+        sparkles:
+          '<path d="M11 3l1.7 4.8L17.5 9.5l-4.8 1.7L11 16l-1.7-4.8L4.5 9.5l4.8-1.7z"/><path d="M18 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/>',
+        copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6.5A2.5 2.5 0 0 0 13.5 4h-7A2.5 2.5 0 0 0 4 6.5v7A2.5 2.5 0 0 0 6.5 16H8"/>',
+        bookmark: '<path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-4.2L6 21z"/>',
+        'bookmark.fill':
+          '<path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-4.2L6 21z" fill="currentColor"/>',
+        'play.fill':
+          '<path d="M8 5.2v13.6a.8.8 0 0 0 1.2.7l10.6-6.8a.8.8 0 0 0 0-1.4L9.2 4.5A.8.8 0 0 0 8 5.2z" fill="currentColor"/>',
+        'stop.fill': '<rect x="6.5" y="6.5" width="11" height="11" rx="2.2" fill="currentColor"/>',
+        share:
+          '<path d="M12 3.5v11M8 7l4-3.5L16 7"/><path d="M8.5 10.5H6.5A1.5 1.5 0 0 0 5 12v7a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-7a1.5 1.5 0 0 0-1.5-1.5h-2"/>',
+      }
+
+      // ---- Timeline (seconds; 120 BPM, so a beat is 0.5 s and the loop is 8 bars) -----------
+
+      const D = 16
+
+      const T = {
+        tapMic: 0.5,
+        rec: 0.6,
+        tapDone: 1.5,
+        compose: 1.6,
+        rawStart: 1.75,
+        tapGenerate: 3.0,
+        translate: 3.1,
+        scrollDown: 4.75,
+        analysis: 5.1,
+        tapSave: 6.0,
+        scrollUp: 6.75,
+        listen: 7.1,
+        tapDemo: 7.5,
+        sentence2: 8.5,
+        demoEnd: 9.3,
+        tapRecite: 9.5,
+        recite: 9.6,
+        tapRecord: 10.0,
+        tapStop: 11.5,
+        score: 11.6,
+        tapShare: 13.5,
+        lyrics: 13.6,
+        line2: 14.5,
+        tapMeToo: 15.0,
+        mic: 15.1,
+      }
+
+      // Each state is one form of the card; `at` is when the card starts morphing into it
+      const STATES = [
+        { id: 'rec', at: T.rec, caption: 0 },
+        { id: 'compose', at: T.compose, caption: 1 },
+        { id: 'translate', at: T.translate, caption: 2, exitDy: -24 },
+        { id: 'analysis', at: T.analysis, caption: 3, enterDy: 40, exitDy: 24 },
+        { id: 'listen', at: T.listen, caption: 4, enterDy: -40 },
+        { id: 'recite', at: T.recite, caption: 5 },
+        { id: 'score', at: T.score, caption: 6 },
+        { id: 'lyrics', at: T.lyrics, caption: 7 },
+        { id: 'mic', at: T.mic, caption: 0 },
+      ]
+      STATES.forEach((s, i) => (s.until = STATES[(i + 1) % STATES.length].at))
+
+      const SCROLL_DIST = 70
+
+      // ---- Math -----------------------------------------------------------------------------
+
+      const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x))
+      const lerp = (a, b, p) => a + (b - a) * p
+      const linear = (p) => p
+      const easeOut = (p) => 1 - (1 - p) ** 3
+      const easeInOut = (p) => (p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2)
+
+      /** Time since event `a`, wrapped into [-D/2, D/2) so windows can straddle the loop point */
+      function since(t, a) {
+        let d = (t - a) % D
+        if (d < -D / 2) d += D
+        if (d >= D / 2) d -= D
+        return d
+      }
+
+      /** Eased progress of an event that starts at `a` and lasts `dur` */
+      const prog = (t, a, dur, ease = easeOut) => ease(clamp(since(t, a) / dur))
+
+      /** Closed-form step response of a spring from 0 to 1 */
+      function springStep(tau, w0, z) {
+        if (tau <= 0) return 0
+        if (z >= 1) return 1 - Math.exp(-w0 * tau) * (1 + w0 * tau)
+        const wd = w0 * Math.sqrt(1 - z * z)
+        return (
+          1 - Math.exp(-z * w0 * tau) * (Math.cos(wd * tau) + ((z * w0) / wd) * Math.sin(wd * tau))
+        )
+      }
+
+      /**
+       * A value that springs to a new target at each key. It is the sum of one step response per
+       * change, over this loop and the previous one, so it is periodic with no seam at t = 0.
+       */
+      function spring(keys, w0, z) {
+        const base = keys[keys.length - 1][1]
+        const deltas = keys.map(([at, v], i) => [at, v - (i ? keys[i - 1][1] : base)])
+        return (t) => {
+          let v = base
+          for (const [at, dv] of deltas) {
+            if (dv) v += dv * (springStep(t - at, w0, z) + springStep(t + D - at, w0, z))
+          }
+          return v
+        }
+      }
+
+      /** Deterministic smooth noise for waveforms */
+      const wobble = (i, t) =>
+        Math.abs(Math.sin(i * 1.93 + t * 11.3) * Math.sin(i * 0.71 + t * 6.7 + 1.3))
+
+      const fmt = (sec) => `0:${String(Math.floor(sec)).padStart(2, '0')}`
+
+      // ---- DOM ------------------------------------------------------------------------------
+
+      const $ = (sel, root = document) => root.querySelector(sel)
+      const $$ = (sel, root = document) => [...root.querySelectorAll(sel)]
+      const h = (tag, cls, text) => {
+        const el = document.createElement(tag)
+        if (cls) el.className = cls
+        if (text != null) el.textContent = text
+        return el
+      }
+
+      const params = new URLSearchParams(location.search)
+      const RENDER = params.has('render')
+      document.documentElement.dataset.theme = params.get('theme') === 'dark' ? 'dark' : 'light'
+      const DARK = document.documentElement.dataset.theme === 'dark'
+
+      for (const el of $$('[data-icon]')) {
+        const size = el.dataset.size || 24
+        el.outerHTML =
+          `<svg class="icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" ` +
+          `stroke="currentColor" stroke-width="${el.dataset.weight || 1.8}" stroke-linecap="round" ` +
+          `stroke-linejoin="round"${el.id ? ` id="${el.id}"` : ''}>${ICONS[el.dataset.icon]}</svg>`
+      }
+
+      function bars(container, n) {
+        for (let i = 0; i < n; i++) container.append(h('i'))
+        return $$('i', container)
+      }
+
+      function sentenceList(container) {
+        return SENTENCES.map((s) => {
+          const row = h('div', 'sentence')
+          const en = h('div', 'sentence__en en', s.en)
+          row.append(en, h('div', 'sentence__zh', s.zh))
+          container.append(row)
+          return { row, en }
+        })
+      }
+
+      const frame = $('#frame')
+      const world = $('#world')
+      const shape = $('#shape')
+      const [bgAccent, bgStage] = $$('.bg--accent, .bg--stage', shape)
+      const halos = $$('.halo')
+      const micHint = $('#mic-hint')
+      const toast = $('#toast')
+      const touch = $('#touch')
+      const touchDot = $('.touch__dot', touch)
+      const touchRipple = $('.touch__ripple', touch)
+      const layers = Object.fromEntries(STATES.map((s) => [s.id, $(`#L-${s.id}`)]))
+
+      const recWave = bars($('#rec-wave'), 24)
+      const recTime = $('#rec-time')
+      const recDot = $('.rec__dot')
+
+      const rawChars = [...RAW].map((c) => $('#raw').appendChild(h('span', '', c)))
+      const rawCount = $('#raw-count')
+
+      const polishedChars = [...POLISHED].map((c) => $('#polished').appendChild(h('span', '', c)))
+      const englishHead = $('#english-head')
+      const translateRows = sentenceList($('#translate-sentences'))
+
+      const saveIcons = $$('.save svg')
+      const listenRows = sentenceList($('#listen-sentences'))
+      const demoIdle = $('#demo-idle')
+      const demoBusy = $('#demo-busy')
+
+      for (const s of SENTENCES) {
+        const p = h('p')
+        s.en.split(' ').forEach((w, i) => {
+          if (i) p.append(' ')
+          p.append(h('span', '', w))
+        })
+        $('#masked').append(p)
+      }
+      const reciteWave = bars($('#recite-wave'), 40)
+      const reciteTime = $('#recite-time')
+      const recMic = $('#rec-mic')
+      const recStop = $('#rec-stop')
+
+      const ring = $('#ring')
+      const ringValue = $('#ring-value')
+      const metrics = METRICS.map(([name, value]) => {
+        const row = h('div', 'metric')
+        const track = h('div', 'metric__track')
+        const fill = track.appendChild(h('div', 'metric__fill'))
+        const num = h('div', 'metric__value en num', '0')
+        row.append(h('div', '', name), track, num)
+        $('#metrics').append(row)
+        return { value, fill, num }
+      })
+
+      const lyricLines = SENTENCES.map((s) => {
+        const line = h('div', 'line')
+        const en = h('div', 'line__en en')
+        const words = s.en.split(' ').map((w) => en.appendChild(h('span', '', `${w} `)))
+        line.append(en, h('div', 'line__zh', s.zh))
+        $('#lyrics-inner').append(line)
+        return { line, words }
+      })
+      const lyricsInner = $('#lyrics-inner')
+      const lyrFill = $('#lyr-fill')
+      const lyrNow = $('#lyr-now')
+
+      const dots = CAPTIONS.map(() => $('#dots').appendChild(h('i')))
+      const captions = CAPTIONS.map((c) => $('#captions').appendChild(h('div', '', c)))
+
+      // ---- Layout-derived tracks (built once fonts are ready) --------------------------------
+
+      const CX = 720
+      const CY = 712
+      const FIT_W = 1060
+      const FIT_H = 1000
+      const MAX_ZOOM = 4
+
+      let track = null
+
+      /** Center of `el` relative to the center of its layer, in world units */
+      function centerIn(el, layer) {
+        let x = el.offsetWidth / 2
+        let y = el.offsetHeight / 2
+        for (let n = el; n && n !== layer; n = n.offsetParent) {
+          x += n.offsetLeft
+          y += n.offsetTop
+        }
+        return [x - layer.offsetWidth / 2, y - layer.offsetHeight / 2]
+      }
+
+      function build() {
+        const size = {}
+        for (const s of STATES) {
+          const el = layers[s.id]
+          size[s.id] = [el.offsetWidth, el.offsetHeight]
+        }
+        const keys = (fn) => STATES.map((s) => [s.at, fn(s)])
+        const zoom = (s) => {
+          const [w, hh] = size[s.id]
+          return Math.min(FIT_W / w, FIT_H / hh, MAX_ZOOM)
+        }
+
+        const at = (sel, state) => centerIn($(sel, layers[state]), layers[state])
+        const tap = (t, state, sel) => ({ t, state, pos: sel ? at(sel, state) : [0, 0] })
+        const drag = (t, state, from, to, dur) => ({ t, state, pos: from, to, dur })
+
+        track = {
+          size,
+          w: spring(
+            keys((s) => size[s.id][0]),
+            12,
+            0.82,
+          ),
+          h: spring(
+            keys((s) => size[s.id][1]),
+            12,
+            0.82,
+          ),
+          r: spring(
+            keys((s) => (s.id === 'mic' ? 42 : 24)),
+            12,
+            0.82,
+          ),
+          zoom: spring(keys(zoom), 7, 1),
+          accent: spring(
+            keys((s) => (s.id === 'mic' ? 1 : 0)),
+            16,
+            1,
+          ),
+          stage: spring(
+            keys((s) => (s.id === 'lyrics' ? 1 : 0)),
+            16,
+            1,
+          ),
+          touches: [
+            tap(T.tapMic, 'mic'),
+            tap(T.tapDone, 'rec', '[data-touch=done]'),
+            tap(T.tapGenerate, 'compose', '[data-touch=generate]'),
+            drag(T.scrollDown, 'translate', [40, 110], [40, 110 - SCROLL_DIST * 2.4], 0.4),
+            tap(T.tapSave, 'analysis', '[data-touch=save]'),
+            drag(T.scrollUp, 'analysis', [40, -80], [40, -80 + SCROLL_DIST * 2.4], 0.4),
+            tap(T.tapDemo, 'listen', '[data-touch=demo]'),
+            tap(T.tapRecite, 'listen', '[data-touch=recite]'),
+            tap(T.tapRecord, 'recite', '[data-touch=record]'),
+            tap(T.tapStop, 'recite', '[data-touch=record]'),
+            tap(T.tapShare, 'score', '[data-touch=share]'),
+            tap(T.tapMeToo, 'lyrics', '[data-touch=metoo]'),
+          ],
+          lyricCenters: lyricLines.map(({ line }) => line.offsetTop + line.offsetHeight / 2),
+          lyricsView: $('.lyrics').offsetHeight,
+        }
+      }
+
+      // ---- Per-frame helpers ----------------------------------------------------------------
+
+      function setFx(el, o, blur, dy = 0, extra = '') {
+        el.style.opacity = o.toFixed(4)
+        el.style.visibility = o < 0.002 ? 'hidden' : 'visible'
+        el.style.filter = blur > 0.05 ? `blur(${blur.toFixed(2)}px)` : 'none'
+        el.style.transform = `translateY(${dy.toFixed(2)}px)${extra}`
+      }
+
+      /** Fade, unblur and lift an element in, starting at `a` */
+      function reveal(el, t, a, dur = 0.3, dy = 8, blur = 6) {
+        const p = prog(t, a, dur)
+        setFx(el, p, (1 - p) * blur, (1 - p) * dy)
+      }
+
+      /** A tap's press on a control: 0 at rest, 1 fully pressed */
+      function pressOf(t, at) {
+        const u = since(t, at)
+        return clamp(u / 0.05) * (1 - clamp((u - 0.12) / 0.1))
+      }
+
+      function press(el, t, at) {
+        const p = pressOf(t, at)
+        el.style.transform = p ? `scale(${1 - 0.03 * p})` : ''
+        el.style.opacity = p ? String(1 - 0.15 * p) : ''
+      }
+
+      /** Visibility of a state's content: enters after the morph starts, exits when the next begins */
+      function layerFx(t, s) {
+        const pin = prog(t, s.at + 0.08, 0.32)
+        const pout = prog(t, s.until, 0.16, linear)
+        return {
+          o: pin * (1 - pout),
+          blur: (1 - pin) * 8 + pout * 8,
+          dy: (1 - pin) * (s.enterDy ?? 10) + pout * (s.exitDy ?? -6),
+        }
+      }
+
+      // ---- renderAt(t), exposed as window.seek ------------------------------------------------
+
+      function renderAt(time) {
+        const t = ((time % D) + D) % D
+
+        // Camera
+        const zoom = track.zoom(t)
+        world.style.transform = `translate(${CX}px, ${CY}px) scale(${zoom.toFixed(5)})`
+
+        // The card
+        const w = track.w(t)
+        const hh = track.h(t)
+        const r = Math.max(0, track.r(t))
+        const accent = clamp(track.accent(t))
+        const stage = clamp(track.stage(t))
+        const micPress = pressOf(t, T.tapMic)
+        Object.assign(shape.style, {
+          left: `${(-w / 2).toFixed(2)}px`,
+          top: `${(-hh / 2).toFixed(2)}px`,
+          width: `${w.toFixed(2)}px`,
+          height: `${hh.toFixed(2)}px`,
+          borderRadius: `${r.toFixed(2)}px`,
+          transform: micPress ? `scale(${1 - 0.06 * micPress})` : '',
+        })
+        bgAccent.style.opacity = accent.toFixed(4)
+        bgStage.style.opacity = stage.toFixed(4)
+        const glow = DARK ? 'rgba(125, 122, 255, ' : 'rgba(94, 92, 230, '
+        const card = DARK ? 0 : 1 - accent
+        shape.style.boxShadow =
+          `0 10px 30px ${glow}${(0.38 * accent).toFixed(3)}), ` +
+          `0 1px 2px rgba(0, 0, 0, ${(0.04 * card).toFixed(3)}), ` +
+          `0 8px 24px rgba(0, 0, 0, ${(0.06 * card).toFixed(3)})`
+
+        // Content layers
+        const fx = {}
+        for (const s of STATES) {
+          const f = layerFx(t, s)
+          fx[s.id] = f
+          setFx(layers[s.id], f.o, f.blur, f.dy, '')
+          layers[s.id].style.transform = `translate(-50%, -50%) translateY(${f.dy.toFixed(2)}px)`
+        }
+
+        drawMic(t, fx.mic)
+        drawRec(t)
+        drawCompose(t)
+        drawTranslate(t)
+        drawAnalysis(t, hh)
+        drawListen(t)
+        drawRecite(t)
+        drawScore(t)
+        drawLyrics(t)
+        drawTouch(t)
+        drawCaptions(t)
+      }
+
+      function drawMic(t, f) {
+        for (const [i, halo] of halos.entries()) {
+          const p = ((((t + i) % 2) + 2) % 2) / 2
+          halo.style.transform = `scale(${(1 + 0.55 * easeOut(p)).toFixed(4)})`
+          halo.style.opacity = (0.9 * (1 - p) * f.o).toFixed(4)
+        }
+        setFx(micHint, f.o, f.blur, f.dy, ' translateX(-50%)')
+      }
+
+      function drawRec(t) {
+        const live = since(t, T.rec) > 0 && since(t, T.tapDone) < 0
+        for (const [i, bar] of recWave.entries()) {
+          const edge = Math.sin((Math.PI * (i + 0.5)) / recWave.length) ** 0.6
+          const syllable = 0.55 + 0.45 * Math.sin(t * 13.7 + i * 0.25)
+          const level = live ? edge * syllable * (0.15 + 0.85 * wobble(i, t)) : 0.05
+          bar.style.height = `${4 + Math.round(level * 40)}px`
+        }
+        recDot.style.opacity = (0.65 + 0.35 * Math.cos(t * Math.PI * 2)).toFixed(3)
+        const elapsed = 7 * clamp(since(t, T.rec + 0.1) / (T.tapDone - T.rec - 0.1))
+        recTime.textContent = `${fmt(elapsed)} / 1:00`
+        press($('[data-touch=done]', layers.rec), t, T.tapDone)
+      }
+
+      function drawCompose(t) {
+        let shown = 0
+        for (const [i, c] of rawChars.entries()) {
+          const at = T.rawStart + i * 0.024
+          reveal(c, t, at, 0.18, 0, 5)
+          if (since(t, at) >= 0 && since(t, T.compose) > 0) shown = i + 1
+        }
+        rawCount.textContent = `${shown} / 600`
+        press($('[data-touch=generate]', layers.compose), t, T.tapGenerate)
+      }
+
+      function drawTranslate(t) {
+        for (const [i, c] of polishedChars.entries())
+          reveal(c, t, T.translate + 0.14 + i * 0.012, 0.22, 0, 5)
+        reveal(englishHead, t, T.translate + 0.38)
+        translateRows.forEach(({ row }, i) =>
+          reveal(row, t, T.translate + 0.46 + i * 0.2, 0.36, 14),
+        )
+        // The finger scrolls the page down to the analysis
+        const scroll = SCROLL_DIST * prog(t, T.scrollDown, 0.4, easeInOut)
+        const f = layerFx(t, STATES[2])
+        layers.translate.style.transform = `translate(-50%, -50%) translateY(${(f.dy - scroll).toFixed(2)}px)`
+      }
+
+      function drawAnalysis(t, cardH) {
+        const filled = prog(t, T.tapSave, 0.12, linear)
+        const pop = Math.sin(Math.PI * clamp(since(t, T.tapSave) / 0.28))
+        saveIcons[0].style.opacity = String(1 - filled)
+        saveIcons[1].style.opacity = String(filled)
+        saveIcons[1].style.transform = `scale(${(1 + 0.28 * pop).toFixed(3)})`
+
+        const pin = prog(t, T.tapSave + 0.08, 0.28)
+        const pout = prog(t, T.scrollUp - 0.05, 0.2, linear)
+        const o = pin * (1 - pout)
+        const y = -cardH / 2 - 44 + (1 - pin) * -10
+        setFx(toast, o, (1 - pin) * 6 + pout * 6, 0, '')
+        toast.style.transform = `translate(-50%, ${y.toFixed(2)}px)`
+
+        const scroll = SCROLL_DIST * prog(t, T.scrollUp, 0.4, easeInOut)
+        const f = layerFx(t, STATES[3])
+        layers.analysis.style.transform = `translate(-50%, -50%) translateY(${(f.dy + scroll).toFixed(2)}px)`
+      }
+
+      function drawListen(t) {
+        const playing = since(t, T.tapDemo) >= 0 && since(t, T.demoEnd) < 0
+        const busy = prog(t, T.tapDemo, 0.14, linear) * (1 - prog(t, T.demoEnd, 0.14, linear))
+        demoIdle.style.opacity = String(1 - busy)
+        demoBusy.style.opacity = String(busy)
+        const ranges = [
+          [T.tapDemo + 0.1, T.sentence2],
+          [T.sentence2, T.demoEnd],
+        ]
+        listenRows.forEach(({ row, en }, i) => {
+          const [a, b] = ranges[i]
+          const on = prog(t, a, 0.18, linear) * (1 - prog(t, b, 0.18, linear))
+          const k = playing || since(t, T.demoEnd) < 0.3 ? on : 0
+          row.style.background = `color-mix(in srgb, var(--accent-soft) ${(k * 100).toFixed(1)}%, transparent)`
+          en.style.color = `color-mix(in srgb, var(--accent) ${(k * 100).toFixed(1)}%, var(--text))`
+        })
+        press($('[data-touch=demo]', layers.listen), t, T.tapDemo)
+        press($('[data-touch=recite]', layers.listen), t, T.tapRecite)
+      }
+
+      function drawRecite(t) {
+        const rec = prog(t, T.tapRecord, 0.14, linear) * (1 - prog(t, T.tapStop, 0.14, linear))
+        recMic.style.opacity = String(1 - rec)
+        recMic.style.transform = `translate(-50%, -50%) scale(${(1 - 0.4 * rec).toFixed(3)})`
+        recStop.style.opacity = String(rec)
+        recStop.style.transform = `translate(-50%, -50%) scale(${(0.6 + 0.4 * rec).toFixed(3)})`
+        const btn = $('[data-touch=record]', layers.recite)
+        const p = Math.max(pressOf(t, T.tapRecord), pressOf(t, T.tapStop))
+        btn.style.transform = `scale(${(1 - 0.06 * p).toFixed(3)})`
+
+        for (const [i, bar] of reciteWave.entries()) {
+          const edge = Math.sin((Math.PI * (i + 0.5)) / reciteWave.length) ** 0.5
+          const level =
+            rec *
+            edge *
+            (0.55 + 0.45 * Math.sin(t * 12.1 + i * 0.3)) *
+            (0.2 + 0.8 * wobble(i, t + 3))
+          bar.style.height = `${(3 + level * 34).toFixed(1)}px`
+          bar.style.background = `color-mix(in srgb, var(--accent) ${(100 * (0.35 + 0.65 * rec)).toFixed(0)}%, var(--fill-strong))`
+        }
+        const elapsed = 9 * clamp(since(t, T.tapRecord) / (T.tapStop - T.tapRecord))
+        reciteTime.textContent = `${fmt(since(t, T.recite) > 0 ? elapsed : 0)} / 1:00`
+      }
+
+      function drawScore(t) {
+        // Same count-up as ScoreRing.vue: about 0.6 s, fast at first, then slower
+        const p = clamp(since(t, T.score + 0.15) / 0.6)
+        const shown = Math.round(SCORE * (1 - (1 - p) ** 3))
+        ringValue.textContent = String(shown)
+        const deg = (shown / 100) * 360
+        ring.style.background = `conic-gradient(var(--success) ${deg}deg, var(--fill) ${deg}deg)`
+        metrics.forEach((m, i) => {
+          const q = prog(t, T.score + 0.35 + i * 0.12, 0.5)
+          m.fill.style.width = `${(m.value * q).toFixed(2)}%`
+          m.num.textContent = String(Math.round(m.value * q))
+        })
+        press($('[data-touch=share]', layers.score), t, T.tapShare)
+      }
+
+      function drawLyrics(t) {
+        const starts = [T.lyrics + 0.15, T.line2 + 0.05]
+        const steps = [0.062, 0.058]
+        lyricLines.forEach(({ line, words }, i) => {
+          const current = i === 0 ? since(t, T.line2) < 0 : since(t, T.line2) >= 0
+          const k = i === 0 ? 1 - prog(t, T.line2, 0.3) : prog(t, T.line2, 0.3)
+          line.style.color = `color-mix(in srgb, var(--stage-line-active) ${(k * 100).toFixed(1)}%, var(--stage-line))`
+          line.style.transform = `scale(${(1 + 0.04 * k).toFixed(4)})`
+          words.forEach((word, j) => {
+            const lit = current && since(t, starts[i] + j * steps[i]) >= 0
+            word.style.color = lit ? 'var(--stage-line-active)' : 'var(--stage-line)'
+          })
+        })
+        const view = track.lyricsView / 2
+        const [c0, c1] = track.lyricCenters
+        const y = lerp(view - c0, view - c1, prog(t, T.line2, 0.45, easeInOut))
+        lyricsInner.style.transform = `translateY(${y.toFixed(2)}px)`
+        const played = clamp(since(t, T.lyrics) / (T.mic - T.lyrics))
+        lyrFill.style.width = `${(100 * lerp(0.08, 0.96, played)).toFixed(2)}%`
+        lyrNow.textContent = fmt(lerp(0.5, 6.8, played))
+        press($('[data-touch=metoo]', layers.lyrics), t, T.tapMeToo)
+      }
+
+      function drawTouch(t) {
+        let shown = null
+        for (const k of track.touches) {
+          const u = since(t, k.t)
+          const end = (k.dur ?? 0) + 0.32
+          if (u >= -0.16 && u <= end) shown = { k, u }
+        }
+        if (!shown) {
+          touch.style.visibility = 'hidden'
+          return
+        }
+        const { k, u } = shown
+        const held = k.dur ?? 0.12
+        let [x, y] = k.pos
+        if (k.to) {
+          const p = easeInOut(clamp(u / k.dur))
+          x = lerp(k.pos[0], k.to[0], p)
+          y = lerp(k.pos[1], k.to[1], p)
+        }
+        const appear = clamp((u + 0.16) / 0.16)
+        const leave = clamp((u - held) / 0.15)
+        const down = clamp(u / 0.06) * (1 - leave)
+        const o = appear * (1 - leave)
+        touch.style.visibility = o < 0.002 ? 'hidden' : 'visible'
+        touch.style.transform = `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)`
+        touchDot.style.opacity = o.toFixed(4)
+        touchDot.style.transform = `scale(${(lerp(1.3, 1, easeOut(appear)) - 0.16 * down).toFixed(4)})`
+        const rp = k.to ? 1 : clamp(u / 0.45)
+        touchRipple.style.opacity = (u >= 0 ? 0.9 * (1 - rp) : 0).toFixed(4)
+        touchRipple.style.transform = `scale(${(1 + 1.2 * easeOut(rp)).toFixed(4)})`
+      }
+
+      function drawCaptions(t) {
+        const weight = CAPTIONS.map(() => 0)
+        for (const s of STATES) {
+          const pin = prog(t, s.at + 0.18, 0.35)
+          const pout = prog(t, s.until, 0.15, linear)
+          weight[s.caption] = Math.max(weight[s.caption], pin * (1 - pout))
+          // Speak covers both the mic and the recording; don't fade out between them
+          if (s.id === 'mic')
+            weight[0] = Math.max(weight[0], pin * (1 - prog(t, STATES[1].at, 0.15, linear)))
+        }
+        captions.forEach((el, i) => {
+          const o = weight[i]
+          setFx(el, o, (1 - o) * 6, (1 - o) * 10)
+        })
+        dots.forEach((el, i) => {
+          const k = weight[i]
+          el.style.width = `${(10 + 26 * k).toFixed(2)}px`
+          el.style.background = `color-mix(in srgb, var(--accent) ${(100 * k).toFixed(1)}%, var(--fill-strong))`
+        })
+      }
+
+      // ---- Preview and render entry points -----------------------------------------------------
+
+      window.DURATION = D
+      window.seek = renderAt
+      window.showcaseReady = document.fonts.ready.then(() => {
+        build()
+        renderAt(Number(params.get('t')) || 0)
+      })
+
+      if (!RENDER) {
+        document.body.classList.add('is-preview')
+        const controls = h('div')
+        controls.id = 'controls'
+        controls.innerHTML =
+          '<button id="play">Pause</button><input id="scrub" type="range" min="0" max="16" step="0.001" value="0">' +
+          '<span id="clock" class="num">0.00 s</span><button id="theme">Dark</button>'
+        document.body.append(controls)
+        const playBtn = $('#play')
+        const scrub = $('#scrub')
+        const clock = $('#clock')
+        const themeBtn = $('#theme')
+        themeBtn.textContent = DARK ? 'Light' : 'Dark'
+
+        let playing = !params.has('t')
+        let origin = performance.now()
+        let offset = Number(params.get('t')) || 0
+        let current = offset
+
+        const fit = () => {
+          const vp = $('#viewport')
+          const s = Math.min(vp.clientWidth, vp.clientHeight) / 1440
+          frame.style.transform = `scale(${s}) translate(-50%, -50%)`
+        }
+        window.addEventListener('resize', fit)
+        fit()
+
+        const show = (t) => {
+          current = ((t % D) + D) % D
+          renderAt(current)
+          scrub.value = String(current)
+          clock.textContent = `${current.toFixed(2)} s`
+        }
+        const setPlaying = (on) => {
+          playing = on
+          offset = current
+          origin = performance.now()
+          playBtn.textContent = on ? 'Pause' : 'Play'
+        }
+        playBtn.onclick = () => setPlaying(!playing)
+        scrub.oninput = () => {
+          setPlaying(false)
+          show(Number(scrub.value))
+        }
+        themeBtn.onclick = () => {
+          const next = new URLSearchParams(location.search)
+          if (DARK) next.delete('theme')
+          else next.set('theme', 'dark')
+          next.set('t', current.toFixed(3))
+          location.search = next.toString()
+        }
+        window.addEventListener('keydown', (e) => {
+          if (e.key === ' ') {
+            e.preventDefault()
+            setPlaying(!playing)
+          } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+            setPlaying(false)
+            show(current + (e.key === 'ArrowRight' ? 1 : -1) / 60)
+          }
+        })
+
+        window.showcaseReady.then(() => {
+          setPlaying(playing)
+          const loop = (now) => {
+            if (playing) show(offset + (now - origin) / 1000)
+            requestAnimationFrame(loop)
+          }
+          requestAnimationFrame(loop)
+        })
+      }
+    </script>
+  </body>
+</html>
